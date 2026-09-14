@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="keyboard_key_text">#FF202124</color>
+    <color name="keyboard_key_hint">#FF5F6368</color>
+    <color name="keyboard_key_fill">#FFF1F3F4</color>
+    <color name="keyboard_key_pressed">#FFDADCE0</color>
 </resources>

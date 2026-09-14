@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Karuikey adaptation: minimal standalone resources for the AOSP keyboard core. -->
+<resources>
+    <style name="Keyboard">
+        <item name="themeId">ICS</item>
+        <item name="rowHeight">25%p</item>
+        <item name="horizontalGap">1%p</item>
+        <item name="verticalGap">1%p</item>
+        <item name="keyboardTopPadding">0%p</item>
+        <item name="keyboardBottomPadding">0%p</item>
+        <item name="keyboardLeftPadding">0%p</item>
+        <item name="keyboardRightPadding">0%p</item>
+        <item name="touchPositionCorrectionData">@array/touch_position_correction_data_default</item>
+        <item name="moreKeysTemplate">@xml/kbd_more_keys_keyboard_template</item>
+        <item name="iconShiftKey">@drawable/ic_keyboard_shift</item>
+        <item name="iconShiftKeyShifted">@drawable/ic_keyboard_shift</item>
+        <item name="iconDeleteKey">@drawable/ic_keyboard_delete</item>
+        <item name="iconSpaceKey">@drawable/ic_keyboard_space</item>
+        <item name="iconSpaceKeyForNumberLayout">@drawable/ic_keyboard_space</item>
+        <item name="iconEnterKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconGoKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconSearchKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconSendKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconNextKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconDoneKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconPreviousKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconTabKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconShortcutKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconShortcutKeyDisabled">@drawable/ic_keyboard_symbol</item>
+        <item name="iconLanguageSwitchKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconZwnjKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconZwjKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconEmojiActionKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconEmojiNormalKey">@drawable/ic_keyboard_symbol</item>
+    </style>
+    <style name="KeyboardView">
+        <item name="keyBackground">@drawable/keyboard_key_background</item>
+        <item name="functionalKeyBackground">@drawable/keyboard_key_background</item>
+        <item name="spacebarBackground">@drawable/keyboard_key_background</item>
+        <item name="keyLetterSize">55%</item>
+        <item name="keyLabelSize">34%</item>
+        <item name="keyLargeLetterRatio">90%</item>
+        <item name="keyHintLetterRatio">30%</item>
+        <item name="keyShiftedLetterHintRatio">30%</item>
+        <item name="keyHintLabelRatio">30%</item>
+        <item name="keyPreviewTextRatio">100%</item>
+        <item name="keyTextColor">@color/keyboard_key_text</item>
+        <item name="keyTextInactivatedColor">@color/keyboard_key_text</item>
+        <item name="functionalTextColor">@color/keyboard_key_text</item>
+        <item name="keyHintLetterColor">@color/keyboard_key_hint</item>
+        <item name="keyHintLabelColor">@color/keyboard_key_hint</item>
+        <item name="keyPreviewTextColor">@color/keyboard_key_text</item>
+        <item name="keyTypeface">normal</item>
+        <item name="keyTextShadowRadius">-1.0</item>
+        <item name="verticalCorrection">0dp</item>
+    </style>
+    <style name="MainKeyboardView" parent="KeyboardView">
+        <item name="moreKeysKeyboardLayout">@layout/more_keys_keyboard</item>
+        <item name="moreKeysKeyboardForActionLayout">@layout/more_keys_keyboard</item>
+        <item name="keyPreviewBackground">@drawable/keyboard_key_background</item>
+        <item name="keyPreviewHeight">72dp</item>
+        <item name="keyPreviewOffset">0dp</item>
+        <item name="keyPreviewShowUpAnimator">@anim/key_preview_show_up_holo</item>
+        <item name="keyPreviewDismissAnimator">@anim/key_preview_dismiss_holo</item>
+        <item name="languageOnSpacebarTextRatio">100%</item>
+        <item name="languageOnSpacebarFinalAlpha">255</item>
+        <item name="backgroundDimAlpha">0</item>
+        <item name="showMoreKeysKeyboardAtTouchedPoint">true</item>
+    </style>
+    <style name="MoreKeysKeyboardView" parent="KeyboardView" />
+
+    <dimen name="config_default_keyboard_height">205.6dp</dimen>
+    <dimen name="config_more_keys_keyboard_key_height">52.8dp</dimen>
+    <dimen name="config_language_on_spacebar_horizontal_margin">1dp</dimen>
+    <dimen name="config_more_keys_keyboard_key_horizontal_padding">8dp</dimen>
+    <dimen name="config_more_keys_keyboard_slide_allowance">64dp</dimen>
+    <dimen name="config_key_hysteresis_distance">8dp</dimen>
+    <fraction name="config_max_keyboard_height">46%p</fraction>
+    <fraction name="config_min_keyboard_height">-61.8%p</fraction>
+    <integer name="config_keyboard_grid_width">32</integer>
+    <integer name="config_keyboard_grid_height">16</integer>
+    <integer name="config_screen_metrics">0</integer>
+    <integer name="config_key_repeat_start_timeout">400</integer>
+    <integer name="config_key_repeat_interval">50</integer>
+    <integer name="config_longpress_shift_lock_timeout">1200</integer>
+    <integer name="config_accessibility_long_press_key_timeout">500</integer>
+    <bool name="config_show_more_keys_keyboard_at_touched_point">true</bool>
+    <bool name="config_key_selection_by_dragging_finger">true</bool>
+    <string-array name="keyboard_heights" translatable="false" />
+    <string-array name="touch_position_correction_data_default" translatable="false" />
+    <string-array name="phantom_sudden_move_event_device_list" translatable="false" />
+    <string-array name="predefined_layouts" translatable="false"><item>qwerty</item><item>east_slavic</item></string-array>
+    <string-array name="predefined_layout_display_names" translatable="false"><item>QWERTY</item><item>Russian</item></string-array>
+    <string-array name="subtype_locale_displayed_in_root_locale" translatable="false" />
+    <string-array name="subtype_locale_exception_keys" translatable="false" />
+    <string-array name="locale_and_extra_value_to_keyboard_layout_set_map" translatable="false" />
+    <string name="subtype_generic">Keyboard</string>
+    <string name="subtype_no_language">English</string>
+    <string name="label_done_key">Done</string>
+    <string name="label_go_key">Go</string>
+    <string name="label_next_key">Next</string>
+    <string name="label_previous_key">Previous</string>
+    <string name="label_send_key">Send</string>
+    <string name="label_search_key">Search</string>
+    <string name="label_pause_key">Pause</string>
+    <string name="label_wait_key">Wait</string>
+    <string name="spoken_auto_correct">%1$s</string>
+    <string name="spoken_auto_correct_obscured">%1$s</string>
+    <string name="spoken_use_headphones">Use headphones</string>
+    <string name="spoken_description_action_next">Next</string>
+    <string name="spoken_description_action_previous">Previous</string>
+    <string name="spoken_description_caps_lock">Caps lock</string>
+    <string name="spoken_description_delete">Delete</string>
+    <string name="spoken_description_dot">Period</string>
+    <string name="spoken_description_emoji">Emoji</string>
+    <string name="spoken_description_language_switch">Switch language</string>
+    <string name="spoken_description_mic">Microphone</string>
+    <string name="spoken_description_return">Enter</string>
+    <string name="spoken_description_search">Search</string>
+    <string name="spoken_description_settings">Settings</string>
+    <string name="spoken_description_shift">Shift</string>
+    <string name="spoken_description_shift_shifted">Shift</string>
+    <string name="spoken_description_space">Space</string>
+    <string name="spoken_description_symbols_shift">Symbols</string>
+    <string name="spoken_description_symbols_shift_shifted">Symbols</string>
+    <string name="spoken_description_tab">Tab</string>
+    <string name="spoken_description_to_alpha">Letters</string>
+    <string name="spoken_description_to_numeric">Numbers</string>
+    <string name="spoken_description_to_symbol">Symbols</string>
+    <string name="spoken_description_unknown">Unknown</string>
+    <string name="spoken_description_upper_case">Upper case</string>
+    <string name="spoken_emoji_unknown">Emoji</string>
+    <string name="spoken_letter_0049">I</string>
+    <string name="spoken_letter_0130">I</string>
+    <string name="spoken_symbol_unknown">Symbol</string>
+    <string name="announce_keyboard_hidden">Keyboard hidden</string>
+    <string name="announce_keyboard_mode">%1$s</string>
+    <string name="keyboard_mode_date">date</string>
+    <string name="keyboard_mode_date_time">date and time</string>
+    <string name="keyboard_mode_email">email</string>
+    <string name="keyboard_mode_im">instant message</string>
+    <string name="keyboard_mode_number">number</string>
+    <string name="keyboard_mode_phone">phone</string>
+    <string name="keyboard_mode_text">text</string>
+    <string name="keyboard_mode_time">time</string>
+    <string name="keyboard_mode_url">URL</string>
+    <string name="spoken_description_mode_alpha">Letters</string>
+    <string name="spoken_description_mode_phone">Phone</string>
+    <string name="spoken_description_mode_phone_shift">Phone symbols</string>
+    <string name="spoken_description_mode_symbol">Symbols</string>
+    <string name="spoken_description_mode_symbol_shift">Shifted symbols</string>
+    <string name="spoken_description_shiftmode_locked">Caps lock</string>
+    <string name="spoken_description_shiftmode_on">Shift on</string>
+    <string name="spoken_close_more_keys_keyboard">More keys closed</string>
+    <string name="spoken_open_more_keys_keyboard">More keys opened</string>
+</resources>

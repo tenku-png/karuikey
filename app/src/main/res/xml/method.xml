@@ -1,2 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<input-method xmlns:android="http://schemas.android.com/apk/res/android" />
+<!--
+    The subtype model follows AOSP LatinIME's method.xml, limited to the two
+    offline layouts currently supported by Karuikey.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="tenkupng.karuikey.MainActivity">
+    <subtype
+        android:label="@string/subtype_english"
+        android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype
+        android:label="@string/subtype_russian"
+        android:imeSubtypeLocale="ru_RU"
+        android:languageTag="ru-RU"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+</input-method>

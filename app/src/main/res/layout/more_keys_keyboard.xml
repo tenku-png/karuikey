@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Karuikey adaptation: smallest container required by the AOSP long-press path. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/content"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+    <com.android.inputmethod.keyboard.MoreKeysKeyboardView
+        android:id="@+id/more_keys_keyboard_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</FrameLayout>

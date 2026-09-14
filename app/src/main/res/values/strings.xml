@@ -3,4 +3,6 @@
     <string name="settings_description">Keyboard settings</string>
     <string name="open_keyboard_settings">Open keyboard settings</string>
     <string name="show_keyboard_picker">Show keyboard picker</string>
+    <string name="subtype_english">English</string>
+    <string name="subtype_russian">Russian</string>
 </resources>
