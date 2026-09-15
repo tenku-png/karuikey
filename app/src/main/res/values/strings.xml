@@ -62,6 +62,14 @@
     <string name="clipboard_delete">Delete clipboard item</string>
     <string name="clipboard_clear_all">Clear all</string>
     <string name="clipboard_back">Back to keyboard</string>
+    <string name="clipboard_edit">Edit clipboard history</string>
+    <string name="clipboard_delete_selected">Delete selected clipboard items</string>
+    <string name="clipboard_select_title">Select clipboard items</string>
+    <string name="clipboard_select_item">Select clipboard item</string>
+    <string name="clipboard_history_status">%1$d saved</string>
+    <string name="clipboard_history_empty">No saved clipboard items</string>
+    <string name="clipboard_history_off">History off</string>
+    <string name="clipboard_history_off_empty">Clipboard history is off. Current copied text is still available here.</string>
     <string name="language_switch">Switch language</string>
     <string name="keyboard_settings_note">Changes apply when the keyboard opens again.</string>
     <string name="appearance_note">Appearance changes refresh the current keyboard when possible; otherwise they apply the next time it opens.</string>

@@ -376,6 +376,12 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         return Constants.isValidCoordinate(y) ? mKeyDetector.getTouchY(y) : y;
     }
 
+    /** Returns the key at view coordinates for small host-specific gestures. */
+    @Nullable
+    public Key detectKeyForTouch(final int x, final int y) {
+        return mKeyDetector.detectHitKey(x, y);
+    }
+
     /**
      * Attaches a keyboard to this view. The keyboard can be switched at any time and the
      * view will re-layout itself to accommodate the keyboard.

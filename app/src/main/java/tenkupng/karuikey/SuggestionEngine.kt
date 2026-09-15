@@ -45,7 +45,7 @@ object SuggestionEngine {
         arrayOf("you", "the", "very"),
         arrayOf("are", "do", "you"),
         arrayOf("is", "you", "when"),
-        arrayOf("morning", "work", "to"),
+        arrayOf("this", "that", "the"),
         arrayOf("you", "the", "that")
     )
     private val RUSSIAN_CONTEXT_PREVIOUS = arrayOf("спасибо", "привет", "как", "добрый")

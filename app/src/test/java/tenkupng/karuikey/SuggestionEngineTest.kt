@@ -1,9 +1,24 @@
 package tenkupng.karuikey
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SuggestionEngineTest {
+    @Test
+    fun prefixSuggestionsRemainAvailableAsWordsGrowInBothLanguages() {
+        val suggestions = mutableListOf<String>()
+
+        listOf("h", "he", "hel").forEach { prefix ->
+            SuggestionEngine.fill("en_US", prefix, suggestions)
+            assertTrue(suggestions.isNotEmpty())
+        }
+        listOf("п", "пр", "при").forEach { prefix ->
+            SuggestionEngine.fill("ru_RU", prefix, suggestions)
+            assertTrue(suggestions.isNotEmpty())
+        }
+    }
+
     @Test
     fun returnsAtMostThreeLocaleSpecificPrefixMatchesInStableOrder() {
         val english = mutableListOf<String>()
@@ -36,6 +51,17 @@ class SuggestionEngineTest {
 
         SuggestionEngine.fill("en_US", "how", "", suggestions)
         assertEquals(listOf("are", "do"), suggestions.take(2))
+    }
+
+    @Test
+    fun contextChangesTheOrderOfTheSamePrefixCandidates() {
+        val suggestions = mutableListOf<String>()
+
+        SuggestionEngine.fill("en_US", "thank", "th", suggestions)
+        assertEquals(listOf("the", "that", "this"), suggestions)
+
+        SuggestionEngine.fill("en_US", "good", "th", suggestions)
+        assertEquals(listOf("this", "that", "the"), suggestions)
     }
 
     @Test

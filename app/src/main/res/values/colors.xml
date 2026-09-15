@@ -11,7 +11,7 @@
     <color name="keyboard_light_secondary_text">#FF45464F</color>
     <color name="keyboard_light_functional_text">#FF1A1B20</color>
     <color name="keyboard_light_disabled_text">#FF777780</color>
-    <color name="keyboard_light_popup">#FFFFFFFF</color>
+    <color name="keyboard_light_popup">#FFF1F3FA</color>
 
     <color name="keyboard_dark_surface">#FF121318</color>
     <color name="keyboard_dark_key">#FF22242B</color>
@@ -24,5 +24,5 @@
     <color name="keyboard_dark_secondary_text">#FFC7C6D0</color>
     <color name="keyboard_dark_functional_text">#FFE5E1E6</color>
     <color name="keyboard_dark_disabled_text">#FF9A98A4</color>
-    <color name="keyboard_dark_popup">#FF22242B</color>
+    <color name="keyboard_dark_popup">#FF30323B</color>
 </resources>

@@ -13,6 +13,8 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -50,7 +52,11 @@ fun KaruikeyComposeTheme(
     }
     MaterialTheme(
         colorScheme = colors,
-        typography = Typography(),
+        typography = Typography().copy(
+            titleLarge = TextStyle(fontWeight = FontWeight.SemiBold),
+            headlineSmall = TextStyle(fontWeight = FontWeight.SemiBold),
+            displaySmall = TextStyle(fontWeight = FontWeight.SemiBold)
+        ),
         shapes = Shapes(
             small = RoundedCornerShape(12.dp),
             medium = RoundedCornerShape(20.dp),

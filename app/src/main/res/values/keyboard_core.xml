@@ -44,6 +44,10 @@
         <item name="keyHintLetterRatio">30%</item>
         <item name="keyShiftedLetterHintRatio">30%</item>
         <item name="keyHintLabelRatio">30%</item>
+        <item name="keyHintLetterPadding">@dimen/config_key_hint_letter_padding</item>
+        <item name="keyShiftedLetterHintPadding">@dimen/config_key_shifted_letter_hint_padding</item>
+        <item name="keyLabelOffCenterRatio">-175%</item>
+        <item name="keyHintLabelOffCenterRatio">200%</item>
         <item name="keyPreviewTextRatio">100%</item>
         <item name="keyTextColor">?attr/keyboardTextColor</item>
         <item name="keyTextInactivatedColor">?attr/keyboardDisabledTextColor</item>
@@ -59,7 +63,7 @@
     <style name="MainKeyboardView" parent="KeyboardView">
         <item name="moreKeysKeyboardLayout">@layout/more_keys_keyboard</item>
         <item name="moreKeysKeyboardForActionLayout">@layout/more_keys_keyboard</item>
-        <item name="keyPreviewBackground">@drawable/keyboard_key_background</item>
+        <item name="keyPreviewBackground">@drawable/keyboard_key_preview_background</item>
         <item name="keyPreviewHeight">72dp</item>
         <item name="keyPreviewOffset">0dp</item>
         <item name="keyPreviewShowUpAnimator">@anim/key_preview_show_up_holo</item>
@@ -84,6 +88,8 @@
     <dimen name="config_more_keys_keyboard_key_height">52.8dp</dimen>
     <dimen name="config_language_on_spacebar_horizontal_margin">1dp</dimen>
     <dimen name="config_more_keys_keyboard_key_horizontal_padding">8dp</dimen>
+    <dimen name="config_key_hint_letter_padding">6dp</dimen>
+    <dimen name="config_key_shifted_letter_hint_padding">6dp</dimen>
     <dimen name="config_more_keys_keyboard_slide_allowance">64dp</dimen>
     <dimen name="config_key_hysteresis_distance">8dp</dimen>
     <fraction name="config_max_keyboard_height">46%p</fraction>

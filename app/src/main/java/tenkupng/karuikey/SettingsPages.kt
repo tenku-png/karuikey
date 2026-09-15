@@ -15,7 +15,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -31,7 +30,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -78,7 +76,7 @@ fun AppearancePage(
             }
         }
         SettingsGroup {
-            SettingsSwitchRow(painterResource(R.drawable.ic_settings_palette), "Dynamic colors",
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Dynamic colors",
                 if (Build.VERSION.SDK_INT >= 31) "Use the Android Material You palette" else "Requires Android 12 or newer",
                 dynamic, Build.VERSION.SDK_INT >= 31) {
                 dynamic = it
@@ -88,7 +86,7 @@ fun AppearancePage(
         }
         SectionLabel("Keyboard surface")
         SettingsGroup {
-            SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_language), "Transparency",
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Transparency",
                 "Let the app behind show through the keyboard", transparency) {
                 transparency = it
                 KaruikeyPreferences.setTransparencyEnabled(context, it)
@@ -108,7 +106,7 @@ fun AppearancePage(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             GroupDivider()
-            SettingsSwitchRow(painterResource(R.drawable.ic_settings_palette), "Background blur",
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Background blur",
                 "Unavailable for this keyboard window", false, false) { }
         }
         SettingsGroup {
@@ -126,12 +124,12 @@ fun AppearancePage(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             GroupDivider()
-            SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_settings), "Toolbar", "Show clipboard and settings actions",
+            SettingsSwitchRow(KaruikeySymbol.SETTINGS, "Toolbar", "Show clipboard and settings actions",
                 KaruikeyPreferences.toolbarEnabled(context)) {
                 KaruikeyPreferences.setToolbarEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_enter), "Key preview", "Show the pressed key preview",
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Key preview", "Show the pressed key preview",
                 KaruikeyPreferences.keyPreviewEnabled(context)) {
                 KaruikeyPreferences.setKeyPreviewEnabled(context, it)
             }
@@ -150,7 +148,7 @@ fun LanguagesPage(refreshVersion: Int, contentPadding: Modifier, onNavigate: (Se
         SectionLabel("Enabled")
         SettingsGroup {
             catalog.filter { enabledIds.contains(it.id) }.forEachIndexed { index, language ->
-                SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_language),
+                SettingsSwitchRow(KaruikeySymbol.LANGUAGE,
                     language.displayName,
                     "${language.nativeName} · ${language.layoutName}",
                     true) { checked ->
@@ -185,13 +183,13 @@ fun AddLanguagePage(refreshVersion: Int, contentPadding: Modifier, onAdded: () -
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Search languages") },
-            leadingIcon = { Icon(painterResource(R.drawable.ic_keyboard_search), contentDescription = null) },
+            leadingIcon = { MaterialSymbolIcon(KaruikeySymbol.SEARCH, contentDescription = null) },
             singleLine = true
         )
         SectionLabel("Available")
         SettingsGroup {
             available.forEachIndexed { index, language ->
-                SettingsRow(painterResource(R.drawable.ic_keyboard_language), language.displayName,
+                SettingsRow(KaruikeySymbol.LANGUAGE, language.displayName,
                     "${language.nativeName} · ${language.layoutName}") {
                     KaruikeyPreferences.setLanguageEnabled(context, language, true)
                     onAdded()
@@ -217,13 +215,13 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Typing assistance")
         SettingsGroup {
-            SettingsSwitchRow(painterResource(R.drawable.ic_settings_palette), "Suggestions",
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Suggestions",
                 "Up to three offline common-word suggestions", suggestions) {
                 suggestions = it
                 KaruikeyPreferences.setSuggestionsEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_settings), "Auto-capitalization",
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Auto-capitalization",
                 "Use normal sentence and word capitalization flags", autoCapitalization) {
                 autoCapitalization = it
                 KaruikeyPreferences.setAutoCapitalizationEnabled(context, it)
@@ -247,7 +245,7 @@ fun ClipboardPage(refreshVersion: Int, contentPadding: Modifier) {
         Text("Clipboard history is stored only on this device and automatically deleted after the selected period.",
             style = MaterialTheme.typography.bodyLarge)
         SettingsGroup {
-            SettingsSwitchRow(painterResource(R.drawable.ic_keyboard_clipboard), "Clipboard history",
+            SettingsSwitchRow(KaruikeySymbol.CONTENT_PASTE, "Clipboard history",
                 if (enabled) "Opt-in local text history" else "Off by default; current clipboard remains explicit-only",
                 enabled) {
                 enabled = it
@@ -257,7 +255,7 @@ fun ClipboardPage(refreshVersion: Int, contentPadding: Modifier) {
             ListItem(
                 headlineContent = { Text("Retention") },
                 supportingContent = { Text(retentionLabel(retention)) },
-                leadingContent = { Icon(painterResource(R.drawable.ic_keyboard_clipboard), contentDescription = null) },
+                leadingContent = { MaterialSymbolIcon(KaruikeySymbol.CONTENT_PASTE, contentDescription = null) },
                 trailingContent = {
                     Button(onClick = { retentionMenu = true }, enabled = enabled) { Text("Change") }
                     DropdownMenu(expanded = retentionMenu, onDismissRequest = { retentionMenu = false }) {
@@ -297,7 +295,7 @@ fun ClipboardPage(refreshVersion: Int, contentPadding: Modifier) {
                 modifier = Modifier.padding(20.dp))
         }
         Button(onClick = { clearConfirmation = true }, modifier = Modifier.fillMaxWidth()) {
-            Icon(painterResource(R.drawable.ic_keyboard_delete), contentDescription = null)
+            MaterialSymbolIcon(KaruikeySymbol.DELETE_SWEEP, contentDescription = null)
             Text("Clear clipboard history", modifier = Modifier.padding(start = 8.dp))
         }
     }
@@ -395,9 +393,9 @@ fun AboutPage(contentPadding: Modifier, onLicenses: () -> Unit) {
         Text("Karuikey", style = MaterialTheme.typography.displaySmall)
         Text("Version ${packageInfo.versionName ?: ""}", style = MaterialTheme.typography.bodyLarge)
         SettingsGroup {
-            SettingsRow(painterResource(R.drawable.ic_settings_info), "Privacy", "Offline by default. No input logging, analytics, or tracking.") { }
+            SettingsRow(KaruikeySymbol.INFO, "Privacy", "Offline by default. No input logging, analytics, or tracking.") { }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_settings_info), "Open source", "GPL-3.0 with adapted AOSP LatinIME code under Apache 2.0.") { }
+            SettingsRow(KaruikeySymbol.INFO, "Open source", "GPL-3.0 with adapted AOSP LatinIME code under Apache 2.0.") { }
         }
         Button(onClick = onLicenses, modifier = Modifier.fillMaxWidth()) {
             Text("View GPL license and NOTICE")
@@ -413,8 +411,11 @@ fun LicensePage(contentPadding: Modifier) {
     Column(
         modifier = contentPadding
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(
+                horizontal = KaruikeySettingsTokens.pageHorizontal,
+                vertical = KaruikeySettingsTokens.pageVertical
+            ),
+        verticalArrangement = Arrangement.spacedBy(KaruikeySettingsTokens.groupGap)
     ) {
         Text("GPL-3.0", style = MaterialTheme.typography.headlineSmall)
         androidx.compose.foundation.text.selection.SelectionContainer {

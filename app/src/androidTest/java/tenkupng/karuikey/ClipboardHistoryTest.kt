@@ -31,6 +31,7 @@ class ClipboardHistoryTest {
     @Test
     fun historyIsOptInAndSensitiveTextIsRejected() {
         assertFalse(ClipboardHistory.add(context, "private", 0))
+        assertTrue(ClipboardHistory.items(context).isEmpty())
 
         ClipboardHistory.setEnabled(context, true)
         assertFalse(ClipboardHistory.add(context, "password", 0, sensitive = true))

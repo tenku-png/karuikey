@@ -9,6 +9,17 @@ data class ClipboardHistoryItem(
     val timestamp: Long
 )
 
+internal fun clipboardPanelItems(
+    historyEnabled: Boolean,
+    currentText: String?,
+    history: List<ClipboardHistoryItem>
+): List<ClipboardHistoryItem> {
+    if (historyEnabled) return history
+    return currentText?.takeIf { it.isNotEmpty() }?.let {
+        listOf(ClipboardHistoryItem(it, 0L))
+    } ?: emptyList()
+}
+
 object ClipboardHistory {
     const val RETENTION_HOUR = 1
     const val RETENTION_DAY = 24

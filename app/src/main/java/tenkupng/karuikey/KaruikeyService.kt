@@ -20,16 +20,19 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
+import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import java.util.HashSet
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.android.inputmethod.accessibility.AccessibilityUtils
 import com.android.inputmethod.compat.InputMethodSubtypeCompatUtils
 import com.android.inputmethod.event.Event
 import com.android.inputmethod.keyboard.KeyboardActionListener
+import com.android.inputmethod.keyboard.Key
 import com.android.inputmethod.keyboard.KeyboardLayoutSet
 import com.android.inputmethod.keyboard.KeyboardSwitcher
 import com.android.inputmethod.keyboard.MainKeyboardView
@@ -48,13 +51,15 @@ class KaruikeyService : InputMethodService() {
     private var loadedWidth = 0
     private var loadedHeight = 0
     private var preferencesListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
-    private val composingWord = StringBuilder(20)
+    private val suggestionSession = SuggestionSession()
     private val suggestionResults = ArrayList<String>(3)
     private var suggestionsAllowed = false
     private var gestureAllowed = false
     private var expectedCursorPosition = -1
-    // Session-only context. It is never persisted or logged and is cleared with the editor.
-    private var previousWord: String? = null
+    private var expectedSelectionEnd = -1
+    private var composingStart = -1
+    private var editorUpdateDepth = 0
+    private var pendingEditorSelection = -1
     private var clipboardListenerRegistered = false
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
         capturePrimaryClipboard()
@@ -99,6 +104,7 @@ class KaruikeyService : InputMethodService() {
             y: Int,
             isKeyRepeat: Boolean
         ) {
+            pendingEditorSelection = -1
             if (primaryCode == Constants.CODE_LANGUAGE_SWITCH) {
                 cycleLanguage()
                 return
@@ -106,33 +112,40 @@ class KaruikeyService : InputMethodService() {
             val connection = currentInputConnection
             when (primaryCode) {
                 Constants.CODE_DELETE -> {
-                    connection?.deleteSurroundingText(1, 0)
-                    deleteLastCodePoint()
+                    handleBackspace(connection)
                 }
                 Constants.CODE_SPACE -> {
-                    connection?.commitText(" ", 1)
-                    if (expectedCursorPosition >= 0) expectedCursorPosition++
-                    rememberCompletedWord()
-                    clearCurrentWord()
+                    commitSeparator(connection, " ")
                 }
                 Constants.CODE_ENTER,
                 Constants.CODE_SHIFT_ENTER -> if (connection != null) {
+                    finishEditorComposition(connection)
                     sendEnter(connection)
                     clearComposingWord()
                 }
                 Constants.CODE_SHIFT,
                 Constants.CODE_CAPSLOCK -> Unit
-                Constants.CODE_SWITCH_ALPHA_SYMBOL -> clearCurrentWord()
+                Constants.CODE_SWITCH_ALPHA_SYMBOL -> {
+                    finishEditorComposition(connection)
+                    clearCurrentWord()
+                }
                 else -> if (primaryCode > 0) {
                     val text = StringUtils.newSingleCodePointString(primaryCode)
-                    connection?.commitText(text, 1)
-                    if (Constants.isLetterCode(primaryCode)) {
-                        if (suggestionsAllowed) composingWord.append(text)
+                    if (Constants.isLetterCode(primaryCode) && suggestionsAllowed) {
+                        appendToComposition(connection, text)
                     } else {
-                        rememberCompletedWord()
-                        clearCurrentWord()
+                        finishEditorComposition(connection)
+                        if (expectedCursorPosition >= 0) {
+                            expectedCursorPosition += text.length
+                            expectedSelectionEnd = expectedCursorPosition
+                        }
+                        duringEditorUpdate { connection?.commitText(text, 1) }
+                        if (Constants.isLetterCode(primaryCode)) {
+                            clearCurrentWord()
+                        } else {
+                            completeCurrentWord()
+                        }
                     }
-                    if (expectedCursorPosition >= 0) expectedCursorPosition += text.length
                 }
             }
             keyboardSwitcher?.onEvent(
@@ -143,7 +156,9 @@ class KaruikeyService : InputMethodService() {
         }
 
         override fun onTextInput(text: String) {
-            currentInputConnection?.commitText(text, 1)
+            val connection = currentInputConnection
+            finishEditorComposition(connection)
+            duringEditorUpdate { connection?.commitText(text, 1) }
             clearComposingWord()
             keyboardSwitcher?.onEvent(
                 Event.createSoftwareTextEvent(text, Constants.CODE_OUTPUT_TEXT),
@@ -155,12 +170,16 @@ class KaruikeyService : InputMethodService() {
             if (!gestureAllowed) return
             val locale = currentLanguage?.locale ?: return
             val candidate = SuggestionEngine.findGestureCandidate(
-                locale, keyboardSwitcher?.getKeyboard(), batchPointers, previousWord
+                locale, keyboardSwitcher?.getKeyboard(), batchPointers, suggestionSession.previousWord
             ) ?: return
-            currentInputConnection?.commitText(candidate, 1)
-            if (expectedCursorPosition >= 0) expectedCursorPosition += candidate.length
-            rememberCompletedWord(candidate)
-            clearCurrentWord()
+            finishEditorComposition(currentInputConnection)
+            duringEditorUpdate { currentInputConnection?.commitText(candidate, 1) }
+            if (expectedCursorPosition >= 0) {
+                expectedCursorPosition += candidate.length
+                expectedSelectionEnd = expectedCursorPosition
+            }
+            suggestionSession.completeWord(candidate)
+            clearSuggestions()
             keyboardSwitcher?.requestUpdatingShiftState(
                 autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
             )
@@ -193,6 +212,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         editorInfo = attribute
@@ -203,7 +223,9 @@ class KaruikeyService : InputMethodService() {
         suggestionsAllowed = suggestionsEnabledFor(attribute)
         gestureAllowed = gestureEnabledFor(attribute, currentLanguage!!.locale)
         expectedCursorPosition = attribute.initialSelStart
+        expectedSelectionEnd = attribute.initialSelEnd
         clearComposingWord()
+        composingStart = -1
         keyboardSwitcher?.resetForNewInput()
     }
 
@@ -236,13 +258,31 @@ class KaruikeyService : InputMethodService() {
                 autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
             )
         }
-        if (suggestionsAllowed) {
-            if (newSelStart != newSelEnd ||
-                (expectedCursorPosition >= 0 && newSelStart != expectedCursorPosition)
+        if (!suggestionsAllowed && editorUpdateDepth == 0) {
+            expectedCursorPosition = newSelStart
+            expectedSelectionEnd = newSelEnd
+        }
+        if (suggestionsAllowed && editorUpdateDepth == 0) {
+            if (pendingEditorSelection >= 0) {
+                if (newSelStart == pendingEditorSelection && newSelEnd == pendingEditorSelection) {
+                    return
+                }
+                pendingEditorSelection = -1
+            }
+            val compositionStillActive = composingStart >= 0 &&
+                newSelStart == newSelEnd &&
+                newSelStart == expectedCursorPosition &&
+                (candidatesStart < 0 || candidatesStart == composingStart) &&
+                (candidatesEnd < 0 || candidatesEnd == expectedCursorPosition)
+            if (!compositionStillActive &&
+                (newSelStart != newSelEnd ||
+                    (expectedCursorPosition >= 0 && newSelStart != expectedCursorPosition) ||
+                    composingStart >= 0)
             ) {
                 clearComposingWord()
             }
             expectedCursorPosition = newSelStart
+            expectedSelectionEnd = newSelEnd
             refreshSuggestions()
         }
     }
@@ -268,16 +308,19 @@ class KaruikeyService : InputMethodService() {
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
-        super.onFinishInputView(finishingInput)
         keyboardSwitcher?.closing()
-        clearComposingWord()
+        if (finishingInput) clearComposingWord()
+        super.onFinishInputView(finishingInput)
     }
 
     override fun onFinishInput() {
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
+        clearComposingWord()
         super.onFinishInput()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.resetForNewInput()
@@ -289,19 +332,20 @@ class KaruikeyService : InputMethodService() {
         suggestionsAllowed = false
         gestureAllowed = false
         expectedCursorPosition = -1
-        clearComposingWord()
+        expectedSelectionEnd = -1
     }
 
     override fun onWindowHidden() {
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         super.onWindowHidden()
         keyboardSwitcher?.onHideWindow()
         keyboardSwitcher?.closing()
-        clearComposingWord()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
@@ -312,6 +356,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     override fun onDestroy() {
+        inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
@@ -463,28 +508,26 @@ class KaruikeyService : InputMethodService() {
         }
     }
 
-    private fun deleteLastCodePoint() {
-        if (composingWord.isEmpty()) return
-        val last = Character.codePointBefore(composingWord, composingWord.length)
-        val charCount = Character.charCount(last)
-        composingWord.setLength(composingWord.length - charCount)
-        if (expectedCursorPosition >= charCount) expectedCursorPosition -= charCount
-    }
-
     private fun clearComposingWord() {
-        previousWord = null
+        finishEditorComposition(currentInputConnection)
+        suggestionSession.clear()
+        pendingEditorSelection = -1
         clearCurrentWord()
     }
 
     private fun clearCurrentWord() {
-        composingWord.setLength(0)
+        suggestionSession.clearCurrentWord()
+        clearSuggestions()
+    }
+
+    private fun clearSuggestions() {
         suggestionResults.clear()
         inputView?.setSuggestions(suggestionResults)
     }
 
-    private fun rememberCompletedWord(word: String = composingWord.toString()) {
-        if (word.isBlank()) return
-        previousWord = word
+    private fun completeCurrentWord() {
+        suggestionSession.completeCurrentWord()
+        clearSuggestions()
     }
 
     private fun refreshSuggestions() {
@@ -493,9 +536,8 @@ class KaruikeyService : InputMethodService() {
             return
         }
         SuggestionEngine.fill(
-            currentLanguage?.locale ?: "en",
-            previousWord,
-            composingWord,
+            currentLanguage?.locale ?: "en", suggestionSession.previousWord,
+            suggestionSession.prefix,
             suggestionResults
         )
         inputView?.setSuggestions(suggestionResults)
@@ -503,19 +545,122 @@ class KaruikeyService : InputMethodService() {
 
     private fun commitSuggestion(candidate: String) {
         val connection = currentInputConnection ?: return
-        if (composingWord.isEmpty()) return
-        val replacement = if (composingWord[0].isUpperCase() && candidate.isNotEmpty()) {
+        val prefix = suggestionSession.prefix
+        val replacingComposition = composingStart >= 0 && prefix.isNotEmpty()
+        val committingNextWord = prefix.isEmpty() && suggestionSession.previousWord != null
+        if (!replacingComposition && !committingNextWord) return
+        val shouldCapitalize = (prefix.isNotEmpty() && prefix[0].isUpperCase()) ||
+            (prefix.isEmpty() && autoCapsMode() != 0)
+        val replacement = if (shouldCapitalize && candidate.isNotEmpty()) {
             candidate[0].uppercaseChar().toString() + candidate.substring(1)
         } else {
             candidate
         }
-        connection.deleteSurroundingText(composingWord.length, 0)
-        connection.commitText(replacement, 1)
-        expectedCursorPosition += replacement.length - composingWord.length
-        composingWord.setLength(0)
-        composingWord.append(replacement)
-        suggestionResults.clear()
-        inputView?.setSuggestions(suggestionResults)
+        if (replacingComposition) {
+            expectedCursorPosition = composingStart + replacement.length
+            expectedSelectionEnd = expectedCursorPosition
+            duringEditorUpdate { connection.setComposingText(replacement, 1) }
+            finishEditorComposition(connection)
+        } else {
+            if (expectedCursorPosition >= 0) {
+                expectedCursorPosition += replacement.length
+                expectedSelectionEnd = expectedCursorPosition
+            }
+            duringEditorUpdate { connection.commitText(replacement, 1) }
+        }
+        suggestionSession.completeWord(replacement)
+        clearSuggestions()
+    }
+
+    private fun appendToComposition(connection: InputConnection?, text: String) {
+        if (connection == null) return
+        if (composingStart < 0) composingStart = expectedCursorPosition.coerceAtLeast(0)
+        suggestionSession.append(text)
+            expectedCursorPosition = composingStart + suggestionSession.prefix.length
+            expectedSelectionEnd = expectedCursorPosition
+        duringEditorUpdate { connection.setComposingText(suggestionSession.prefix, 1) }
+    }
+
+    private fun handleBackspace(connection: InputConnection?) {
+        if (composingStart >= 0 && suggestionSession.prefix.isNotEmpty()) {
+            val start = composingStart
+            val removed = suggestionSession.deleteLastCodePoint()
+            if (suggestionSession.prefix.isEmpty()) {
+                finishEditorComposition(connection)
+                expectedCursorPosition = start
+                expectedSelectionEnd = start
+            } else {
+                expectedCursorPosition = start + suggestionSession.prefix.length
+                expectedSelectionEnd = expectedCursorPosition
+                duringEditorUpdate { connection?.setComposingText(suggestionSession.prefix, 1) }
+            }
+            if (removed > 0) clearSuggestions()
+            return
+        }
+        duringEditorUpdate { connection?.deleteSurroundingText(1, 0) }
+        suggestionSession.clear()
+        composingStart = -1
+        if (expectedCursorPosition > 0) {
+            expectedCursorPosition--
+            expectedSelectionEnd = expectedCursorPosition
+        }
+        clearSuggestions()
+    }
+
+    private fun commitSeparator(connection: InputConnection?, separator: String) {
+        finishEditorComposition(connection)
+        if (expectedCursorPosition >= 0) {
+            pendingEditorSelection = expectedCursorPosition
+            expectedCursorPosition += separator.length
+            expectedSelectionEnd = expectedCursorPosition
+        }
+        duringEditorUpdate { connection?.commitText(separator, 1) }
+        suggestionSession.completeCurrentWord()
+        clearSuggestions()
+    }
+
+    private fun moveCursorBy(steps: Int) {
+        if (steps == 0 || expectedCursorPosition < 0 ||
+            expectedSelectionEnd != expectedCursorPosition
+        ) return
+        val connection = currentInputConnection ?: return
+        var position = expectedCursorPosition
+        val direction = if (steps < 0) -1 else 1
+        for (stepIndex in 0 until kotlin.math.abs(steps)) {
+            val nearby = if (direction < 0) {
+                connection.getTextBeforeCursor(2, 0)
+            } else {
+                connection.getTextAfterCursor(2, 0)
+            } ?: break
+            val width = if (direction < 0) {
+                SpaceCursor.lastCodePointWidth(nearby)
+            } else {
+                SpaceCursor.firstCodePointWidth(nearby)
+            }
+            if (width == 0) break
+            position += direction * width
+            if (position < 0) break
+            var moved = false
+            duringEditorUpdate { moved = connection.setSelection(position, position) }
+            if (!moved) break
+            expectedCursorPosition = position
+            expectedSelectionEnd = position
+        }
+    }
+
+    private fun finishEditorComposition(connection: InputConnection?) {
+        if (composingStart < 0) return
+        duringEditorUpdate { connection?.finishComposingText() }
+        composingStart = -1
+    }
+
+    private inline fun duringEditorUpdate(block: () -> Unit) {
+        editorUpdateDepth++
+        try {
+            block()
+        } finally {
+            editorUpdateDepth--
+        }
     }
 
     private fun sendEnter(connection: InputConnection) {
@@ -586,12 +731,17 @@ class KaruikeyService : InputMethodService() {
         }
         val sensitive = editorInfo?.let(::isSensitiveInput) ?: true
         if (!sensitive && text != null) ClipboardHistory.add(this, text)
-        val history = if (!sensitive && ClipboardHistory.enabled(this)) {
-            ClipboardHistory.items(this)
-        } else {
-            emptyList()
-        }
-        view.showClipboard(text, message, history)
+        val historyEnabled = !sensitive && ClipboardHistory.enabled(this)
+        val history = if (historyEnabled) ClipboardHistory.items(this) else emptyList()
+        view.showClipboard(
+            clipboardPanelItems(historyEnabled, text, history),
+            if (!historyEnabled && text == null && clip == null) {
+                R.string.clipboard_history_off_empty
+            } else {
+                message
+            },
+            historyEnabled
+        )
     }
 
     private fun capturePrimaryClipboard() {
@@ -654,42 +804,66 @@ class KaruikeyService : InputMethodService() {
         private val keyboardContent = FrameLayout(keyboardContext)
         private val utilityToolbar = LinearLayout(keyboardContext)
         private val suggestionToolbar = LinearLayout(keyboardContext)
-        private var clipboardText: String? = null
+        private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
+        private var clipboardHistory: List<ClipboardHistoryItem> = emptyList()
+        private var clipboardEmptyMessage = R.string.clipboard_history_empty
+        private val clipboardSelected = HashSet<Long>()
+        private var clipboardEditMode = false
+        private var spaceCursorKey: Key? = null
+        private var spaceCursorLastX = 0
+        private var spaceCursorDistance = 0
+        private var spaceCursorActive = false
+        private val spaceCursorTrigger = dp(12)
+        private val spaceCursorStep = dp(24)
         private val clipboardPanel = LinearLayout(keyboardContext).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(8), dp(16), dp(12))
             setBackgroundColor(appearance.keyboardBackground)
             visibility = View.GONE
         }
-        private val clipboardPreview = TextView(keyboardContext).apply {
+        private val clipboardHeaderTitle = TextView(keyboardContext).apply {
+            text = getString(R.string.toolbar_clipboard)
             textSize = 16f
-            maxLines = 3
-            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL
             setTextColor(appearance.primaryText)
-            setPadding(0, dp(8), 0, dp(4))
+            setPadding(dp(12), 0, 0, 0)
         }
-        private val clipboardPaste = TextView(keyboardContext).apply {
-            text = getString(R.string.clipboard_paste)
-            textSize = 14f
-            gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-            contentDescription = getString(R.string.clipboard_paste)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            setTextColor(appearance.primaryText)
+        private val clipboardStatus = TextView(keyboardContext).apply {
+            textSize = 12f
+            gravity = Gravity.CENTER_VERTICAL
+            setTextColor(appearance.secondaryText)
+            setPadding(dp(8), 0, dp(4), 0)
+        }
+        private val clipboardEdit = ImageButton(keyboardContext).apply {
+            contentDescription = getString(R.string.clipboard_edit)
+            setImageResource(R.drawable.ic_settings_edit)
+            imageTintList = ColorStateList.valueOf(appearance.primaryText)
+            setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
+            setOnClickListener {
+                clipboardEditMode = !clipboardEditMode
+                clipboardSelected.clear()
+                renderClipboardHistory()
+            }
+        }
+        private val clipboardDeleteSelected = ImageButton(keyboardContext).apply {
+            contentDescription = getString(R.string.clipboard_delete_selected)
+            setImageResource(R.drawable.ic_settings_delete)
+            imageTintList = ColorStateList.valueOf(appearance.primaryText)
             setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
             visibility = View.GONE
             setOnClickListener {
-                val text = clipboardText
-                if (!text.isNullOrEmpty()) {
-                    currentInputConnection?.commitText(text, 1)
-                    clearComposingWord()
+                clipboardSelected.toList().forEach {
+                    ClipboardHistory.remove(this@KaruikeyService, it)
                 }
-                hideClipboardPanel()
+                clipboardSelected.clear()
+                clipboardEditMode = false
+                clipboardHistory = ClipboardHistory.items(this@KaruikeyService)
+                renderClipboardHistory()
             }
         }
-        private val clipboardItems = LinearLayout(keyboardContext).apply {
-            orientation = LinearLayout.VERTICAL
+        private val clipboardItems = GridLayout(keyboardContext).apply {
+            orientation = GridLayout.HORIZONTAL
+            useDefaultMargins = false
         }
         private val clipboardHistoryScroll = ScrollView(keyboardContext).apply {
             addView(clipboardItems, LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
@@ -706,10 +880,17 @@ class KaruikeyService : InputMethodService() {
             visibility = View.GONE
             setOnClickListener {
                 ClipboardHistory.clear(this@KaruikeyService)
-                showClipboard(clipboardText, clipboardEmptyMessage, emptyList())
+                clipboardSelected.clear()
+                clipboardEditMode = false
+                clipboardHistory = emptyList()
+                renderClipboardHistory()
             }
         }
-        private var clipboardEmptyMessage = R.string.clipboard_empty
+        private val clipboardManageBar = LinearLayout(keyboardContext).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+        }
         private val candidateViews = Array(3) {
             TextView(keyboardContext).apply {
                 gravity = Gravity.CENTER
@@ -725,7 +906,6 @@ class KaruikeyService : InputMethodService() {
             }
         }
         private var navigationBottomInset = 0
-        private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
 
         init {
             setBackgroundColor(appearance.keyboardBackground)
@@ -771,35 +951,31 @@ class KaruikeyService : InputMethodService() {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
             }
-            clipboardHeader.addView(TextView(keyboardContext).apply {
-                text = "‹"
-                textSize = 30f
-                gravity = Gravity.CENTER
+            clipboardHeader.addView(ImageButton(keyboardContext).apply {
+                contentDescription = getString(R.string.clipboard_back)
+                setImageResource(R.drawable.ic_settings_back)
+                imageTintList = ColorStateList.valueOf(appearance.primaryText)
                 isClickable = true
                 isFocusable = true
-                contentDescription = getString(R.string.clipboard_back)
-                setTextColor(appearance.primaryText)
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
                 setOnClickListener { hideClipboardPanel() }
             }, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
-            clipboardHeader.addView(TextView(keyboardContext).apply {
-                text = getString(R.string.toolbar_clipboard)
-                textSize = 16f
-                gravity = Gravity.CENTER_VERTICAL
-                setTextColor(appearance.primaryText)
-                setPadding(dp(12), 0, 0, 0)
-            }, LinearLayout.LayoutParams(0, toolbarHeight, 1f))
+            clipboardHeader.addView(clipboardHeaderTitle, LinearLayout.LayoutParams(0, toolbarHeight, 1f))
+            clipboardHeader.addView(clipboardStatus, LinearLayout.LayoutParams(
+                LayoutParams.WRAP_CONTENT, toolbarHeight
+            ))
+            clipboardHeader.addView(clipboardEdit, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
             clipboardPanel.addView(clipboardHeader)
-            clipboardPanel.addView(clipboardPreview, LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
-            ))
-            clipboardPanel.addView(clipboardPaste, LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
-            ))
             clipboardPanel.addView(clipboardHistoryScroll, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, 0, 1f
             ))
-            clipboardPanel.addView(clipboardClearAll, LinearLayout.LayoutParams(
+            clipboardManageBar.addView(clipboardDeleteSelected, LinearLayout.LayoutParams(
+                toolbarHeight, toolbarHeight
+            ))
+            clipboardManageBar.addView(clipboardClearAll, LinearLayout.LayoutParams(
+                0, LayoutParams.WRAP_CONTENT, 1f
+            ))
+            clipboardPanel.addView(clipboardManageBar, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
             ))
             addView(toolbar, LayoutParams.MATCH_PARENT, toolbarHeight)
@@ -814,6 +990,86 @@ class KaruikeyService : InputMethodService() {
                 }
                 insets
             }
+            keyboardView.setOnTouchListener { _, event -> handleSpaceCursorTouch(event) }
+        }
+
+        private fun handleSpaceCursorTouch(event: android.view.MotionEvent): Boolean {
+            if (AccessibilityUtils.getInstance().isTouchExplorationEnabled()) {
+                resetSpaceCursor()
+                return false
+            }
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    val key = keyboardView.detectKeyForTouch(
+                        event.x.toInt(), event.y.toInt()
+                    )
+                    if (key?.code == Constants.CODE_SPACE) {
+                        spaceCursorKey = key
+                        spaceCursorLastX = event.x.toInt()
+                        spaceCursorDistance = 0
+                    } else {
+                        resetSpaceCursor()
+                    }
+                    return false
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    if (spaceCursorKey == null || event.pointerCount != 1) return false
+                    val x = event.x.toInt()
+                    spaceCursorDistance += x - spaceCursorLastX
+                    spaceCursorLastX = x
+                    if (!spaceCursorActive && SpaceCursor.triggerReached(
+                            spaceCursorDistance, spaceCursorTrigger
+                        )
+                    ) {
+                        keyboardView.cancelAllOngoingEvents()
+                        beginSpaceCursor()
+                    }
+                    if (spaceCursorActive) {
+                        val steps = SpaceCursor.stepCount(
+                            spaceCursorDistance, spaceCursorStep
+                        )
+                        if (steps != 0) {
+                            spaceCursorDistance = SpaceCursor.remainder(
+                                spaceCursorDistance, steps, spaceCursorStep
+                            )
+                            moveCursorBy(steps)
+                        }
+                        return true
+                    }
+                    return false
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    if (spaceCursorActive) {
+                        resetSpaceCursor()
+                        return true
+                    }
+                    resetSpaceCursor()
+                    return false
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    val wasActive = spaceCursorActive
+                    resetSpaceCursor()
+                    return wasActive
+                }
+            }
+            return false
+        }
+
+        private fun beginSpaceCursor() {
+            clearComposingWord()
+            spaceCursorActive = true
+            spaceCursorKey?.onPressed()
+            keyboardView.invalidateKey(spaceCursorKey)
+        }
+
+        fun resetSpaceCursor() {
+            if (spaceCursorActive) {
+                spaceCursorKey?.onReleased()
+                keyboardView.invalidateKey(spaceCursorKey)
+            }
+            spaceCursorKey = null
+            spaceCursorDistance = 0
+            spaceCursorActive = false
         }
 
         fun applyPreferences() {
@@ -846,71 +1102,128 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun showClipboard(
-            text: String?,
+            items: List<ClipboardHistoryItem>,
             emptyMessage: Int,
-            history: List<ClipboardHistoryItem>
+            historyEnabled: Boolean
         ) {
-            clipboardText = text?.takeIf { it.isNotEmpty() }
+            clipboardHistory = items
             clipboardEmptyMessage = emptyMessage
-            clipboardPreview.text = clipboardText ?: getString(emptyMessage)
-            clipboardPaste.visibility = if (clipboardText == null) View.GONE else View.VISIBLE
+            clipboardSelected.clear()
+            clipboardEditMode = false
+            clipboardStatus.text = if (historyEnabled) {
+                getString(R.string.clipboard_history_status, items.size)
+            } else {
+                getString(R.string.clipboard_history_off)
+            }
+            clipboardEdit.visibility = if (historyEnabled && items.isNotEmpty()) View.VISIBLE else View.GONE
+            toolbar.visibility = View.GONE
+            keyboardView.visibility = View.GONE
+            clipboardPanel.visibility = View.VISIBLE
+            renderClipboardHistory()
+            requestLayout()
+        }
+
+        private fun renderClipboardHistory() {
+            val columns = if (availableClipboardWidth() >= dp(360)) 2 else 1
+            clipboardItems.columnCount = columns
             clipboardItems.removeAllViews()
-            history.forEach { item ->
-                val row = LinearLayout(keyboardContext).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, dp(4), 0, dp(4))
+            if (clipboardHistory.isEmpty()) {
+                val emptyState = TextView(keyboardContext).apply {
+                    text = getString(
+                        clipboardEmptyMessage
+                    )
+                    textSize = 14f
+                    gravity = Gravity.CENTER
+                    setTextColor(appearance.secondaryText)
+                    setPadding(dp(16), dp(20), dp(16), dp(20))
                 }
-                row.addView(TextView(keyboardContext).apply {
-                    this.text = item.text
+                val emptyParams = GridLayout.LayoutParams(
+                    GridLayout.spec(0), GridLayout.spec(0, columns)
+                ).apply {
+                    width = availableClipboardWidth()
+                    height = dp(96)
+                }
+                clipboardItems.addView(emptyState, emptyParams)
+            }
+            clipboardHistory.forEachIndexed { index, item ->
+                val selected = clipboardSelected.contains(item.timestamp)
+                val card = TextView(keyboardContext).apply {
+                    text = item.text
                     textSize = 15f
-                    maxLines = 2
+                    maxLines = 4
                     ellipsize = TextUtils.TruncateAt.END
                     gravity = Gravity.CENTER_VERTICAL
                     isClickable = true
                     isFocusable = true
+                    isActivated = selected
+                    alpha = if (selected) 0.58f else 1f
                     setTextColor(appearance.primaryText)
-                    setPadding(dp(8), dp(8), dp(8), dp(8))
-                    setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-                    setOnClickListener { pasteClipboard(item.text) }
-                }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
-                row.addView(ImageButton(keyboardContext).apply {
-                    contentDescription = getString(R.string.clipboard_delete)
-                    setImageResource(R.drawable.ic_keyboard_delete)
-                    imageTintList = ColorStateList.valueOf(appearance.primaryText)
-                    setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-                    setOnClickListener {
-                        ClipboardHistory.remove(this@KaruikeyService, item.timestamp)
-                        showClipboard(
-                            clipboardText,
-                            clipboardEmptyMessage,
-                            ClipboardHistory.items(this@KaruikeyService)
-                        )
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    setBackgroundResource(R.drawable.keyboard_clipboard_item_background)
+                    contentDescription = if (clipboardEditMode) {
+                        getString(R.string.clipboard_select_item)
+                    } else {
+                        getString(R.string.clipboard_paste)
                     }
-                }, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
-                clipboardItems.addView(row, LinearLayout.LayoutParams(
-                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
-                ))
+                    setOnClickListener {
+                        if (clipboardEditMode) {
+                            if (!clipboardSelected.add(item.timestamp)) {
+                                clipboardSelected.remove(item.timestamp)
+                            }
+                            renderClipboardHistory()
+                        } else {
+                            pasteClipboard(item.text)
+                        }
+                    }
+                }
+                val cardWidth = (availableClipboardWidth() - dp(8) * (columns - 1)) / columns
+                val params = GridLayout.LayoutParams(
+                    GridLayout.spec(index / columns),
+                    GridLayout.spec(index % columns)
+                ).apply {
+                    width = cardWidth.coerceAtLeast(1)
+                    height = dp(72)
+                    setMargins(0, 0, if (index % columns == columns - 1) 0 else dp(8), dp(8))
+                }
+                clipboardItems.addView(card, params)
             }
-            clipboardClearAll.visibility = if (history.isEmpty()) View.GONE else View.VISIBLE
-            toolbar.visibility = View.GONE
-            keyboardView.visibility = View.GONE
-            clipboardPanel.visibility = View.VISIBLE
-            requestLayout()
+            val empty = clipboardHistory.isEmpty()
+            clipboardClearAll.visibility = if (!empty && clipboardEditMode) View.VISIBLE else View.GONE
+            clipboardDeleteSelected.visibility = if (clipboardEditMode) View.VISIBLE else View.GONE
+            clipboardManageBar.visibility = if (clipboardEditMode && !empty) View.VISIBLE else View.GONE
+            clipboardHeaderTitle.text = if (clipboardEditMode) {
+                getString(R.string.clipboard_select_title)
+            } else {
+                getString(R.string.toolbar_clipboard)
+            }
+        }
+
+        private fun availableClipboardWidth(): Int {
+            val measured = clipboardItems.width
+            return if (measured > 0) {
+                measured
+            } else {
+                (width - clipboardPanel.paddingLeft - clipboardPanel.paddingRight).coerceAtLeast(1)
+            }
         }
 
         private fun pasteClipboard(text: String) {
-            currentInputConnection?.commitText(text, 1)
+            finishEditorComposition(currentInputConnection)
+            duringEditorUpdate { currentInputConnection?.commitText(text, 1) }
             clearComposingWord()
             hideClipboardPanel()
         }
 
         fun hideClipboardPanel(): Boolean {
             if (clipboardPanel.visibility != View.VISIBLE) return false
-            clipboardText = null
-            clipboardPreview.text = null
-            clipboardPaste.visibility = View.GONE
             clipboardItems.removeAllViews()
+            clipboardHistory = emptyList()
+            clipboardEmptyMessage = R.string.clipboard_history_empty
+            clipboardSelected.clear()
+            clipboardEditMode = false
+            clipboardEdit.visibility = View.GONE
+            clipboardDeleteSelected.visibility = View.GONE
+            clipboardManageBar.visibility = View.GONE
             clipboardClearAll.visibility = View.GONE
             clipboardPanel.visibility = View.GONE
             keyboardView.visibility = View.VISIBLE
@@ -990,6 +1303,9 @@ class KaruikeyService : InputMethodService() {
         override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
             super.onSizeChanged(width, height, oldWidth, oldHeight)
             loadKeyboardIfMeasured()
+            if (clipboardPanel.visibility == View.VISIBLE) {
+                post { renderClipboardHistory() }
+            }
         }
     }
 }

@@ -7,6 +7,12 @@ numeric/phone layout resources; full dictionaries, autocorrect, native code, and
 not included. Karuikey's optional suggestions use ranked project-owned English/Russian common
 word lexicons; no third-party dictionary data is bundled.
 
+Material Symbols Rounded font
+Copyright Google LLC. Source: Google Material Design Icons repository,
+variablefont/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf. Karuikey bundles a deterministic
+subset containing only the settings glyphs it uses. Licensed under the Apache License, Version 2.0.
+Source repository and license: https://github.com/google/material-design-icons
+
 Derived AOSP files in this distribution are the Java sources under
 app/src/main/java/com/android/inputmethod/{accessibility,annotations,compat,
 event,keyboard,latin}, excluding the Karuikey-owned

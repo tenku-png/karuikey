@@ -4,9 +4,19 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,7 +25,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material3.Text
 
 enum class SettingsPage {
     HOME, LANGUAGES, ADD_LANGUAGE, APPEARANCE, TYPING, CLIPBOARD, TRY, ABOUT, LICENSE
@@ -25,6 +34,7 @@ enum class SettingsPage {
 fun KaruikeySettingsApp(refreshVersion: Int) {
     val context = LocalContext.current
     var page by rememberSaveable { mutableStateOf(SettingsPage.HOME) }
+    var navigationDirection by remember { mutableStateOf(1) }
     var themeMode by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.theme(context))
     }
@@ -34,12 +44,36 @@ fun KaruikeySettingsApp(refreshVersion: Int) {
 
     KaruikeyComposeTheme(themeMode, dynamicColors) {
         val back = {
-            page = if (page == SettingsPage.ADD_LANGUAGE) SettingsPage.LANGUAGES
-            else SettingsPage.HOME
+            navigationDirection = -1
+            page = when (page) {
+                SettingsPage.ADD_LANGUAGE -> SettingsPage.LANGUAGES
+                SettingsPage.LICENSE -> SettingsPage.ABOUT
+                else -> SettingsPage.HOME
+            }
         }
-        when (page) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
+        ) {
+            AnimatedContent(
+                modifier = Modifier.fillMaxSize(),
+                targetState = page,
+                transitionSpec = {
+                    (slideInHorizontally(tween(180)) { width -> navigationDirection * width / 8 } +
+                        fadeIn(tween(180))).togetherWith(
+                        slideOutHorizontally(tween(180)) { width -> -navigationDirection * width / 8 } +
+                            fadeOut(tween(120))
+                    ).using(SizeTransform(clip = false))
+                },
+                label = "settings page transition"
+            ) { currentPage ->
+                when (currentPage) {
             SettingsPage.HOME -> SettingsScaffold("", true, back) { contentPadding ->
-                HomePage(context, refreshVersion, contentPadding) { page = it }
+                HomePage(context, refreshVersion, contentPadding) {
+                    navigationDirection = 1
+                    page = it
+                }
             }
             SettingsPage.LANGUAGES -> SettingsScaffold("Languages", false, back) { padding ->
                 LanguagesPage(refreshVersion, padding) { page = it }
@@ -67,6 +101,8 @@ fun KaruikeySettingsApp(refreshVersion: Int) {
             SettingsPage.LICENSE -> SettingsScaffold("Licenses", false, back) { padding ->
                 LicensePage(padding)
             }
+                }
+            }
         }
     }
 }
@@ -90,44 +126,45 @@ private fun HomePage(
         "History off"
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
-        Text(
-            "Private, offline keyboard settings",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge
+        SettingsHero(
+            "Private by design",
+            "Offline keyboard settings for English and Russian",
+            KaruikeySymbol.KEYBOARD
         )
         SectionLabel("Keyboard")
         SettingsGroup {
-            SettingsRow(painterResource(R.drawable.ic_keyboard_language), "Languages",
+            SettingsRow(KaruikeySymbol.LANGUAGE, "Languages",
                 languages.joinToString { it.displayName }) { onNavigate(SettingsPage.LANGUAGES) }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_settings_palette), "Appearance", "$theme · ${KaruikeyPreferences.heightPercent(context)}% height") {
+            SettingsRow(KaruikeySymbol.PALETTE, "Appearance", "$theme · ${KaruikeyPreferences.heightPercent(context)}% height") {
                 onNavigate(SettingsPage.APPEARANCE)
             }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_keyboard_settings), "Typing",
+            SettingsRow(KaruikeySymbol.KEYBOARD, "Typing",
                 "Suggestions · ${if (KaruikeyPreferences.suggestionsEnabled(context)) "On" else "Off"}") {
                 onNavigate(SettingsPage.TYPING)
             }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_keyboard_clipboard), "Clipboard", clipboardSummary) {
+            SettingsRow(KaruikeySymbol.CONTENT_PASTE, "Clipboard", clipboardSummary) {
                 onNavigate(SettingsPage.CLIPBOARD)
             }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_settings_keyboard), "Try Karuikey",
+            SettingsRow(KaruikeySymbol.KEYBOARD_ALT, "Try Karuikey",
                 "Test text, email, multiline, numeric, and search fields") {
                 onNavigate(SettingsPage.TRY)
             }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_settings_info), "About", "Version, licenses, and privacy") {
+            SettingsRow(KaruikeySymbol.INFO, "About", "Version, licenses, and privacy") {
                 onNavigate(SettingsPage.ABOUT)
             }
         }
         SectionLabel("System")
         SettingsGroup {
-            SettingsRow(painterResource(R.drawable.ic_keyboard_settings), "Keyboard setup", "Open Android keyboard settings") {
+            SettingsRow(KaruikeySymbol.SETTINGS, "Keyboard setup", "Open Android keyboard settings") {
                 context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
             }
             GroupDivider()
-            SettingsRow(painterResource(R.drawable.ic_settings_keyboard), "Input method picker", "Choose the active keyboard") {
+            SettingsRow(KaruikeySymbol.KEYBOARD, "Input method picker", "Choose the active keyboard") {
                 context.getSystemService(InputMethodManager::class.java).showInputMethodPicker()
             }
         }
