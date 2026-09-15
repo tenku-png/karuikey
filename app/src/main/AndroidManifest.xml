@@ -14,36 +14,13 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name">
+            android:label="@string/app_name"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".LanguageListActivity"
-            android:exported="false"
-            android:label="@string/available_languages" />
-        <activity
-            android:name=".LanguagesActivity"
-            android:exported="false"
-            android:label="@string/languages_title" />
-        <activity
-            android:name=".AppearanceActivity"
-            android:exported="false"
-            android:label="@string/appearance_title" />
-        <activity
-            android:name=".TypingActivity"
-            android:exported="false"
-            android:label="@string/typing_title" />
-        <activity
-            android:name=".TryKaruikeyActivity"
-            android:exported="false"
-            android:label="@string/try_keyboard_title" />
-        <activity
-            android:name=".AboutActivity"
-            android:exported="false"
-            android:label="@string/about_title" />
         <service
             android:name=".KaruikeyService"
             android:exported="true"

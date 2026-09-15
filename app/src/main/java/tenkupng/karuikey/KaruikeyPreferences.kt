@@ -56,6 +56,7 @@ object KaruikeyPreferences {
     private const val TRANSPARENCY_AMOUNT = "transparency_amount"
     private const val BLUR = "blur"
     private const val SUGGESTIONS = "suggestions"
+    private const val AUTO_CAPITALIZATION = "auto_capitalization"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -213,6 +214,13 @@ object KaruikeyPreferences {
 
     fun setSuggestionsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(SUGGESTIONS, enabled).apply()
+    }
+
+    fun autoCapitalizationEnabled(context: Context) =
+        prefs(context).getBoolean(AUTO_CAPITALIZATION, true)
+
+    fun setAutoCapitalizationEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(AUTO_CAPITALIZATION, enabled).apply()
     }
 
     fun resolveKeyboardAppearance(

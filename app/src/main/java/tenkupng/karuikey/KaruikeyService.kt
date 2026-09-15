@@ -22,6 +22,7 @@ import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -54,6 +55,10 @@ class KaruikeyService : InputMethodService() {
     private var expectedCursorPosition = -1
     // Session-only context. It is never persisted or logged and is cleared with the editor.
     private var previousWord: String? = null
+    private var clipboardListenerRegistered = false
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        capturePrimaryClipboard()
+    }
 
     override fun onCreate() {
         AccessibilityUtils.init(this)
@@ -64,6 +69,9 @@ class KaruikeyService : InputMethodService() {
             inputView?.post { refreshInputViewForPreferences() }
         }
         preferences.registerOnSharedPreferenceChangeListener(preferencesListener)
+        getSharedPreferences("karuikey_clipboard_history", MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(preferencesListener)
+        ClipboardHistory.purge(this)
     }
 
     private val keyboardActionListener = object : KeyboardActionListener.Adapter() {
@@ -186,6 +194,7 @@ class KaruikeyService : InputMethodService() {
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         editorInfo = attribute
         currentLanguage = KaruikeyPreferences.activeLanguage(this)
         currentSubtype = subtypeFor(currentLanguage!!)
@@ -207,6 +216,7 @@ class KaruikeyService : InputMethodService() {
         inputView?.applyPreferences()
         configureImeWindow()
         loadKeyboardIfMeasured()
+        updateClipboardMonitoring()
         refreshSuggestions()
     }
 
@@ -259,6 +269,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         super.onFinishInputView(finishingInput)
         keyboardSwitcher?.closing()
         clearComposingWord()
@@ -266,6 +277,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onFinishInput() {
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         super.onFinishInput()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.resetForNewInput()
@@ -282,6 +294,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onWindowHidden() {
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         super.onWindowHidden()
         keyboardSwitcher?.onHideWindow()
         keyboardSwitcher?.closing()
@@ -290,6 +303,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         keyboardSwitcher?.closing()
         loadedWidth = 0
         loadedHeight = 0
@@ -299,12 +313,15 @@ class KaruikeyService : InputMethodService() {
 
     override fun onDestroy() {
         inputView?.hideClipboardPanel()
+        stopClipboardMonitoring()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.deallocateMemory()
         inputView = null
         keyboardSwitcher = null
         preferencesListener?.let {
             getSharedPreferences("karuikey_settings", MODE_PRIVATE)
+                .unregisterOnSharedPreferenceChangeListener(it)
+            getSharedPreferences("karuikey_clipboard_history", MODE_PRIVATE)
                 .unregisterOnSharedPreferenceChangeListener(it)
         }
         preferencesListener = null
@@ -330,6 +347,7 @@ class KaruikeyService : InputMethodService() {
             return
         }
         view.applyPreferences()
+        updateClipboardMonitoring()
         configureImeWindow()
         loadedWidth = 0
         loadedHeight = 0
@@ -412,7 +430,11 @@ class KaruikeyService : InputMethodService() {
             TextUtils.CAP_MODE_WORDS or TextUtils.CAP_MODE_SENTENCES
         val info = editorInfo ?: return 0
         val reported = currentInputConnection?.getCursorCapsMode(capsModes) ?: 0
-        return KaruikeyCapsMode.normalize(reported, info.inputType)
+        return KaruikeyCapsMode.normalize(
+            reported,
+            info.inputType,
+            KaruikeyPreferences.autoCapitalizationEnabled(this)
+        )
     }
 
     private fun suggestionsEnabledFor(info: EditorInfo): Boolean {
@@ -523,11 +545,9 @@ class KaruikeyService : InputMethodService() {
         val imeWindow = window?.window ?: return
         val view = inputView ?: return
         val surface = view.appearance.keyboardBackground
-        val transparent = KaruikeyPreferences.transparencyEnabled(this)
-        imeWindow.setBackgroundDrawable(
-            ColorDrawable(if (transparent) Color.TRANSPARENT else surface)
-        )
-        view.alpha = KaruikeyPreferences.keyboardSurfaceAlpha(this)
+        val surfaceColor = view.surfaceBackgroundColor()
+        imeWindow.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        view.applySurfaceBackground(surfaceColor)
         // The IME window is full-width. A window-level blur would include application content
         // outside the keyboard, so blur remains disabled until it can be bounded safely.
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(
@@ -535,11 +555,14 @@ class KaruikeyService : InputMethodService() {
             view
         )
         insetsController.isAppearanceLightNavigationBars = Color.luminance(surface) > 0.5f
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            imeWindow.isNavigationBarContrastEnforced = false
+        }
+        imeWindow.navigationBarColor = surfaceColor
+        imeWindow.navigationBarDividerColor = Color.TRANSPARENT
         if (android.os.Build.VERSION.SDK_INT >= 35) {
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(imeWindow, false)
-            imeWindow.navigationBarColor = Color.TRANSPARENT
         } else {
-            imeWindow.navigationBarColor = surface
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(imeWindow, true)
         }
     }
@@ -561,10 +584,53 @@ class KaruikeyService : InputMethodService() {
             item != null && text.isNullOrEmpty() -> R.string.clipboard_empty
             else -> R.string.clipboard_non_text
         }
-        view.showClipboard(
-            text,
-            message
-        )
+        val sensitive = editorInfo?.let(::isSensitiveInput) ?: true
+        if (!sensitive && text != null) ClipboardHistory.add(this, text)
+        val history = if (!sensitive && ClipboardHistory.enabled(this)) {
+            ClipboardHistory.items(this)
+        } else {
+            emptyList()
+        }
+        view.showClipboard(text, message, history)
+    }
+
+    private fun capturePrimaryClipboard() {
+        if (!clipboardCaptureAllowed()) return
+        val view = inputView ?: return
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        val clip = clipboard.primaryClip ?: return
+        if (!clip.description.hasMimeType("text/*")) return
+        val text = clip.getItemAt(0).coerceToText(view.keyboardContext).toString()
+        ClipboardHistory.add(this, text)
+    }
+
+    private fun clipboardCaptureAllowed() =
+        isInputViewShown && editorInfo?.let { !isSensitiveInput(it) } == true
+
+    private fun isSensitiveInput(info: EditorInfo): Boolean {
+        val inputType = info.inputType
+        if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return true
+        return when (inputType and InputType.TYPE_MASK_VARIATION) {
+            InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> true
+            else -> false
+        }
+    }
+
+    private fun updateClipboardMonitoring() {
+        stopClipboardMonitoring()
+        if (!ClipboardHistory.enabled(this) || !clipboardCaptureAllowed()) return
+        getSystemService(ClipboardManager::class.java)
+            .addPrimaryClipChangedListener(clipboardListener)
+        clipboardListenerRegistered = true
+    }
+
+    private fun stopClipboardMonitoring() {
+        if (!clipboardListenerRegistered) return
+        getSystemService(ClipboardManager::class.java)
+            .removePrimaryClipChangedListener(clipboardListener)
+        clipboardListenerRegistered = false
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -600,6 +666,7 @@ class KaruikeyService : InputMethodService() {
             maxLines = 3
             ellipsize = TextUtils.TruncateAt.END
             setTextColor(appearance.primaryText)
+            setPadding(0, dp(8), 0, dp(4))
         }
         private val clipboardPaste = TextView(keyboardContext).apply {
             text = getString(R.string.clipboard_paste)
@@ -621,6 +688,28 @@ class KaruikeyService : InputMethodService() {
                 hideClipboardPanel()
             }
         }
+        private val clipboardItems = LinearLayout(keyboardContext).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        private val clipboardHistoryScroll = ScrollView(keyboardContext).apply {
+            addView(clipboardItems, LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        }
+        private val clipboardClearAll = TextView(keyboardContext).apply {
+            text = getString(R.string.clipboard_clear_all)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setTextColor(appearance.primaryText)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
+            visibility = View.GONE
+            setOnClickListener {
+                ClipboardHistory.clear(this@KaruikeyService)
+                showClipboard(clipboardText, clipboardEmptyMessage, emptyList())
+            }
+        }
+        private var clipboardEmptyMessage = R.string.clipboard_empty
         private val candidateViews = Array(3) {
             TextView(keyboardContext).apply {
                 gravity = Gravity.CENTER
@@ -702,9 +791,15 @@ class KaruikeyService : InputMethodService() {
             }, LinearLayout.LayoutParams(0, toolbarHeight, 1f))
             clipboardPanel.addView(clipboardHeader)
             clipboardPanel.addView(clipboardPreview, LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, 0, 1f
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
             ))
             clipboardPanel.addView(clipboardPaste, LinearLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
+            ))
+            clipboardPanel.addView(clipboardHistoryScroll, LinearLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT, 0, 1f
+            ))
+            clipboardPanel.addView(clipboardClearAll, LinearLayout.LayoutParams(
                 LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
             ))
             addView(toolbar, LayoutParams.MATCH_PARENT, toolbarHeight)
@@ -722,8 +817,12 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applyPreferences() {
-            toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) View.VISIBLE else View.GONE
-            alpha = KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)
+            if (clipboardPanel.visibility != View.VISIBLE) {
+                toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
+                    View.VISIBLE
+                } else View.GONE
+            }
+            applySurfaceBackground(surfaceBackgroundColor())
             keyboardView.setKeyPreviewPopupEnabled(
                 KaruikeyPreferences.keyPreviewEnabled(this@KaruikeyService),
                 500
@@ -731,13 +830,79 @@ class KaruikeyService : InputMethodService() {
             requestLayout()
         }
 
-        fun showClipboard(text: String?, emptyMessage: Int) {
+        fun surfaceBackgroundColor(): Int {
+            val surface = appearance.keyboardBackground
+            if (!KaruikeyPreferences.transparencyEnabled(this@KaruikeyService)) return surface
+            return Color.argb(
+                (255 * KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)).toInt(),
+                Color.red(surface), Color.green(surface), Color.blue(surface)
+            )
+        }
+
+        fun applySurfaceBackground(color: Int) {
+            setBackgroundColor(color)
+            toolbar.setBackgroundColor(color)
+            clipboardPanel.setBackgroundColor(color)
+        }
+
+        fun showClipboard(
+            text: String?,
+            emptyMessage: Int,
+            history: List<ClipboardHistoryItem>
+        ) {
             clipboardText = text?.takeIf { it.isNotEmpty() }
+            clipboardEmptyMessage = emptyMessage
             clipboardPreview.text = clipboardText ?: getString(emptyMessage)
             clipboardPaste.visibility = if (clipboardText == null) View.GONE else View.VISIBLE
+            clipboardItems.removeAllViews()
+            history.forEach { item ->
+                val row = LinearLayout(keyboardContext).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(4))
+                }
+                row.addView(TextView(keyboardContext).apply {
+                    this.text = item.text
+                    textSize = 15f
+                    maxLines = 2
+                    ellipsize = TextUtils.TruncateAt.END
+                    gravity = Gravity.CENTER_VERTICAL
+                    isClickable = true
+                    isFocusable = true
+                    setTextColor(appearance.primaryText)
+                    setPadding(dp(8), dp(8), dp(8), dp(8))
+                    setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
+                    setOnClickListener { pasteClipboard(item.text) }
+                }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+                row.addView(ImageButton(keyboardContext).apply {
+                    contentDescription = getString(R.string.clipboard_delete)
+                    setImageResource(R.drawable.ic_keyboard_delete)
+                    imageTintList = ColorStateList.valueOf(appearance.primaryText)
+                    setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
+                    setOnClickListener {
+                        ClipboardHistory.remove(this@KaruikeyService, item.timestamp)
+                        showClipboard(
+                            clipboardText,
+                            clipboardEmptyMessage,
+                            ClipboardHistory.items(this@KaruikeyService)
+                        )
+                    }
+                }, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
+                clipboardItems.addView(row, LinearLayout.LayoutParams(
+                    LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
+                ))
+            }
+            clipboardClearAll.visibility = if (history.isEmpty()) View.GONE else View.VISIBLE
+            toolbar.visibility = View.GONE
             keyboardView.visibility = View.GONE
             clipboardPanel.visibility = View.VISIBLE
             requestLayout()
+        }
+
+        private fun pasteClipboard(text: String) {
+            currentInputConnection?.commitText(text, 1)
+            clearComposingWord()
+            hideClipboardPanel()
         }
 
         fun hideClipboardPanel(): Boolean {
@@ -745,8 +910,15 @@ class KaruikeyService : InputMethodService() {
             clipboardText = null
             clipboardPreview.text = null
             clipboardPaste.visibility = View.GONE
+            clipboardItems.removeAllViews()
+            clipboardClearAll.visibility = View.GONE
             clipboardPanel.visibility = View.GONE
             keyboardView.visibility = View.VISIBLE
+            toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
+                View.VISIBLE
+            } else View.GONE
+            setSuggestions(suggestionResults)
+            if (!KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) toolbar.visibility = View.GONE
             requestLayout()
             return true
         }

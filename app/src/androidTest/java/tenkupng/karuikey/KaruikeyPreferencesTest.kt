@@ -132,10 +132,19 @@ class KaruikeyPreferencesTest {
         assertFalse(KaruikeyPreferences.blurEnabled(context))
         assertFalse(KaruikeyPreferences.blurSupported())
         assertFalse(KaruikeyPreferences.suggestionsEnabled(context))
+        assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
 
         KaruikeyPreferences.setTransparencyEnabled(context, true)
         KaruikeyPreferences.setTransparencyAmount(context, 100)
         assertEquals(35, KaruikeyPreferences.transparencyAmount(context))
         assertTrue(KaruikeyPreferences.keyboardSurfaceAlpha(context) >= 0.65f)
+    }
+
+    @Test
+    fun autoCapitalizationPreferencePersists() {
+        KaruikeyPreferences.setAutoCapitalizationEnabled(context, false)
+        assertFalse(KaruikeyPreferences.autoCapitalizationEnabled(context))
+        KaruikeyPreferences.setAutoCapitalizationEnabled(context, true)
+        assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
     }
 }
