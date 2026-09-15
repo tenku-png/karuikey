@@ -3,8 +3,8 @@ Open Source Project LatinIME keyboard. The derived files are materially
 modified for Karuikey and retain Apache License 2.0 notices. The imported
 foundation is limited to keyboard geometry, resource parsing, hit detection,
 keyboard selection, shift state, and the English/Russian/numeric/phone layout
-resources; dictionaries, suggestions, gesture typing, native code, and
-telemetry are not included.
+resources; full dictionaries, autocorrect, gesture typing, native code, and telemetry are not
+included. Karuikey's optional starter suggestions use a small project-owned vocabulary.
 
 Derived AOSP files in this distribution are the Java sources under
 app/src/main/java/com/android/inputmethod/{accessibility,annotations,compat,

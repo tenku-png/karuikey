@@ -86,6 +86,10 @@ object KaruikeyPreferences {
     private const val THEME = "theme"
     private const val DYNAMIC_COLORS = "dynamic_colors"
     private const val HEIGHT_PERCENT = "height_percent"
+    private const val TRANSPARENCY = "transparency"
+    private const val TRANSPARENCY_AMOUNT = "transparency_amount"
+    private const val BLUR = "blur"
+    private const val SUGGESTIONS = "suggestions"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -173,6 +177,37 @@ object KaruikeyPreferences {
 
     fun setHeightPercent(context: Context, percent: Int) {
         prefs(context).edit().putInt(HEIGHT_PERCENT, percent.coerceIn(85, 115)).apply()
+    }
+
+    fun transparencyEnabled(context: Context) = prefs(context).getBoolean(TRANSPARENCY, false)
+
+    fun setTransparencyEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(TRANSPARENCY, enabled).apply()
+    }
+
+    /** 0 is opaque; the upper bound keeps key contrast usable over arbitrary app content. */
+    fun transparencyAmount(context: Context) =
+        prefs(context).getInt(TRANSPARENCY_AMOUNT, 0).coerceIn(0, 35)
+
+    fun setTransparencyAmount(context: Context, amount: Int) {
+        prefs(context).edit().putInt(TRANSPARENCY_AMOUNT, amount.coerceIn(0, 35)).apply()
+    }
+
+    fun keyboardSurfaceAlpha(context: Context) =
+        if (transparencyEnabled(context)) 1f - transparencyAmount(context) / 100f else 1f
+
+    fun blurEnabled(context: Context) = prefs(context).getBoolean(BLUR, false)
+
+    fun setBlurEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(BLUR, enabled).apply()
+    }
+
+    fun blurSupported() = Build.VERSION.SDK_INT >= 31
+
+    fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, false)
+
+    fun setSuggestionsEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(SUGGESTIONS, enabled).apply()
     }
 
     fun resolveKeyboardAppearance(

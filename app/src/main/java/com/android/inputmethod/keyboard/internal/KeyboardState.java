@@ -667,7 +667,15 @@ public final class KeyboardState {
 
         // If the code is a letter, update keyboard shift state.
         if (Constants.isLetterCode(code)) {
+            final boolean wasAutomaticallyShifted = mAlphabetShiftState.isAutomaticShifted();
             updateAlphabetShiftState(autoCapsFlags, recapitalizeMode);
+            // The editor may report the caps mode from before the commit until its selection
+            // callback arrives. Consume one-shot automatic shift here so it cannot stay active
+            // for the rest of a word.
+            if (wasAutomaticallyShifted
+                    && (autoCapsFlags & TextUtils.CAP_MODE_CHARACTERS) == 0) {
+                setShifted(UNSHIFT);
+            }
         } else if (code == Constants.CODE_EMOJI) {
             setEmojiKeyboard();
         } else if (code == Constants.CODE_ALPHA_FROM_EMOJI) {

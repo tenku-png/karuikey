@@ -41,6 +41,20 @@ class KeyboardStateTest {
     }
 
     @Test
+    fun automaticShiftIsConsumedAfterALetterEvenIfEditorStillReportsCapMode() {
+        val actions = FakeSwitchActions()
+        val state = KeyboardState(actions)
+        actions.state = state
+        state.onLoadKeyboard(TextUtils.CAP_MODE_SENTENCES,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        state.onEvent(letterEvent('a'.code), TextUtils.CAP_MODE_SENTENCES,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        assertEquals("alpha", actions.keyboard)
+    }
+
+    @Test
     fun allEditorCapitalizationModesEnableAutomaticShift() {
         for (flags in intArrayOf(
             TextUtils.CAP_MODE_SENTENCES,

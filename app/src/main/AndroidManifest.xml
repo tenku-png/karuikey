@@ -33,6 +33,14 @@
             android:exported="false"
             android:label="@string/appearance_title" />
         <activity
+            android:name=".TypingActivity"
+            android:exported="false"
+            android:label="@string/typing_title" />
+        <activity
+            android:name=".TryKaruikeyActivity"
+            android:exported="false"
+            android:label="@string/try_keyboard_title" />
+        <activity
             android:name=".AboutActivity"
             android:exported="false"
             android:label="@string/about_title" />

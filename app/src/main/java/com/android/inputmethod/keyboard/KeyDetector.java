@@ -94,6 +94,13 @@ public class KeyDetector {
         final int touchX = getTouchX(x);
         final int touchY = getTouchY(y);
 
+        // getNearestKeys clamps coordinates for proximity lookup. Reject out-of-bounds input
+        // first so an edge key cannot receive a touch outside the keyboard view.
+        if (touchX < 0 || touchX >= mKeyboard.mOccupiedWidth
+                || touchY < 0 || touchY >= mKeyboard.mOccupiedHeight) {
+            return null;
+        }
+
         int minDistance = Integer.MAX_VALUE;
         Key primaryKey = null;
         for (final Key key: mKeyboard.getNearestKeys(touchX, touchY)) {
@@ -116,4 +123,3 @@ public class KeyDetector {
         return primaryKey;
     }
 }
-

@@ -8,7 +8,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
 
 class LanguagesActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,8 +60,14 @@ class LanguagesActivity : AppCompatActivity() {
             }, wrapContent())
         }
 
-        content.addView(MaterialButton(this).apply {
+        content.addView(TextView(this).apply {
             text = getString(R.string.add_language)
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            textSize = 17f
+            isClickable = true
+            isFocusable = true
+            setPadding(0, dp(16), 0, dp(16))
+            setBackgroundResource(android.R.drawable.list_selector_background)
             setOnClickListener {
                 startActivity(Intent(this@LanguagesActivity, LanguageListActivity::class.java))
             }

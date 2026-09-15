@@ -64,5 +64,25 @@
 
 Offline by default. No input logging, analytics, advertising, tracking, or network permission.
 
-Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. See NOTICE in the source distribution.</string>
+Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. Optional starter suggestions use a small project-owned vocabulary; no external dictionary is bundled. See NOTICE in the source distribution.</string>
+    <string name="typing_title">Typing</string>
+    <string name="typing_summary">Suggestions</string>
+    <string name="suggestions_setting">Suggestions</string>
+    <string name="suggestions_description">Show up to three offline starter-word suggestions</string>
+    <string name="setting_on">On</string>
+    <string name="setting_off">Off</string>
+    <string name="try_keyboard_title">Try Karuikey</string>
+    <string name="try_keyboard_summary">Test text, email, multiline, and numeric fields</string>
+    <string name="try_normal_hint">Normal text</string>
+    <string name="try_multiline_hint">Multiline text</string>
+    <string name="try_email_hint">Email address</string>
+    <string name="try_number_hint">Numbers</string>
+    <string name="transparency_setting">Keyboard transparency</string>
+    <string name="transparency_description">Let the app behind show through the keyboard</string>
+    <string name="transparency_amount_setting">Transparency: %1$d%%</string>
+    <string name="blur_setting">Background blur</string>
+    <string name="blur_supported">Uses Android background blur when supported</string>
+    <string name="blur_unavailable">Unavailable on this Android version</string>
+    <string name="search_languages_hint">Search languages</string>
+    <string name="no_languages_found">No matching languages</string>
 </resources>

@@ -806,6 +806,28 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         }
         super.onDrawKeyTopVisuals(key, canvas, paint, params);
         final int code = key.getCode();
+        final Keyboard keyboard = getKeyboard();
+        if (code == Constants.CODE_SHIFT && keyboard != null
+                && (keyboard.mId.mElementId == KeyboardId.ELEMENT_ALPHABET_SHIFT_LOCKED
+                || keyboard.mId.mElementId == KeyboardId.ELEMENT_ALPHABET_SHIFT_LOCK_SHIFTED)) {
+            // Keep the caps-lock cue independent from the icon asset so it remains tintable in
+            // both themes and is not shown for ordinary or one-shot Shift.
+            final float underlineY = key.getHeight() * 0.72f;
+            final Paint.Style previousStyle = paint.getStyle();
+            final Paint.Cap previousCap = paint.getStrokeCap();
+            final float previousStrokeWidth = paint.getStrokeWidth();
+            final int previousColor = paint.getColor();
+            paint.setColor(params.mFunctionalTextColor);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(Math.max(1.0f, getResources().getDisplayMetrics().density));
+            paint.setStrokeCap(Paint.Cap.SQUARE);
+            canvas.drawLine(key.getDrawWidth() * 0.38f, underlineY,
+                    key.getDrawWidth() * 0.62f, underlineY, paint);
+            paint.setStyle(previousStyle);
+            paint.setStrokeCap(previousCap);
+            paint.setStrokeWidth(previousStrokeWidth);
+            paint.setColor(previousColor);
+        }
         if (code == Constants.CODE_SPACE) {
             // If input language are explicitly selected.
             if (mLanguageOnSpacebarFormatType != LanguageOnSpacebarUtils.FORMAT_TYPE_NONE) {

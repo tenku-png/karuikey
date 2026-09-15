@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="?attr/keyboardFunctionalTextColor"
+        android:strokeWidth="1.7" android:strokeLineJoin="round"
+        android:pathData="M9,4H6.5A1.5,1.5 0,0 0,5 5.5v14A1.5,1.5 0,0 0,6.5 21h11A1.5,1.5 0,0 0,19 19.5v-14A1.5,1.5 0,0 0,17.5 4H15M9,4a2,2 0,0 1,6 0M9,4h6M8,10h8M8,14h8M8,18h5" />
+</vector>

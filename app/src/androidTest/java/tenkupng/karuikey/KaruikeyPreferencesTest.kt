@@ -123,4 +123,17 @@ class KaruikeyPreferencesTest {
         KaruikeyPreferences.setHeightPercent(context, 200)
         assertEquals(115, KaruikeyPreferences.heightPercent(context))
     }
+
+    @Test
+    fun visualAndTypingPreferencesUseSafeDefaultsAndBounds() {
+        assertFalse(KaruikeyPreferences.transparencyEnabled(context))
+        assertEquals(0, KaruikeyPreferences.transparencyAmount(context))
+        assertFalse(KaruikeyPreferences.blurEnabled(context))
+        assertFalse(KaruikeyPreferences.suggestionsEnabled(context))
+
+        KaruikeyPreferences.setTransparencyEnabled(context, true)
+        KaruikeyPreferences.setTransparencyAmount(context, 100)
+        assertEquals(35, KaruikeyPreferences.transparencyAmount(context))
+        assertTrue(KaruikeyPreferences.keyboardSurfaceAlpha(context) >= 0.65f)
+    }
 }

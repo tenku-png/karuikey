@@ -10,7 +10,6 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import com.google.android.material.button.MaterialButton
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,24 +38,13 @@ class MainActivity : AppCompatActivity() {
             textSize = 18f
             setPadding(0, dp(12), 0, dp(20))
         }, wrapContent())
-        content.addView(MaterialButton(this).apply {
-            text = getString(R.string.open_keyboard_settings)
-            setOnClickListener { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
-        }, matchWidth())
-        content.addView(MaterialButton(this).apply {
-            text = getString(R.string.show_keyboard_picker)
-            setOnClickListener {
-                getSystemService(InputMethodManager::class.java).showInputMethodPicker()
-            }
-        }, matchWidth())
-
         content.addView(navigationRow(
             R.string.languages_title,
             getString(
                 R.string.languages_summary,
                 KaruikeyPreferences.enabledLanguages(this).joinToString { it.displayName }
             ),
-            LanguagesActivity::class.java
+            { startActivity(Intent(this, LanguagesActivity::class.java)) }
         ), sectionParams())
         content.addView(navigationRow(
             R.string.appearance_title,
@@ -64,18 +52,41 @@ class MainActivity : AppCompatActivity() {
                 R.string.appearance_summary,
                 themeLabel(), KaruikeyPreferences.heightPercent(this)
             ),
-            AppearanceActivity::class.java
+            { startActivity(Intent(this, AppearanceActivity::class.java)) }
+        ), wrapContent())
+        content.addView(navigationRow(
+            R.string.typing_title,
+            getString(R.string.typing_summary) + ": " + getString(
+                if (KaruikeyPreferences.suggestionsEnabled(this))
+                    R.string.setting_on else R.string.setting_off
+            ),
+            { startActivity(Intent(this, TypingActivity::class.java)) }
+        ), wrapContent())
+        content.addView(navigationRow(
+            R.string.try_keyboard_title,
+            getString(R.string.try_keyboard_summary),
+            { startActivity(Intent(this, TryKaruikeyActivity::class.java)) }
         ), wrapContent())
         content.addView(navigationRow(
             R.string.about_title,
             getString(R.string.about_summary),
-            AboutActivity::class.java
+            { startActivity(Intent(this, AboutActivity::class.java)) }
+        ), wrapContent())
+        content.addView(navigationRow(
+            R.string.open_keyboard_settings,
+            getString(R.string.open_keyboard_settings),
+            { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        ), wrapContent())
+        content.addView(navigationRow(
+            R.string.show_keyboard_picker,
+            getString(R.string.show_keyboard_picker),
+            { getSystemService(InputMethodManager::class.java).showInputMethodPicker() }
         ), wrapContent())
 
         setContentView(ScrollView(this).apply { addView(content) })
     }
 
-    private fun navigationRow(title: Int, summary: String, activity: Class<*>): View =
+    private fun navigationRow(title: Int, summary: String, action: () -> Unit): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(14), 0, dp(14))
@@ -92,7 +103,7 @@ class MainActivity : AppCompatActivity() {
                 textSize = 14f
                 setPadding(0, dp(3), 0, 0)
             }, wrapContent())
-            setOnClickListener { startActivity(Intent(this@MainActivity, activity)) }
+            setOnClickListener { action() }
         }
 
     private fun themeLabel() = when (KaruikeyPreferences.theme(this)) {
@@ -109,6 +120,4 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun sectionParams() = wrapContent().apply { topMargin = dp(12) }
-
-    private fun matchWidth() = wrapContent().apply { bottomMargin = dp(4) }
 }

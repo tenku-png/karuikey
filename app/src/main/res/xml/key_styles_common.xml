@@ -52,7 +52,7 @@
             <key-style
                 latin:styleName="shiftKeyStyle"
                 latin:keySpec="!icon/shift_key_shifted|!code/key_shift"
-                latin:backgroundType="stickyOff"
+                latin:backgroundType="stickyOn"
                 latin:parentStyle="baseForShiftKeyStyle" />
         </case>
         <case
@@ -60,8 +60,8 @@
         >
             <key-style
                 latin:styleName="shiftKeyStyle"
-                latin:keySpec="!icon/shift_key_shifted|!code/key_shift"
-                latin:backgroundType="stickyOn"
+                latin:keySpec="!icon/shift_key|!code/key_shift"
+                latin:backgroundType="stickyOff"
                 latin:parentStyle="baseForShiftKeyStyle" />
         </case>
         <default>
@@ -167,4 +167,3 @@
         latin:moreKeys="!text/morekeys_popular_domain"
         latin:backgroundType="functional" />
 </merge>
-

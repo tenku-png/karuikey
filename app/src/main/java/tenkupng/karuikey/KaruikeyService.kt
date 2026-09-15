@@ -6,20 +6,24 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
@@ -47,6 +51,10 @@ class KaruikeyService : InputMethodService() {
     private var loadedHeight = 0
     private var clipboardPopup: PopupWindow? = null
     private var preferencesListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
+    private val composingWord = StringBuilder(20)
+    private val suggestionResults = ArrayList<String>(3)
+    private var suggestionsAllowed = false
+    private var expectedCursorPosition = -1
 
     override fun onCreate() {
         AccessibilityUtils.init(this)
@@ -66,9 +74,8 @@ class KaruikeyService : InputMethodService() {
 
         override fun onReleaseKey(primaryCode: Int, withSliding: Boolean) {
             keyboardSwitcher?.onReleaseKey(primaryCode, withSliding, autoCapsMode())
-            if (Constants.isLetterCode(primaryCode) || primaryCode == Constants.CODE_SPACE ||
-                primaryCode == Constants.CODE_ENTER ||
-                primaryCode == Constants.CODE_SHIFT_ENTER || primaryCode == Constants.CODE_DELETE
+            if (!Constants.isLetterCode(primaryCode) && primaryCode != Constants.CODE_SHIFT &&
+                primaryCode != Constants.CODE_SWITCH_ALPHA_SYMBOL
             ) {
                 // AOSP updates shift while processing the key event. The service must perform the
                 // matching post-release update so one-shot shift does not become sticky.
@@ -91,25 +98,43 @@ class KaruikeyService : InputMethodService() {
             }
             val connection = currentInputConnection
             when (primaryCode) {
-                Constants.CODE_DELETE -> connection?.deleteSurroundingText(1, 0)
-                Constants.CODE_SPACE -> connection?.commitText(" ", 1)
+                Constants.CODE_DELETE -> {
+                    connection?.deleteSurroundingText(1, 0)
+                    deleteLastCodePoint()
+                }
+                Constants.CODE_SPACE -> {
+                    connection?.commitText(" ", 1)
+                    clearComposingWord()
+                }
                 Constants.CODE_ENTER,
-                Constants.CODE_SHIFT_ENTER -> if (connection != null) sendEnter(connection)
+                Constants.CODE_SHIFT_ENTER -> if (connection != null) {
+                    sendEnter(connection)
+                    clearComposingWord()
+                }
                 Constants.CODE_SHIFT,
-                Constants.CODE_CAPSLOCK,
-                Constants.CODE_SWITCH_ALPHA_SYMBOL -> Unit
+                Constants.CODE_CAPSLOCK -> Unit
+                Constants.CODE_SWITCH_ALPHA_SYMBOL -> clearComposingWord()
                 else -> if (primaryCode > 0) {
-                    connection?.commitText(StringUtils.newSingleCodePointString(primaryCode), 1)
+                    val text = StringUtils.newSingleCodePointString(primaryCode)
+                    connection?.commitText(text, 1)
+                    if (Constants.isLetterCode(primaryCode)) {
+                        composingWord.append(text)
+                        if (expectedCursorPosition >= 0) expectedCursorPosition += text.length
+                    } else {
+                        clearComposingWord()
+                    }
                 }
             }
             keyboardSwitcher?.onEvent(
                 createKeyEvent(primaryCode, x, y, isKeyRepeat),
                 autoCapsMode()
             )
+            refreshSuggestions()
         }
 
         override fun onTextInput(text: String) {
             currentInputConnection?.commitText(text, 1)
+            clearComposingWord()
             keyboardSwitcher?.onEvent(
                 Event.createSoftwareTextEvent(text, Constants.CODE_OUTPUT_TEXT),
                 autoCapsMode()
@@ -148,6 +173,9 @@ class KaruikeyService : InputMethodService() {
         currentSubtype = subtypeFor(currentLanguage!!)
         loadedWidth = 0
         loadedHeight = 0
+        suggestionsAllowed = suggestionsEnabledFor(attribute)
+        expectedCursorPosition = attribute.initialSelStart
+        clearComposingWord()
         keyboardSwitcher?.resetForNewInput()
     }
 
@@ -160,6 +188,34 @@ class KaruikeyService : InputMethodService() {
         inputView?.applyPreferences()
         configureImeWindow()
         loadKeyboardIfMeasured()
+        refreshSuggestions()
+    }
+
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int
+    ) {
+        super.onUpdateSelection(
+            oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd
+        )
+        if (editorInfo != null) {
+            keyboardSwitcher?.requestUpdatingShiftState(
+                autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
+            )
+        }
+        if (suggestionsAllowed) {
+            if (newSelStart != newSelEnd ||
+                (expectedCursorPosition >= 0 && newSelStart != expectedCursorPosition)
+            ) {
+                clearComposingWord()
+            }
+            expectedCursorPosition = newSelStart
+            refreshSuggestions()
+        }
     }
 
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype) {
@@ -174,18 +230,21 @@ class KaruikeyService : InputMethodService() {
             keyboardSwitcher?.resetForNewInput()
             loadedWidth = 0
             loadedHeight = 0
+            clearComposingWord()
             loadKeyboardIfMeasured()
         }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {
         dismissClipboardPopup()
-        keyboardSwitcher?.closing()
         super.onFinishInputView(finishingInput)
+        keyboardSwitcher?.closing()
+        clearComposingWord()
     }
 
     override fun onFinishInput() {
         dismissClipboardPopup()
+        super.onFinishInput()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.resetForNewInput()
         editorInfo = null
@@ -193,14 +252,17 @@ class KaruikeyService : InputMethodService() {
         currentLanguage = null
         loadedWidth = 0
         loadedHeight = 0
-        super.onFinishInput()
+        suggestionsAllowed = false
+        expectedCursorPosition = -1
+        clearComposingWord()
     }
 
     override fun onWindowHidden() {
         dismissClipboardPopup()
+        super.onWindowHidden()
         keyboardSwitcher?.onHideWindow()
         keyboardSwitcher?.closing()
-        super.onWindowHidden()
+        clearComposingWord()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -240,10 +302,12 @@ class KaruikeyService : InputMethodService() {
             if (isInputViewShown) {
                 val replacement = createInputView()
                 setInputView(replacement)
+                configureImeWindow()
             }
             return
         }
         view.applyPreferences()
+        configureImeWindow()
         loadedWidth = 0
         loadedHeight = 0
         view.post {
@@ -286,6 +350,7 @@ class KaruikeyService : InputMethodService() {
         currentLanguage = next
         currentSubtype = subtypeFor(next)
         KaruikeyPreferences.setActiveLanguage(this, next)
+        clearComposingWord()
         keyboardSwitcher?.resetForNewInput()
         loadedWidth = 0
         loadedHeight = 0
@@ -320,6 +385,57 @@ class KaruikeyService : InputMethodService() {
         return currentInputConnection?.getCursorCapsMode(capsModes) ?: 0
     }
 
+    private fun suggestionsEnabledFor(info: EditorInfo): Boolean {
+        if (!KaruikeyPreferences.suggestionsEnabled(this)) return false
+        val inputType = info.inputType
+        if ((inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
+        if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return false
+        return when (inputType and InputType.TYPE_MASK_VARIATION) {
+            InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> false
+            else -> true
+        }
+    }
+
+    private fun deleteLastCodePoint() {
+        if (composingWord.isEmpty()) return
+        val last = Character.codePointBefore(composingWord, composingWord.length)
+        val charCount = Character.charCount(last)
+        composingWord.setLength(composingWord.length - charCount)
+        if (expectedCursorPosition >= charCount) expectedCursorPosition -= charCount
+    }
+
+    private fun clearComposingWord() {
+        composingWord.setLength(0)
+        suggestionResults.clear()
+        inputView?.setSuggestions(suggestionResults)
+    }
+
+    private fun refreshSuggestions() {
+        if (!suggestionsAllowed || composingWord.isEmpty()) {
+            if (suggestionResults.isNotEmpty()) clearComposingWord()
+            else inputView?.setSuggestions(suggestionResults)
+            return
+        }
+        SuggestionEngine.fill(currentLanguage?.locale ?: "en", composingWord, suggestionResults)
+        inputView?.setSuggestions(suggestionResults)
+    }
+
+    private fun commitSuggestion(candidate: String) {
+        val connection = currentInputConnection ?: return
+        if (composingWord.isEmpty()) return
+        val replacement = if (composingWord[0].isUpperCase() && candidate.isNotEmpty()) {
+            candidate[0].uppercaseChar().toString() + candidate.substring(1)
+        } else {
+            candidate
+        }
+        connection.deleteSurroundingText(composingWord.length, 0)
+        connection.commitText(replacement, 1)
+        expectedCursorPosition += replacement.length - composingWord.length
+        clearComposingWord()
+    }
+
     private fun sendEnter(connection: InputConnection) {
         val info = editorInfo
         val options = info?.imeOptions ?: EditorInfo.IME_ACTION_NONE
@@ -347,6 +463,24 @@ class KaruikeyService : InputMethodService() {
         val imeWindow = window?.window ?: return
         val view = inputView ?: return
         val surface = view.appearance.keyboardBackground
+        val transparent = KaruikeyPreferences.transparencyEnabled(this)
+        imeWindow.setBackgroundDrawable(
+            ColorDrawable(if (transparent) Color.TRANSPARENT else surface)
+        )
+        view.alpha = KaruikeyPreferences.keyboardSurfaceAlpha(this)
+        if (Build.VERSION.SDK_INT >= 31) {
+            val windowManager = getSystemService(WindowManager::class.java)
+            val blurActive = KaruikeyPreferences.blurEnabled(this) &&
+                windowManager.isCrossWindowBlurEnabled
+            val attributes = imeWindow.attributes
+            attributes.blurBehindRadius = if (blurActive) dp(24) else 0
+            attributes.flags = if (blurActive) {
+                attributes.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+            } else {
+                attributes.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
+            }
+            imeWindow.attributes = attributes
+        }
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(
             imeWindow,
             view
@@ -430,17 +564,64 @@ class KaruikeyService : InputMethodService() {
             it.setKeyboardActionListener(keyboardActionListener)
         }
         val keyboardSwitcher = KeyboardSwitcher(keyboardContext, keyboardView)
-        private val toolbar = LinearLayout(keyboardContext)
+        private val toolbar = FrameLayout(keyboardContext)
+        private val utilityToolbar = LinearLayout(keyboardContext)
+        private val suggestionToolbar = LinearLayout(keyboardContext)
+        private val candidateViews = Array(3) {
+            TextView(keyboardContext).apply {
+                gravity = Gravity.CENTER
+                textSize = 14f
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                isClickable = true
+                isFocusable = true
+                setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
+                setTextColor(appearance.primaryText)
+                layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+                setOnClickListener { (tag as? String)?.let(::commitSuggestion) }
+            }
+        }
         private var navigationBottomInset = 0
-        private val toolbarHeight = dp(48)
+        private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
 
         init {
             setBackgroundColor(appearance.keyboardBackground)
-            toolbar.orientation = LinearLayout.HORIZONTAL
-            toolbar.gravity = Gravity.CENTER_VERTICAL
             toolbar.setBackgroundColor(appearance.keyboardBackground)
-            toolbar.addView(toolbarButton(R.string.toolbar_clipboard, R.string.toolbar_clipboard) { showClipboard() })
-            toolbar.addView(toolbarButton(R.string.toolbar_settings, R.string.toolbar_settings) { openSettings() })
+            utilityToolbar.orientation = LinearLayout.HORIZONTAL
+            utilityToolbar.gravity = Gravity.CENTER_VERTICAL
+            utilityToolbar.addView(
+                toolbarButton(
+                    R.drawable.ic_keyboard_clipboard,
+                    R.string.toolbar_clipboard
+                ) { showClipboard() }
+            )
+            utilityToolbar.addView(
+                toolbarButton(
+                    R.drawable.ic_keyboard_settings,
+                    R.string.toolbar_settings
+                ) { openSettings() }
+            )
+            suggestionToolbar.orientation = LinearLayout.HORIZONTAL
+            suggestionToolbar.gravity = Gravity.CENTER_VERTICAL
+            candidateViews.forEach { suggestionToolbar.addView(it) }
+            suggestionToolbar.addView(
+                toolbarButton(
+                    R.drawable.ic_keyboard_clipboard,
+                    R.string.toolbar_clipboard
+                ) { showClipboard() },
+                fixedToolbarButtonParams()
+            )
+            suggestionToolbar.addView(
+                toolbarButton(
+                    R.drawable.ic_keyboard_settings,
+                    R.string.toolbar_settings
+                ) { openSettings() },
+                fixedToolbarButtonParams()
+            )
+            toolbar.addView(suggestionToolbar, FrameLayout.LayoutParams.MATCH_PARENT, toolbarHeight)
+            toolbar.addView(utilityToolbar, FrameLayout.LayoutParams.MATCH_PARENT, toolbarHeight)
+            utilityToolbar.visibility = View.VISIBLE
+            suggestionToolbar.visibility = View.GONE
             addView(toolbar, LayoutParams.MATCH_PARENT, toolbarHeight)
             addView(keyboardView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
@@ -455,6 +636,7 @@ class KaruikeyService : InputMethodService() {
 
         fun applyPreferences() {
             toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) View.VISIBLE else View.GONE
+            alpha = KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)
             keyboardView.setKeyPreviewPopupEnabled(
                 KaruikeyPreferences.keyPreviewEnabled(this@KaruikeyService),
                 500
@@ -464,20 +646,38 @@ class KaruikeyService : InputMethodService() {
 
         fun toolbarBottom(): Int = if (toolbar.visibility == View.VISIBLE) toolbar.height else 0
 
-        private fun toolbarButton(label: Int, description: Int, action: () -> Unit) =
-            TextView(keyboardContext).apply {
-                text = getString(label)
+        fun setSuggestions(suggestions: List<String>) {
+            val hasSuggestions = suggestions.isNotEmpty()
+            candidateViews.forEachIndexed { index, candidate ->
+                if (index < suggestions.size) {
+                    val text = suggestions[index]
+                    candidate.text = text
+                    candidate.tag = text
+                    candidate.visibility = View.VISIBLE
+                } else {
+                    candidate.text = null
+                    candidate.tag = null
+                    candidate.visibility = View.GONE
+                }
+            }
+            suggestionToolbar.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
+            utilityToolbar.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
+        }
+
+        private fun toolbarButton(icon: Int, description: Int, action: () -> Unit) =
+            ImageButton(keyboardContext).apply {
                 contentDescription = getString(description)
-                gravity = Gravity.CENTER
-                textSize = 14f
+                setImageResource(icon)
+                imageTintList = ColorStateList.valueOf(appearance.primaryText)
                 isClickable = true
                 isFocusable = true
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-                setTextColor(appearance.primaryText)
                 setPadding(dp(12), 0, dp(12), 0)
                 setOnClickListener { action() }
                 layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
             }
+
+        private fun fixedToolbarButtonParams() = LinearLayout.LayoutParams(toolbarHeight, toolbarHeight)
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)

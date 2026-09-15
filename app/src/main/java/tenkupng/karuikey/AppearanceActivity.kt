@@ -82,6 +82,61 @@ class AppearanceActivity : AppCompatActivity() {
             textSize = 13f
         }, wrapContent())
 
+        val transparencyAmount = SeekBar(this).apply {
+            max = 35
+            progress = KaruikeyPreferences.transparencyAmount(this@AppearanceActivity)
+            isEnabled = KaruikeyPreferences.transparencyEnabled(this@AppearanceActivity)
+        }
+        val transparencyAmountLabel = TextView(this).apply {
+            text = getString(
+                R.string.transparency_amount_setting,
+                KaruikeyPreferences.transparencyAmount(this@AppearanceActivity)
+            )
+            textSize = 13f
+        }
+        content.addView(MaterialSwitch(this).apply {
+            text = getString(R.string.transparency_setting)
+            isChecked = KaruikeyPreferences.transparencyEnabled(this@AppearanceActivity)
+            contentDescription = getString(R.string.transparency_description)
+            setOnCheckedChangeListener { _, checked ->
+                KaruikeyPreferences.setTransparencyEnabled(this@AppearanceActivity, checked)
+                transparencyAmount.isEnabled = checked
+            }
+        }, sectionParams())
+        content.addView(transparencyAmountLabel, wrapContent())
+        content.addView(transparencyAmount.apply {
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                    KaruikeyPreferences.setTransparencyAmount(this@AppearanceActivity, progress)
+                    transparencyAmountLabel.text =
+                        getString(R.string.transparency_amount_setting, progress)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
+            })
+        }, matchWidth())
+
+        content.addView(MaterialSwitch(this).apply {
+            text = getString(R.string.blur_setting)
+            isChecked = KaruikeyPreferences.blurEnabled(this@AppearanceActivity)
+            isEnabled = KaruikeyPreferences.blurSupported()
+            contentDescription = getString(
+                if (KaruikeyPreferences.blurSupported()) R.string.blur_supported
+                else R.string.blur_unavailable
+            )
+            setOnCheckedChangeListener { _, checked ->
+                KaruikeyPreferences.setBlurEnabled(this@AppearanceActivity, checked)
+            }
+        }, wrapContent())
+        content.addView(TextView(this).apply {
+            text = getString(
+                if (KaruikeyPreferences.blurSupported()) R.string.blur_supported
+                else R.string.blur_unavailable
+            )
+            textSize = 13f
+        }, wrapContent())
+
         content.addView(MaterialSwitch(this).apply {
             text = getString(R.string.toolbar_setting)
             isChecked = KaruikeyPreferences.toolbarEnabled(this@AppearanceActivity)

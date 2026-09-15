@@ -13,7 +13,7 @@
         <item name="touchPositionCorrectionData">@array/touch_position_correction_data_default</item>
         <item name="moreKeysTemplate">@xml/kbd_more_keys_keyboard_template</item>
         <item name="iconShiftKey">@drawable/ic_keyboard_shift</item>
-        <item name="iconShiftKeyShifted">@drawable/ic_keyboard_shift</item>
+        <item name="iconShiftKeyShifted">@drawable/ic_keyboard_shift_selected</item>
         <item name="iconDeleteKey">@drawable/ic_keyboard_delete</item>
         <item name="iconSpaceKey">@drawable/ic_keyboard_space</item>
         <item name="iconSpaceKeyForNumberLayout">@drawable/ic_keyboard_space</item>
@@ -80,6 +80,7 @@
     </style>
 
     <dimen name="config_default_keyboard_height">205.6dp</dimen>
+    <dimen name="keyboard_toolbar_height">48dp</dimen>
     <dimen name="config_more_keys_keyboard_key_height">52.8dp</dimen>
     <dimen name="config_language_on_spacebar_horizontal_margin">1dp</dimen>
     <dimen name="config_more_keys_keyboard_key_horizontal_padding">8dp</dimen>
