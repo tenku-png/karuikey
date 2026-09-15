@@ -93,6 +93,8 @@ public class KeyboardView extends View {
     private final float mVerticalCorrection;
     private final Drawable mKeyBackground;
     private final Drawable mFunctionalKeyBackground;
+    private final Drawable mActionKeyBackground;
+    private final int mActionKeyTextColor;
     private final Drawable mSpacebarBackground;
     private final float mSpacebarIconWidthRatio;
     private final Rect mKeyBackgroundPadding = new Rect();
@@ -139,6 +141,12 @@ public class KeyboardView extends View {
                 R.styleable.KeyboardView_functionalKeyBackground);
         mFunctionalKeyBackground = (functionalKeyBackground != null) ? functionalKeyBackground
                 : mKeyBackground;
+        final Drawable actionKeyBackground = keyboardViewAttr.getDrawable(
+                R.styleable.KeyboardView_actionKeyBackground);
+        mActionKeyBackground = (actionKeyBackground != null) ? actionKeyBackground
+                : mFunctionalKeyBackground;
+        mActionKeyTextColor = keyboardViewAttr.getColor(
+                R.styleable.KeyboardView_actionKeyTextColor, Color.TRANSPARENT);
         final Drawable spacebarBackground = keyboardViewAttr.getDrawable(
                 R.styleable.KeyboardView_spacebarBackground);
         mSpacebarBackground = (spacebarBackground != null) ? spacebarBackground : mKeyBackground;
@@ -231,9 +239,12 @@ public class KeyboardView extends View {
             return;
         }
         // The main keyboard expands to the entire this {@link KeyboardView}.
-        final int width = keyboard.mOccupiedWidth + getPaddingLeft() + getPaddingRight();
-        final int height = keyboard.mOccupiedHeight + getPaddingTop() + getPaddingBottom();
-        setMeasuredDimension(width, height);
+        final int desiredWidth = keyboard.mOccupiedWidth + getPaddingLeft() + getPaddingRight();
+        final int desiredHeight = keyboard.mOccupiedHeight + getPaddingTop() + getPaddingBottom();
+        // The IME gives this view an exact content height when the height preference changes.
+        // Respecting that spec makes the AOSP builder receive the resized keyboard geometry.
+        setMeasuredDimension(resolveSize(desiredWidth, widthMeasureSpec),
+                resolveSize(desiredHeight, heightMeasureSpec));
     }
 
     @Override
@@ -337,8 +348,9 @@ public class KeyboardView extends View {
         params.mAnimAlpha = Constants.Color.ALPHA_OPAQUE;
 
         if (!key.isSpacer()) {
-            final Drawable background = key.selectBackgroundDrawable(
-                    mKeyBackground, mFunctionalKeyBackground, mSpacebarBackground);
+            final Drawable background = key.isActionKey() ? mActionKeyBackground
+                    : key.selectBackgroundDrawable(
+                            mKeyBackground, mFunctionalKeyBackground, mSpacebarBackground);
             if (background != null) {
                 onDrawKeyBackground(key, canvas, background);
             }
@@ -354,7 +366,7 @@ public class KeyboardView extends View {
         final int keyWidth = key.getDrawWidth();
         final int keyHeight = key.getHeight();
         final int bgWidth, bgHeight, bgX, bgY;
-        if (key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
+        if (!key.isActionKey() && key.needsToKeepBackgroundAspectRatio(mDefaultKeyLabelFlags)
                 // HACK: To disable expanding normal/functional key background.
                 && !key.hasCustomActionLabel()) {
             final int intrinsicWidth = background.getIntrinsicWidth();
@@ -426,7 +438,8 @@ public class KeyboardView extends View {
             }
 
             if (key.isEnabled()) {
-                paint.setColor(key.selectTextColor(params));
+                paint.setColor(key.isActionKey() && mActionKeyTextColor != Color.TRANSPARENT
+                        ? mActionKeyTextColor : key.selectTextColor(params));
                 // Set a drop shadow for the text if the shadow radius is positive value.
                 if (mKeyTextShadowRadius > 0.0f) {
                     paint.setShadowLayer(mKeyTextShadowRadius, 0.0f, 0.0f, params.mTextShadowColor);
@@ -590,4 +603,3 @@ public class KeyboardView extends View {
         freeOffscreenBuffer();
     }
 }
-

@@ -780,7 +780,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         mHasMultipleEnabledIMEsOrSubtypes = hasMultipleEnabledIMEsOrSubtypes;
         final ObjectAnimator animator = mLanguageOnSpacebarFadeoutAnimator;
         if (animator == null) {
-            mLanguageOnSpacebarFormatType = LanguageOnSpacebarUtils.FORMAT_TYPE_NONE;
+            mLanguageOnSpacebarAnimAlpha = mLanguageOnSpacebarFinalAlpha;
         } else {
             if (subtypeChanged
                     && languageOnSpacebarFormatType != LanguageOnSpacebarUtils.FORMAT_TYPE_NONE) {

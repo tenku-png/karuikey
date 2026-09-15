@@ -1,7 +1,63 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.Karuikey" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorSecondary">@color/teal_200</item>
+<resources>
+    <style name="Theme.Karuikey" parent="Theme.Material3.DayNight.NoActionBar" />
+
+    <style name="Theme.Karuikey.Keyboard.Dynamic.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="keyboardKeyColor">?attr/colorSurfaceVariant</item>
+        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
+        <item name="keyboardActionColor">?attr/colorPrimary</item>
+        <item name="keyboardActionTextColor">?attr/colorOnPrimary</item>
+        <item name="keyboardPressedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardPopupColor">?attr/colorSurface</item>
+        <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
+    </style>
+
+    <style name="Theme.Karuikey.Keyboard.Dynamic.Dark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="keyboardKeyColor">?attr/colorSurfaceVariant</item>
+        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
+        <item name="keyboardActionColor">?attr/colorPrimary</item>
+        <item name="keyboardActionTextColor">?attr/colorOnPrimary</item>
+        <item name="keyboardPressedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardPopupColor">?attr/colorSurface</item>
+        <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
+    </style>
+
+    <style name="Theme.Karuikey.Keyboard.Fallback.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="keyboardKeyColor">@color/keyboard_light_key</item>
+        <item name="keyboardFunctionalColor">@color/keyboard_light_functional</item>
+        <item name="keyboardActionColor">@color/keyboard_light_action</item>
+        <item name="keyboardActionTextColor">@color/keyboard_light_action_text</item>
+        <item name="keyboardPressedColor">@color/keyboard_light_pressed</item>
+        <item name="keyboardShiftLockedColor">@color/keyboard_light_shift_locked</item>
+        <item name="keyboardTextColor">@color/keyboard_light_text</item>
+        <item name="keyboardSecondaryTextColor">@color/keyboard_light_secondary_text</item>
+        <item name="keyboardFunctionalTextColor">@color/keyboard_light_functional_text</item>
+        <item name="keyboardDisabledTextColor">@color/keyboard_light_disabled_text</item>
+        <item name="keyboardPopupColor">@color/keyboard_light_popup</item>
+        <item name="keyboardPopupSelectedColor">@color/keyboard_light_pressed</item>
+    </style>
+
+    <style name="Theme.Karuikey.Keyboard.Fallback.Dark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="keyboardKeyColor">@color/keyboard_dark_key</item>
+        <item name="keyboardFunctionalColor">@color/keyboard_dark_functional</item>
+        <item name="keyboardActionColor">@color/keyboard_dark_action</item>
+        <item name="keyboardActionTextColor">@color/keyboard_dark_action_text</item>
+        <item name="keyboardPressedColor">@color/keyboard_dark_pressed</item>
+        <item name="keyboardShiftLockedColor">@color/keyboard_dark_shift_locked</item>
+        <item name="keyboardTextColor">@color/keyboard_dark_text</item>
+        <item name="keyboardSecondaryTextColor">@color/keyboard_dark_secondary_text</item>
+        <item name="keyboardFunctionalTextColor">@color/keyboard_dark_functional_text</item>
+        <item name="keyboardDisabledTextColor">@color/keyboard_dark_disabled_text</item>
+        <item name="keyboardPopupColor">@color/keyboard_dark_popup</item>
+        <item name="keyboardPopupSelectedColor">@color/keyboard_dark_pressed</item>
     </style>
 </resources>

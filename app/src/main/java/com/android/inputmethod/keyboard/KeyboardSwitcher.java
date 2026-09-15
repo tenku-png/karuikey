@@ -34,6 +34,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     private final MainKeyboardView mKeyboardView;
     private KeyboardState mState;
     private KeyboardLayoutSet mKeyboardLayoutSet;
+    private boolean mLanguageSwitchKeyEnabled;
 
     public KeyboardSwitcher(@NonNull final Context context,
             @NonNull final MainKeyboardView keyboardView) {
@@ -44,14 +45,15 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
 
     public void loadKeyboard(@NonNull final EditorInfo editorInfo,
             @NonNull final InputMethodSubtype subtype, final int width, final int height,
-            final int autoCapsFlags) {
+            final int autoCapsFlags, final boolean languageSwitchKeyEnabled) {
         final RichInputMethodSubtype richSubtype = new RichInputMethodSubtype(subtype);
         final KeyboardLayoutSet.Builder builder = new KeyboardLayoutSet.Builder(
                 mContext, editorInfo);
         builder.setKeyboardGeometry(width, height)
                 .setSubtype(richSubtype)
                 .setVoiceInputKeyEnabled(false)
-                .setLanguageSwitchKeyEnabled(false);
+                .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled);
+        mLanguageSwitchKeyEnabled = languageSwitchKeyEnabled;
         mKeyboardLayoutSet = builder.build();
         mState.onLoadKeyboard(autoCapsFlags,
                 RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE);
@@ -60,6 +62,7 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     public void resetForNewInput() {
         mState = new KeyboardState(this);
         mKeyboardLayoutSet = null;
+        mLanguageSwitchKeyEnabled = false;
     }
 
     public void closing() {
@@ -104,6 +107,12 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
             return;
         }
         mKeyboardView.setKeyboard(mKeyboardLayoutSet.getKeyboard(elementId));
+        mKeyboardView.startDisplayLanguageOnSpacebar(
+                true,
+                mLanguageSwitchKeyEnabled
+                        ? com.android.inputmethod.latin.utils.LanguageOnSpacebarUtils.FORMAT_TYPE_LANGUAGE_ONLY
+                        : com.android.inputmethod.latin.utils.LanguageOnSpacebarUtils.FORMAT_TYPE_NONE,
+                mLanguageSwitchKeyEnabled);
     }
 
     @Override

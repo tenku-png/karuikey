@@ -1,14 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="keyboard_key_text">#FF202124</color>
-    <color name="keyboard_key_hint">#FF5F6368</color>
-    <color name="keyboard_key_fill">#FFF1F3F4</color>
-    <color name="keyboard_key_pressed">#FFDADCE0</color>
+    <color name="keyboard_light_surface">#FFF7F9FF</color>
+    <color name="keyboard_light_key">#FFFFFFFF</color>
+    <color name="keyboard_light_functional">#FFE8ECF5</color>
+    <color name="keyboard_light_action">#FF4F5D95</color>
+    <color name="keyboard_light_action_text">#FFFFFFFF</color>
+    <color name="keyboard_light_pressed">#FFDCE4FF</color>
+    <color name="keyboard_light_shift_locked">#FFC8D4FF</color>
+    <color name="keyboard_light_text">#FF1A1B20</color>
+    <color name="keyboard_light_secondary_text">#FF45464F</color>
+    <color name="keyboard_light_functional_text">#FF1A1B20</color>
+    <color name="keyboard_light_disabled_text">#FF777780</color>
+    <color name="keyboard_light_popup">#FFFFFFFF</color>
+
+    <color name="keyboard_dark_surface">#FF121318</color>
+    <color name="keyboard_dark_key">#FF22242B</color>
+    <color name="keyboard_dark_functional">#FF30323B</color>
+    <color name="keyboard_dark_action">#FFBCC6F0</color>
+    <color name="keyboard_dark_action_text">#FF252D4F</color>
+    <color name="keyboard_dark_pressed">#FF454A5A</color>
+    <color name="keyboard_dark_shift_locked">#FF5A6074</color>
+    <color name="keyboard_dark_text">#FFE5E1E6</color>
+    <color name="keyboard_dark_secondary_text">#FFC7C6D0</color>
+    <color name="keyboard_dark_functional_text">#FFE5E1E6</color>
+    <color name="keyboard_dark_disabled_text">#FF9A98A4</color>
+    <color name="keyboard_dark_popup">#FF22242B</color>
 </resources>

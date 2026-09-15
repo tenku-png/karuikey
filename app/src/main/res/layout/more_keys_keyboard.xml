@@ -3,7 +3,9 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/content"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:background="@drawable/keyboard_popup_background"
+    android:padding="4dp">
     <com.android.inputmethod.keyboard.MoreKeysKeyboardView
         android:id="@+id/more_keys_keyboard_view"
         android:layout_width="wrap_content"

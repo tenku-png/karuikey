@@ -45,6 +45,6 @@
     <Key
         latin:keySpec="p"
         latin:keyHintLabel="0"
-        latin:additionalMoreKeys="0" />
+        latin:additionalMoreKeys="0"
+        latin:moreKeys="!noPanelAutoMoreKey!" />
 </merge>
-

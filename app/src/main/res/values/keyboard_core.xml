@@ -4,12 +4,12 @@
     <style name="Keyboard">
         <item name="themeId">ICS</item>
         <item name="rowHeight">25%p</item>
-        <item name="horizontalGap">1%p</item>
-        <item name="verticalGap">1%p</item>
-        <item name="keyboardTopPadding">0%p</item>
-        <item name="keyboardBottomPadding">0%p</item>
-        <item name="keyboardLeftPadding">0%p</item>
-        <item name="keyboardRightPadding">0%p</item>
+        <item name="horizontalGap">4dp</item>
+        <item name="verticalGap">5dp</item>
+        <item name="keyboardTopPadding">6dp</item>
+        <item name="keyboardBottomPadding">6dp</item>
+        <item name="keyboardLeftPadding">6dp</item>
+        <item name="keyboardRightPadding">6dp</item>
         <item name="touchPositionCorrectionData">@array/touch_position_correction_data_default</item>
         <item name="moreKeysTemplate">@xml/kbd_more_keys_keyboard_template</item>
         <item name="iconShiftKey">@drawable/ic_keyboard_shift</item>
@@ -18,16 +18,16 @@
         <item name="iconSpaceKey">@drawable/ic_keyboard_space</item>
         <item name="iconSpaceKeyForNumberLayout">@drawable/ic_keyboard_space</item>
         <item name="iconEnterKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconGoKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconSearchKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconSendKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconNextKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconDoneKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconGoKey">@drawable/ic_keyboard_go</item>
+        <item name="iconSearchKey">@drawable/ic_keyboard_search</item>
+        <item name="iconSendKey">@drawable/ic_keyboard_send</item>
+        <item name="iconNextKey">@drawable/ic_keyboard_next</item>
+        <item name="iconDoneKey">@drawable/ic_keyboard_done</item>
         <item name="iconPreviousKey">@drawable/ic_keyboard_enter</item>
         <item name="iconTabKey">@drawable/ic_keyboard_enter</item>
         <item name="iconShortcutKey">@drawable/ic_keyboard_symbol</item>
         <item name="iconShortcutKeyDisabled">@drawable/ic_keyboard_symbol</item>
-        <item name="iconLanguageSwitchKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconLanguageSwitchKey">@drawable/ic_keyboard_language</item>
         <item name="iconZwnjKey">@drawable/ic_keyboard_symbol</item>
         <item name="iconZwjKey">@drawable/ic_keyboard_symbol</item>
         <item name="iconEmojiActionKey">@drawable/ic_keyboard_symbol</item>
@@ -35,8 +35,9 @@
     </style>
     <style name="KeyboardView">
         <item name="keyBackground">@drawable/keyboard_key_background</item>
-        <item name="functionalKeyBackground">@drawable/keyboard_key_background</item>
-        <item name="spacebarBackground">@drawable/keyboard_key_background</item>
+        <item name="functionalKeyBackground">@drawable/keyboard_functional_background</item>
+        <item name="actionKeyBackground">@drawable/keyboard_action_background</item>
+        <item name="spacebarBackground">@drawable/keyboard_spacebar_background</item>
         <item name="keyLetterSize">55%</item>
         <item name="keyLabelSize">34%</item>
         <item name="keyLargeLetterRatio">90%</item>
@@ -44,12 +45,13 @@
         <item name="keyShiftedLetterHintRatio">30%</item>
         <item name="keyHintLabelRatio">30%</item>
         <item name="keyPreviewTextRatio">100%</item>
-        <item name="keyTextColor">@color/keyboard_key_text</item>
-        <item name="keyTextInactivatedColor">@color/keyboard_key_text</item>
-        <item name="functionalTextColor">@color/keyboard_key_text</item>
-        <item name="keyHintLetterColor">@color/keyboard_key_hint</item>
-        <item name="keyHintLabelColor">@color/keyboard_key_hint</item>
-        <item name="keyPreviewTextColor">@color/keyboard_key_text</item>
+        <item name="keyTextColor">?attr/keyboardTextColor</item>
+        <item name="keyTextInactivatedColor">?attr/keyboardDisabledTextColor</item>
+        <item name="functionalTextColor">?attr/keyboardFunctionalTextColor</item>
+        <item name="actionKeyTextColor">?attr/keyboardActionTextColor</item>
+        <item name="keyHintLetterColor">?attr/keyboardSecondaryTextColor</item>
+        <item name="keyHintLabelColor">?attr/keyboardSecondaryTextColor</item>
+        <item name="keyPreviewTextColor">?attr/keyboardTextColor</item>
         <item name="keyTypeface">normal</item>
         <item name="keyTextShadowRadius">-1.0</item>
         <item name="verticalCorrection">0dp</item>
@@ -62,12 +64,20 @@
         <item name="keyPreviewOffset">0dp</item>
         <item name="keyPreviewShowUpAnimator">@anim/key_preview_show_up_holo</item>
         <item name="keyPreviewDismissAnimator">@anim/key_preview_dismiss_holo</item>
-        <item name="languageOnSpacebarTextRatio">100%</item>
+        <item name="languageOnSpacebarFadeoutAnimator">@anim/language_on_spacebar_fadeout</item>
+        <item name="languageOnSpacebarTextRatio">24%</item>
+        <item name="languageOnSpacebarTextColor">?attr/keyboardSecondaryTextColor</item>
         <item name="languageOnSpacebarFinalAlpha">255</item>
         <item name="backgroundDimAlpha">0</item>
         <item name="showMoreKeysKeyboardAtTouchedPoint">true</item>
+        <item name="keySelectionByDraggingFinger">@bool/config_key_selection_by_dragging_finger</item>
+        <item name="keyRepeatStartTimeout">@integer/config_key_repeat_start_timeout</item>
+        <item name="keyRepeatInterval">@integer/config_key_repeat_interval</item>
+        <item name="longPressShiftLockTimeout">@integer/config_longpress_shift_lock_timeout</item>
     </style>
-    <style name="MoreKeysKeyboardView" parent="KeyboardView" />
+    <style name="MoreKeysKeyboardView" parent="KeyboardView">
+        <item name="keyBackground">@drawable/keyboard_popup_key_background</item>
+    </style>
 
     <dimen name="config_default_keyboard_height">205.6dp</dimen>
     <dimen name="config_more_keys_keyboard_key_height">52.8dp</dimen>
@@ -82,6 +92,7 @@
     <integer name="config_screen_metrics">0</integer>
     <integer name="config_key_repeat_start_timeout">400</integer>
     <integer name="config_key_repeat_interval">50</integer>
+    <integer name="config_language_on_spacebar_final_alpha">180</integer>
     <integer name="config_longpress_shift_lock_timeout">1200</integer>
     <integer name="config_accessibility_long_press_key_timeout">500</integer>
     <bool name="config_show_more_keys_keyboard_at_touched_point">true</bool>

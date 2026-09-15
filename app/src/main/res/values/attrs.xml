@@ -20,6 +20,19 @@
 
 <resources>
     <!-- Karuikey adaptation: AOSP LatinIME keyboard parser attributes. -->
+    <attr name="keyboardKeyColor" format="color" />
+    <attr name="keyboardFunctionalColor" format="color" />
+    <attr name="keyboardActionColor" format="color" />
+    <attr name="keyboardActionTextColor" format="color" />
+    <attr name="keyboardPressedColor" format="color" />
+    <attr name="keyboardShiftLockedColor" format="color" />
+    <attr name="keyboardTextColor" format="color" />
+    <attr name="keyboardSecondaryTextColor" format="color" />
+    <attr name="keyboardFunctionalTextColor" format="color" />
+    <attr name="keyboardDisabledTextColor" format="color" />
+    <attr name="keyboardPopupColor" format="color" />
+    <attr name="keyboardPopupSelectedColor" format="color" />
+
     <declare-styleable name="KeyboardTheme">
         <!-- InputView style -->
         <attr name="inputViewStyle" format="reference" />
@@ -53,6 +66,8 @@
              {@link android.graphics.drawable.StateListDrawable}, with the following possible
              states: normal, pressed. -->
         <attr name="functionalKeyBackground" format="reference" />
+        <attr name="actionKeyBackground" format="reference" />
+        <attr name="actionKeyTextColor" format="color" />
         <!-- Background image for the spacebar.  This image needs to be a
              {@link android.graphics.drawable.StateListDrawable}, with the following possible
              states: normal, pressed. -->
@@ -243,17 +258,17 @@
         <!-- Touch position correction -->
         <attr name="touchPositionCorrectionData" format="reference" />
         <!-- Keyboard top, bottom, left, right edges paddings, in propotion of keyboard height. -->
-        <attr name="keyboardTopPadding" format="fraction" />
-        <attr name="keyboardBottomPadding" format="fraction" />
-        <attr name="keyboardLeftPadding" format="fraction" />
-        <attr name="keyboardRightPadding" format="fraction" />
+        <attr name="keyboardTopPadding" format="dimension|fraction" />
+        <attr name="keyboardBottomPadding" format="dimension|fraction" />
+        <attr name="keyboardLeftPadding" format="dimension|fraction" />
+        <attr name="keyboardRightPadding" format="dimension|fraction" />
         <!-- Default height of a row (key height + vertical gap), in pixels or in the proportion of
              keyboard height. -->
         <attr name="rowHeight" format="dimension|fraction" />
         <!-- Default horizontal gap between keys, in the proportion of keyboard width. -->
-        <attr name="horizontalGap" format="fraction" />
+        <attr name="horizontalGap" format="dimension|fraction" />
         <!-- Default vertical gap between rows of keys, in the proportion of keyboard height. -->
-        <attr name="verticalGap" format="fraction" />
+        <attr name="verticalGap" format="dimension|fraction" />
         <!-- More keys keyboard layout template -->
         <attr name="moreKeysTemplate" format="reference" />
         <!-- Icon set for key top and key preview. These should be aligned with
@@ -601,4 +616,3 @@
         <attr name="stepValue" format="integer" />
     </declare-styleable>
 </resources>
-

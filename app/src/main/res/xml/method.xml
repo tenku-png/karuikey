@@ -1,21 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    The subtype model follows AOSP LatinIME's method.xml, limited to the two
-    offline layouts currently supported by Karuikey.
+    Karuikey keeps the AOSP subtype model but exposes only bundled, offline layout sets.
+    The catalog is intentionally broader than the initially enabled English/Russian pair.
 -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
-    android:settingsActivity="tenkupng.karuikey.MainActivity">
-    <subtype
-        android:label="@string/subtype_english"
-        android:imeSubtypeLocale="en_US"
-        android:languageTag="en-US"
+    android:settingsActivity="tenkupng.karuikey.MainActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype android:label="@string/subtype_english_us" android:imeSubtypeLocale="en_US"
+        android:languageTag="en-US" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_english_uk" android:imeSubtypeLocale="en_GB"
+        android:languageTag="en-GB" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_english_india" android:imeSubtypeLocale="en_IN"
+        android:languageTag="en-IN" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_afrikaans" android:imeSubtypeLocale="af"
         android:imeSubtypeMode="keyboard"
         android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
         android:isAsciiCapable="true" />
-    <subtype
-        android:label="@string/subtype_russian"
-        android:imeSubtypeLocale="ru_RU"
-        android:languageTag="ru-RU"
+    <subtype android:label="@string/subtype_azerbaijani" android:imeSubtypeLocale="az_AZ"
+        android:languageTag="az-AZ" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_belarusian" android:imeSubtypeLocale="be_BY"
+        android:languageTag="be-BY" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+    <subtype android:label="@string/subtype_esperanto" android:imeSubtypeLocale="eo"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_french_canada" android:imeSubtypeLocale="fr_CA"
+        android:languageTag="fr-CA" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_hinglish" android:imeSubtypeLocale="hi_ZZ"
+        android:languageTag="hi-ZZ" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_indonesian" android:imeSubtypeLocale="in"
+        android:languageTag="id-ID" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_icelandic" android:imeSubtypeLocale="is"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_italian" android:imeSubtypeLocale="it"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_kazakh" android:imeSubtypeLocale="kk"
         android:imeSubtypeMode="keyboard"
         android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+    <subtype android:label="@string/subtype_kyrgyz" android:imeSubtypeLocale="ky"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+    <subtype android:label="@string/subtype_lithuanian" android:imeSubtypeLocale="lt"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_latvian" android:imeSubtypeLocale="lv"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_malay" android:imeSubtypeLocale="ms_MY"
+        android:languageTag="ms-MY" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_dutch" android:imeSubtypeLocale="nl"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_polish" android:imeSubtypeLocale="pl"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_portuguese_brazil" android:imeSubtypeLocale="pt_BR"
+        android:languageTag="pt-BR" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_portuguese_portugal" android:imeSubtypeLocale="pt_PT"
+        android:languageTag="pt-PT" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_romanian" android:imeSubtypeLocale="ro"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_russian" android:imeSubtypeLocale="ru_RU"
+        android:languageTag="ru-RU" android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+    <subtype android:label="@string/subtype_slovak" android:imeSubtypeLocale="sk"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_swahili" android:imeSubtypeLocale="sw"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_turkish" android:imeSubtypeLocale="tr"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_ukrainian" android:imeSubtypeLocale="uk"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=east_slavic" />
+    <subtype android:label="@string/subtype_vietnamese" android:imeSubtypeLocale="vi"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_zulu" android:imeSubtypeLocale="zu"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
+    <subtype android:label="@string/subtype_qwerty" android:imeSubtypeLocale="zz"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeExtraValue="KeyboardLayoutSet=qwerty,AsciiCapable"
+        android:isAsciiCapable="true" />
 </input-method>

@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="?attr/keyboardFunctionalTextColor" android:pathData="M4,4h16v16H4z"/>
+    <path android:fillColor="?attr/keyboardActionTextColor" android:pathData="M4,11h11.17l-4.59,-4.59L12,5l7,7 -7,7 -1.41,-1.41L15.17,13H4z"/>
 </vector>
