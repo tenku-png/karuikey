@@ -119,7 +119,8 @@ class AppearanceActivity : AppCompatActivity() {
 
         content.addView(MaterialSwitch(this).apply {
             text = getString(R.string.blur_setting)
-            isChecked = KaruikeyPreferences.blurEnabled(this@AppearanceActivity)
+            isChecked = KaruikeyPreferences.blurSupported() &&
+                KaruikeyPreferences.blurEnabled(this@AppearanceActivity)
             isEnabled = KaruikeyPreferences.blurSupported()
             contentDescription = getString(
                 if (KaruikeyPreferences.blurSupported()) R.string.blur_supported

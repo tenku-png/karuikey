@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.color.DynamicColors
 import java.util.LinkedHashSet
+import java.util.Locale
 
 data class KaruikeyLanguage(
     val id: String,
@@ -43,41 +44,6 @@ object KaruikeyPreferences {
     const val THEME_LIGHT = "light"
     const val THEME_DARK = "dark"
 
-    // This is the AOSP subtype list filtered to the alphabetic layout sets bundled by Karuikey.
-    // Languages with dictionaries are intentionally not required for basic layout input.
-    val languages = listOf(
-        KaruikeyLanguage(ENGLISH_ID, "en_US", "qwerty", "English (US)", "English", "QWERTY", "English"),
-        KaruikeyLanguage("en-GB", "en_GB", "qwerty", "English (UK)", "English", "QWERTY", "English"),
-        KaruikeyLanguage("en-IN", "en_IN", "qwerty", "English (India)", "English", "QWERTY", "English"),
-        KaruikeyLanguage("af", "af", "qwerty", "Afrikaans", "Afrikaans", "QWERTY", "Afrikaans"),
-        KaruikeyLanguage("az-AZ", "az_AZ", "qwerty", "Azerbaijani", "Azərbaycan dili", "QWERTY", "Azərbaycan dili"),
-        KaruikeyLanguage("be-BY", "be_BY", "east_slavic", "Belarusian", "Беларуская", "East Slavic", "Беларуская"),
-        KaruikeyLanguage("eo", "eo", "qwerty", "Esperanto", "Esperanto", "QWERTY", "Esperanto"),
-        KaruikeyLanguage("fr-CA", "fr_CA", "qwerty", "French (Canada)", "Français (Canada)", "QWERTY", "Français"),
-        KaruikeyLanguage("hi-ZZ", "hi_ZZ", "qwerty", "Hinglish", "Hinglish", "QWERTY", "Hinglish"),
-        KaruikeyLanguage("id-ID", "in", "qwerty", "Indonesian", "Bahasa Indonesia", "QWERTY", "Indonesia"),
-        KaruikeyLanguage("is", "is", "qwerty", "Icelandic", "Íslenska", "QWERTY", "Íslenska"),
-        KaruikeyLanguage("it", "it", "qwerty", "Italian", "Italiano", "QWERTY", "Italiano"),
-        KaruikeyLanguage("kk", "kk", "east_slavic", "Kazakh", "Қазақша", "East Slavic", "Қазақша"),
-        KaruikeyLanguage("ky", "ky", "east_slavic", "Kyrgyz", "Кыргызча", "East Slavic", "Кыргызча"),
-        KaruikeyLanguage("lt", "lt", "qwerty", "Lithuanian", "Lietuvių", "QWERTY", "Lietuvių"),
-        KaruikeyLanguage("lv", "lv", "qwerty", "Latvian", "Latviešu", "QWERTY", "Latviešu"),
-        KaruikeyLanguage("ms-MY", "ms_MY", "qwerty", "Malay", "Melayu", "QWERTY", "Melayu"),
-        KaruikeyLanguage("nl", "nl", "qwerty", "Dutch", "Nederlands", "QWERTY", "Nederlands"),
-        KaruikeyLanguage("pl", "pl", "qwerty", "Polish", "Polski", "QWERTY", "Polski"),
-        KaruikeyLanguage("pt-BR", "pt_BR", "qwerty", "Portuguese (Brazil)", "Português (Brasil)", "QWERTY", "Português"),
-        KaruikeyLanguage("pt-PT", "pt_PT", "qwerty", "Portuguese (Portugal)", "Português (Portugal)", "QWERTY", "Português"),
-        KaruikeyLanguage("ro", "ro", "qwerty", "Romanian", "Română", "QWERTY", "Română"),
-        KaruikeyLanguage(RUSSIAN_ID, "ru_RU", "east_slavic", "Russian", "Русский", "East Slavic", "Русский"),
-        KaruikeyLanguage("sk", "sk", "qwerty", "Slovak", "Slovenčina", "QWERTY", "Slovenčina"),
-        KaruikeyLanguage("sw", "sw", "qwerty", "Swahili", "Kiswahili", "QWERTY", "Kiswahili"),
-        KaruikeyLanguage("tr", "tr", "qwerty", "Turkish", "Türkçe", "QWERTY", "Türkçe"),
-        KaruikeyLanguage("uk", "uk", "east_slavic", "Ukrainian", "Українська", "East Slavic", "Українська"),
-        KaruikeyLanguage("vi", "vi", "qwerty", "Vietnamese", "Tiếng Việt", "QWERTY", "Tiếng Việt"),
-        KaruikeyLanguage("zu", "zu", "qwerty", "Zulu", "isiZulu", "QWERTY", "isiZulu"),
-        KaruikeyLanguage("zz", "zz", "qwerty", "QWERTY", "QWERTY", "QWERTY", "QWERTY")
-    )
-
     private const val PREFS = "karuikey_settings"
     private const val ENABLED_LANGUAGES = "enabled_languages"
     private const val ACTIVE_LANGUAGE = "active_language"
@@ -94,6 +60,39 @@ object KaruikeyPreferences {
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private val emergencyFallback = KaruikeyLanguage(
+        ENGLISH_ID, "en_US", "qwerty", "English (US)", "English", "QWERTY", "English"
+    )
+
+    /**
+     * Returns only entries that can be safely offered by the settings UI. The bundled catalog is
+     * checked exhaustively by instrumentation tests; filtering here keeps a bad future resource
+     * from crashing a user's language screen or input session.
+     */
+    fun languages(context: Context): List<KaruikeyLanguage> {
+        val valid = context.resources.getStringArray(R.array.supported_languages)
+            .mapNotNull(::parseLanguageEntry)
+            .filter { hasKeyboardLayoutResource(context, it) }
+        return valid.ifEmpty { listOf(emergencyFallback) }
+    }
+
+    internal fun parseLanguageEntry(entry: String): KaruikeyLanguage? {
+        val fields = entry.split('|')
+        if (fields.size != 7 || fields.any { it.isBlank() }) return null
+        val locale = Locale.forLanguageTag(fields[1].replace('_', '-'))
+        if (locale.language.isEmpty() || locale.toLanguageTag() == "und") return null
+        return KaruikeyLanguage(
+            fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]
+        )
+    }
+
+    internal fun hasKeyboardLayoutResource(
+        context: Context,
+        language: KaruikeyLanguage
+    ): Boolean = context.resources.getIdentifier(
+        "keyboard_layout_set_${language.layoutSet}", "xml", context.packageName
+    ) != 0
+
     fun enabledLanguages(context: Context): List<KaruikeyLanguage> {
         val ids = prefs(context).getStringSet(
             ENABLED_LANGUAGES,
@@ -101,8 +100,9 @@ object KaruikeyPreferences {
         ) ?: setOf(ENGLISH_ID)
         // Filtering through the immutable catalog gives deterministic order even though
         // SharedPreferences stores StringSet without an ordering guarantee.
-        val enabled = languages.filter { ids.contains(it.id) }
-        return enabled.ifEmpty { listOf(languages.first()) }
+        val catalog = languages(context)
+        val enabled = catalog.filter { ids.contains(it.id) }
+        return enabled.ifEmpty { listOf(catalog.first()) }
     }
 
     fun setLanguageEnabled(context: Context, language: KaruikeyLanguage, enabled: Boolean): Boolean {
@@ -202,7 +202,12 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(BLUR, enabled).apply()
     }
 
-    fun blurSupported() = Build.VERSION.SDK_INT >= 31
+    /**
+     * The IME window is wider than the keyboard surface, so FLAG_BLUR_BEHIND would blur
+     * application content outside the keyboard. Keep the preference visible as an explicit
+     * unavailable capability until a bounded surface/window implementation exists.
+     */
+    fun blurSupported() = false
 
     fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, false)
 

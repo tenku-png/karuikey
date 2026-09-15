@@ -38,10 +38,10 @@ class LanguagesActivity : AppCompatActivity() {
         }, wrapContent())
 
         val enabledIds = KaruikeyPreferences.enabledLanguages(this).map { it.id }.toSet()
-        for (language in KaruikeyPreferences.languages) {
+        for (language in KaruikeyPreferences.languages(this)) {
             if (!enabledIds.contains(language.id)) continue
             content.addView(CheckBox(this).apply {
-                text = "${language.displayName} · ${language.layoutName}"
+                text = "${language.displayName}\n${language.nativeName} · ${language.layoutName}"
                 contentDescription = getString(
                     R.string.language_entry_description,
                     language.displayName,

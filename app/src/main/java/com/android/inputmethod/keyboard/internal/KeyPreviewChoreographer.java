@@ -101,13 +101,15 @@ public final class KeyPreviewChoreographer {
             final ViewGroup placerView, final boolean withAnimation) {
         final KeyPreviewView keyPreviewView = getKeyPreviewView(key, placerView);
         placeKeyPreview(
-                key, keyPreviewView, iconsSet, drawParams, keyboardViewWidth, keyboardOrigin);
+                key, keyPreviewView, iconsSet, drawParams, keyboardViewWidth, keyboardOrigin,
+                placerView);
         showKeyPreview(key, keyPreviewView, withAnimation);
     }
 
     private void placeKeyPreview(final Key key, final KeyPreviewView keyPreviewView,
             final KeyboardIconsSet iconsSet, final KeyDrawParams drawParams,
-            final int keyboardViewWidth, final int[] originCoords) {
+            final int keyboardViewWidth, final int[] originCoords,
+            final ViewGroup placerView) {
         keyPreviewView.setPreviewVisual(key, iconsSet, drawParams);
         keyPreviewView.measure(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -119,13 +121,16 @@ public final class KeyPreviewChoreographer {
         // parent key. If it doesn't fit in this {@link KeyboardView}, it is moved inward to fit and
         // the left/right background is used if such background is specified.
         final int keyPreviewPosition;
-        int previewX = key.getDrawX() - (previewWidth - keyDrawWidth) / 2
-                + CoordinateUtils.x(originCoords);
-        if (previewX < 0) {
-            previewX = 0;
+        final int[] placerOrigin = CoordinateUtils.newInstance();
+        placerView.getLocationInWindow(placerOrigin);
+        final int desiredPreviewX = key.getDrawX() - (previewWidth - keyDrawWidth) / 2
+                + CoordinateUtils.x(originCoords) - CoordinateUtils.x(placerOrigin);
+        final int previewX = PopupGeometry.clampPosition(
+                desiredPreviewX, previewWidth,
+                placerView.getWidth() > 0 ? placerView.getWidth() : keyboardViewWidth);
+        if (previewX < desiredPreviewX) {
             keyPreviewPosition = KeyPreviewView.POSITION_LEFT;
-        } else if (previewX > keyboardViewWidth - previewWidth) {
-            previewX = keyboardViewWidth - previewWidth;
+        } else if (previewX > desiredPreviewX) {
             keyPreviewPosition = KeyPreviewView.POSITION_RIGHT;
         } else {
             keyPreviewPosition = KeyPreviewView.POSITION_MIDDLE;
@@ -134,8 +139,10 @@ public final class KeyPreviewChoreographer {
         keyPreviewView.setPreviewBackground(hasMoreKeys, keyPreviewPosition);
         // The key preview is placed vertically above the top edge of the parent key with an
         // arbitrary offset.
-        final int previewY = key.getY() - previewHeight + mParams.mPreviewOffset
-                + CoordinateUtils.y(originCoords);
+        final int desiredPreviewY = key.getY() - previewHeight + mParams.mPreviewOffset
+                + CoordinateUtils.y(originCoords) - CoordinateUtils.y(placerOrigin);
+        final int previewY = PopupGeometry.clampPosition(
+                desiredPreviewY, previewHeight, placerView.getHeight());
 
         ViewLayoutUtils.placeViewAt(
                 keyPreviewView, previewX, previewY, previewWidth, previewHeight);
@@ -209,4 +216,3 @@ public final class KeyPreviewChoreographer {
         }
     }
 }
-

@@ -27,8 +27,9 @@ public final class GestureEnabler {
     private boolean mGestureHandlingEnabledByUser;
 
     private void updateGestureHandlingMode() {
-        // Gesture typing is deliberately not part of the standalone phase-one core.
-        mShouldHandleGesture = false;
+        mShouldHandleGesture = mMainDictionaryAvailable
+                && mGestureHandlingEnabledByInputField
+                && mGestureHandlingEnabledByUser;
     }
 
     // Note that this method is called from a non-UI thread.

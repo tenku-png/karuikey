@@ -11,12 +11,14 @@ import com.android.inputmethod.keyboard.KeyboardId
 import com.android.inputmethod.keyboard.KeyboardLayoutSet
 import com.android.inputmethod.latin.RichInputMethodSubtype
 import com.android.inputmethod.latin.common.Constants
+import com.android.inputmethod.latin.common.InputPointers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.Locale
 
 @RunWith(AndroidJUnit4::class)
 class KeyboardResourceTest {
@@ -25,16 +27,24 @@ class KeyboardResourceTest {
     @Test
     fun calculatedKeyBoundsStayInsideAvailableWidth() {
         for (width in intArrayOf(240, 320, 411, 1080)) {
-            val layoutSet = keyboardLayoutSet(width, 260, "qwerty", "en_US")
-            for (element in intArrayOf(
-                KeyboardId.ELEMENT_ALPHABET,
-                KeyboardId.ELEMENT_SYMBOLS,
-                KeyboardId.ELEMENT_SYMBOLS_SHIFTED,
-                KeyboardId.ELEMENT_NUMBER,
-                KeyboardId.ELEMENT_PHONE,
-                KeyboardId.ELEMENT_PHONE_SYMBOLS
+            for ((layout, locale) in arrayOf(
+                "qwerty" to "en_US",
+                "east_slavic" to "ru_RU",
+                "qwertz" to "de_DE",
+                "azerty" to "fr_FR",
+                "spanish" to "es_ES"
             )) {
-                assertKeyboardBounds(layoutSet.getKeyboard(element), width)
+                val layoutSet = keyboardLayoutSet(width, 260, layout, locale)
+                for (element in intArrayOf(
+                    KeyboardId.ELEMENT_ALPHABET,
+                    KeyboardId.ELEMENT_SYMBOLS,
+                    KeyboardId.ELEMENT_SYMBOLS_SHIFTED,
+                    KeyboardId.ELEMENT_NUMBER,
+                    KeyboardId.ELEMENT_PHONE,
+                    KeyboardId.ELEMENT_PHONE_SYMBOLS
+                )) {
+                    assertKeyboardBounds(layoutSet.getKeyboard(element), width)
+                }
             }
         }
     }
@@ -103,8 +113,32 @@ class KeyboardResourceTest {
 
     @Test
     fun everyCatalogLanguageMapsToBundledAospLayout() {
-        assertTrue(KaruikeyPreferences.languages.size > 10)
-        for (language in KaruikeyPreferences.languages) {
+        val languages = KaruikeyPreferences.languages(context)
+        assertTrue(languages.size > 10)
+        for (language in languages) {
+            val keyboard = keyboardLayoutSet(320, 260, language.layoutSet, language.locale)
+                .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+            assertTrue("No keys for ${language.id}", keyboard.getSortedKeys().isNotEmpty())
+        }
+    }
+
+    @Test
+    fun everyRawCatalogEntryIsUniqueValidAndBuildable() {
+        val entries = context.resources.getStringArray(R.array.supported_languages)
+        val languages = entries.map { entry ->
+            val language = KaruikeyPreferences.parseLanguageEntry(entry)
+            assertNotNull("Invalid catalog entry: $entry", language)
+            language!!
+        }
+        assertEquals(languages.size, languages.map { it.id }.toSet().size)
+        for (language in languages) {
+            assertTrue(language.id.isNotBlank())
+            assertTrue(Locale.forLanguageTag(language.locale.replace('_', '-')).language.isNotEmpty())
+            assertTrue(language.displayName.isNotBlank())
+            assertTrue(language.nativeName.isNotBlank())
+            assertTrue(language.layoutName.isNotBlank())
+            assertTrue(language.spacebarLabel.isNotBlank())
+            assertTrue(KaruikeyPreferences.hasKeyboardLayoutResource(context, language))
             val keyboard = keyboardLayoutSet(320, 260, language.layoutSet, language.locale)
                 .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
             assertTrue("No keys for ${language.id}", keyboard.getSortedKeys().isNotEmpty())
@@ -160,6 +194,74 @@ class KeyboardResourceTest {
         val keyboard = keyboardLayoutSet(320, 260, "qwerty", "en_US")
             .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
         assertTrue(keyboard.getKey(Constants.CODE_DELETE)?.isRepeatable() == true)
+    }
+
+    @Test
+    fun gestureDecoderUsesTheLoadedKeyboardGeometry() {
+        val keyboard = keyboardLayoutSet(411, 260, "qwerty", "en_US")
+            .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+        val points = InputPointers(8)
+        for ((time, code) in listOf('h'.code, 'e'.code, 'l'.code, 'o'.code).withIndex()) {
+            val key = keyboard.getKey(code)
+            assertNotNull(key)
+            points.addPointer(
+                key!!.x + key.width / 2,
+                key.y + key.height / 2,
+                0,
+                time * 100
+            )
+        }
+
+        assertEquals("helo", GestureDecoder.decode(keyboard, points))
+    }
+
+    @Test
+    fun gestureDecoderMatchesCenterPathDespiteIntermediateKeys() {
+        val keyboard = keyboardLayoutSet(411, 260, "qwerty", "en_US")
+            .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+        val points = InputPointers(16)
+        val path = listOf(
+            'h', 'g', 'f', 'r', 'e', 'r', 'g', 'h', 'j', 'l', 'l', 'k', 'o'
+        )
+        for ((time, character) in path.withIndex()) {
+            val key = keyboard.getKey(character.code)
+            assertNotNull(key)
+            points.addPointer(
+                key!!.x + key.width / 2,
+                key.y + key.height / 2,
+                0,
+                time * 100
+            )
+        }
+
+        assertEquals(
+            "hello",
+            GestureDecoder.findBestCandidate(keyboard, points, arrayOf("help", "hello"))
+        )
+    }
+
+    @Test
+    fun gestureCoveragePrefersAFullRussianWordOverItsShortPrefix() {
+        val keyboard = keyboardLayoutSet(411, 260, "east_slavic", "ru_RU")
+            .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+        val points = InputPointers(16)
+        for ((time, character) in "привет".withIndex()) {
+            val key = keyboard.getKey(character.code)
+            assertNotNull(key)
+            points.addPointer(
+                key!!.x + key.width / 2,
+                key.y + key.height / 2,
+                0,
+                time * 100
+            )
+        }
+
+        assertEquals(
+            "привет",
+            SuggestionEngine.findGestureCandidate(
+                "ru_RU", keyboard, points, null
+            )
+        )
     }
 
     private fun assertKeyboardBounds(keyboard: Keyboard, width: Int) {

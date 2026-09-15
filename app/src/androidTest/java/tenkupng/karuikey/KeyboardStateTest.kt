@@ -1,5 +1,6 @@
 package tenkupng.karuikey
 
+import android.text.InputType
 import android.text.TextUtils
 import com.android.inputmethod.event.Event
 import com.android.inputmethod.keyboard.internal.KeyboardState
@@ -41,14 +42,20 @@ class KeyboardStateTest {
     }
 
     @Test
-    fun automaticShiftIsConsumedAfterALetterEvenIfEditorStillReportsCapMode() {
+    fun platformCharacterOnlyCallbackUnshiftsAfterTheFirstLetter() {
         val actions = FakeSwitchActions()
         val state = KeyboardState(actions)
         actions.state = state
-        state.onLoadKeyboard(TextUtils.CAP_MODE_SENTENCES,
+        state.onLoadKeyboard(TextUtils.CAP_MODE_WORDS,
             RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
 
-        state.onEvent(letterEvent('a'.code), TextUtils.CAP_MODE_SENTENCES,
+        val afterCommitCaps = KaruikeyCapsMode.normalize(
+            TextUtils.CAP_MODE_CHARACTERS,
+            InputType.TYPE_CLASS_TEXT
+        )
+        state.onEvent(letterEvent('a'.code), afterCommitCaps,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+        state.onUpdateShiftState(afterCommitCaps,
             RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
 
         assertEquals("alpha", actions.keyboard)
@@ -67,6 +74,41 @@ class KeyboardStateTest {
             state.onLoadKeyboard(flags, RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
             assertEquals("automatic", actions.keyboard)
         }
+    }
+
+    @Test
+    fun characterCapsModeStaysShiftedAfterLetters() {
+        val actions = FakeSwitchActions()
+        val state = KeyboardState(actions)
+        actions.state = state
+        state.onLoadKeyboard(TextUtils.CAP_MODE_CHARACTERS,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        state.onEvent(letterEvent('a'.code), TextUtils.CAP_MODE_CHARACTERS,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+        state.onUpdateShiftState(TextUtils.CAP_MODE_CHARACTERS,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        assertEquals("automatic", actions.keyboard)
+    }
+
+    @Test
+    fun manualShiftStillReturnsToLowercaseAfterAutomaticShiftWasConsumed() {
+        val actions = FakeSwitchActions()
+        val state = KeyboardState(actions)
+        actions.state = state
+        state.onLoadKeyboard(TextUtils.CAP_MODE_SENTENCES,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+        state.onEvent(letterEvent('a'.code), TextUtils.CAP_MODE_SENTENCES,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        state.onPressKey(Constants.CODE_SHIFT, true, 0,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+        state.onReleaseKey(Constants.CODE_SHIFT, false, 0,
+            RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+        state.onEvent(letterEvent('b'.code), 0, RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE)
+
+        assertEquals("alpha", actions.keyboard)
     }
 
     @Test

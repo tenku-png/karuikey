@@ -4,11 +4,12 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.ViewGroup
-import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import android.widget.ScrollView
 import android.widget.TextView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 
 class LanguageListActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,12 +25,16 @@ class LanguageListActivity : AppCompatActivity() {
             textSize = 24f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }, wrapContent())
-        val search = EditText(this).apply {
-            hint = getString(R.string.search_languages_hint)
+        val search = TextInputEditText(this).apply {
             isSingleLine = true
             inputType = android.text.InputType.TYPE_CLASS_TEXT
         }
-        content.addView(search, wrapContent())
+        content.addView(TextInputLayout(this).apply {
+            hint = getString(R.string.search_languages_hint)
+            addView(search, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }, wrapContent())
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results, wrapContent())
         renderAvailable(results, "")
@@ -46,7 +51,7 @@ class LanguageListActivity : AppCompatActivity() {
     private fun renderAvailable(container: LinearLayout, query: String) {
         container.removeAllViews()
         val enabled = KaruikeyPreferences.enabledLanguages(this).map { it.id }.toSet()
-        val available = KaruikeyPreferences.languages.filterNot { enabled.contains(it.id) }
+        val available = KaruikeyPreferences.languages(this).filterNot { enabled.contains(it.id) }
             .filter {
                 query.isBlank() || it.displayName.contains(query, true) ||
                     it.nativeName.contains(query, true) || it.locale.contains(query, true)
@@ -61,7 +66,7 @@ class LanguageListActivity : AppCompatActivity() {
         }
         for (language in available) {
             container.addView(LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 setPadding(0, dp(14), 0, dp(14))
                 isClickable = true
                 isFocusable = true
@@ -72,15 +77,24 @@ class LanguageListActivity : AppCompatActivity() {
                     language.nativeName,
                     language.layoutName
                 )
+                addView(LinearLayout(this@LanguageListActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(this@LanguageListActivity).apply {
+                        text = language.displayName
+                        textSize = 17f
+                    }, wrapContent())
+                    addView(TextView(this@LanguageListActivity).apply {
+                        text = "${language.nativeName} · ${language.layoutName}"
+                        textSize = 14f
+                        setPadding(0, dp(3), 0, 0)
+                    }, wrapContent())
+                }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(TextView(this@LanguageListActivity).apply {
-                    text = language.displayName
-                    textSize = 17f
-                }, wrapContent())
-                addView(TextView(this@LanguageListActivity).apply {
-                    text = "${language.nativeName} · ${language.layoutName}"
-                    textSize = 14f
-                    setPadding(0, dp(3), 0, 0)
-                }, wrapContent())
+                    text = "+"
+                    textSize = 24f
+                    gravity = android.view.Gravity.CENTER
+                    contentDescription = getString(R.string.add_language)
+                }, LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT))
                 setOnClickListener {
                     KaruikeyPreferences.setLanguageEnabled(this@LanguageListActivity, language, true)
                     finish()

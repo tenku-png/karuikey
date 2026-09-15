@@ -31,6 +31,7 @@ import android.view.ViewGroup;
 import com.android.inputmethod.accessibility.AccessibilityUtils;
 import com.android.inputmethod.accessibility.MoreKeysKeyboardAccessibilityDelegate;
 import com.android.inputmethod.keyboard.internal.KeyDrawParams;
+import com.android.inputmethod.keyboard.internal.PopupGeometry;
 import tenkupng.karuikey.R;
 import com.android.inputmethod.latin.common.Constants;
 import com.android.inputmethod.latin.common.CoordinateUtils;
@@ -133,15 +134,21 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
                 + getPaddingBottom();
 
         parentView.getLocationInWindow(mCoordinates);
-        // Ensure the horizontal position of the panel does not extend past the parentView edges.
-        final int maxX = parentView.getMeasuredWidth() - container.getMeasuredWidth();
-        final int panelX = Math.max(0, Math.min(maxX, x)) + CoordinateUtils.x(mCoordinates);
-        final int panelY = y + CoordinateUtils.y(mCoordinates);
+        // Keep the panel and its touch translation based on the same clamped local origin. The
+        // AOSP code only clamped the visual X position, which left edge popups selecting a key
+        // from the unclamped coordinate space; the top row could also place the panel above the
+        // visible IME surface.
+        final int panelLocalX = PopupGeometry.clampPosition(
+                x, container.getMeasuredWidth(), parentView.getMeasuredWidth());
+        final int panelLocalY = PopupGeometry.clampPosition(
+                y, container.getMeasuredHeight(), parentView.getMeasuredHeight());
+        final int panelX = panelLocalX + CoordinateUtils.x(mCoordinates);
+        final int panelY = panelLocalY + CoordinateUtils.y(mCoordinates);
         container.setX(panelX);
         container.setY(panelY);
 
-        mOriginX = x + container.getPaddingLeft();
-        mOriginY = y + container.getPaddingTop();
+        mOriginX = panelLocalX + container.getPaddingLeft();
+        mOriginY = panelLocalY + container.getPaddingTop();
         controller.onShowMoreKeysPanel(this);
         final MoreKeysKeyboardAccessibilityDelegate accessibilityDelegate = mAccessibilityDelegate;
         if (accessibilityDelegate != null
@@ -320,4 +327,3 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         return (getContainerView().getParent() != null);
     }
 }
-

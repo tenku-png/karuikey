@@ -2,19 +2,23 @@ Karuikey includes source code and keyboard resources derived from the Android
 Open Source Project LatinIME keyboard. The derived files are materially
 modified for Karuikey and retain Apache License 2.0 notices. The imported
 foundation is limited to keyboard geometry, resource parsing, hit detection,
-keyboard selection, shift state, and the English/Russian/numeric/phone layout
-resources; full dictionaries, autocorrect, gesture typing, native code, and telemetry are not
-included. Karuikey's optional starter suggestions use a small project-owned vocabulary.
+keyboard selection, shift state, AOSP gesture path sampling, and the bundled alphabetic,
+numeric/phone layout resources; full dictionaries, autocorrect, native code, and telemetry are
+not included. Karuikey's optional suggestions use ranked project-owned English/Russian common
+word lexicons; no third-party dictionary data is bundled.
 
 Derived AOSP files in this distribution are the Java sources under
 app/src/main/java/com/android/inputmethod/{accessibility,annotations,compat,
-event,keyboard,latin}, plus the keyboard XML resources under
+event,keyboard,latin}, excluding the Karuikey-owned
+app/src/main/java/com/android/inputmethod/keyboard/internal/PopupGeometry.java,
+plus the keyboard XML resources under
 app/src/main/res/xml/{kbd_*,key_*,keys_*,row_*,rowkeys_*,rows_*,keyboard_layout_set_*}.
 The key-preview animation resources under app/src/main/res/anim/ and the
 resource file app/src/main/res/values/attrs.xml are also derived from AOSP.
 Each derived source/resource file contains a Karuikey adaptation marker.
 
-   Copyright (c) 2008, 2010, 2011, 2012 The Android Open Source Project
+   Copyright (c) 2008, 2010, 2011, 2012, 2013, 2014, 2015, 2016
+   The Android Open Source Project
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Karuikey adaptation: AOSP LatinIME AZERTY rows. -->
+<!--
+/* Copyright 2010 The Android Open Source Project
+ * Licensed under the Apache License, Version 2.0. */
+-->
+<merge xmlns:latin="http://schemas.android.com/apk/res-auto">
+    <include latin:keyboardLayout="@xml/key_styles_common" />
+    <Row latin:keyWidth="10%p">
+        <include latin:keyboardLayout="@xml/rowkeys_azerty1" />
+    </Row>
+    <Row latin:keyWidth="10%p">
+        <include latin:keyboardLayout="@xml/rowkeys_azerty2" />
+    </Row>
+    <Row latin:keyWidth="10%p">
+        <Key latin:keyStyle="shiftKeyStyle" latin:keyWidth="15%p" latin:visualInsetsRight="1%p" />
+        <include latin:keyboardLayout="@xml/rowkeys_azerty3" />
+        <Key latin:keyStyle="deleteKeyStyle" latin:keyWidth="fillRight" latin:visualInsetsLeft="1%p" />
+    </Row>
+    <include latin:keyboardLayout="@xml/row_qwerty4" />
+</merge>

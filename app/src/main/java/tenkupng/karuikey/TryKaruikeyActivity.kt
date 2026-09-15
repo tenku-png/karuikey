@@ -24,6 +24,10 @@ class TryKaruikeyActivity : AppCompatActivity() {
         }, wrapContent())
         content.addView(field(R.string.try_normal_hint, InputType.TYPE_CLASS_TEXT), fieldParams())
         content.addView(field(
+            R.string.try_sentence_hint,
+            InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+        ), fieldParams())
+        content.addView(field(
             R.string.try_multiline_hint,
             InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         ).apply { minLines = 3 }, fieldParams())

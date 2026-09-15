@@ -41,8 +41,9 @@ class KaruikeyPreferencesTest {
 
     @Test
     fun languagesPersistAndTheLastEnabledLanguageCannotBeRemoved() {
-        val english = KaruikeyPreferences.languages.first()
-        val russian = KaruikeyPreferences.languages.first {
+        val languages = KaruikeyPreferences.languages(context)
+        val english = languages.first()
+        val russian = languages.first {
             it.id == KaruikeyPreferences.RUSSIAN_ID
         }
         assertTrue(KaruikeyPreferences.setLanguageEnabled(context, russian, false))
@@ -53,7 +54,7 @@ class KaruikeyPreferencesTest {
 
     @Test
     fun activeLanguagePersistsLocally() {
-        val russian = KaruikeyPreferences.languages.first {
+        val russian = KaruikeyPreferences.languages(context).first {
             it.id == KaruikeyPreferences.RUSSIAN_ID
         }
         KaruikeyPreferences.setActiveLanguage(context, russian)
@@ -62,7 +63,7 @@ class KaruikeyPreferencesTest {
 
     @Test
     fun activeLanguageFallsBackWhenItIsDisabled() {
-        val russian = KaruikeyPreferences.languages.first {
+        val russian = KaruikeyPreferences.languages(context).first {
             it.id == KaruikeyPreferences.RUSSIAN_ID
         }
         KaruikeyPreferences.setActiveLanguage(context, russian)
@@ -129,6 +130,7 @@ class KaruikeyPreferencesTest {
         assertFalse(KaruikeyPreferences.transparencyEnabled(context))
         assertEquals(0, KaruikeyPreferences.transparencyAmount(context))
         assertFalse(KaruikeyPreferences.blurEnabled(context))
+        assertFalse(KaruikeyPreferences.blurSupported())
         assertFalse(KaruikeyPreferences.suggestionsEnabled(context))
 
         KaruikeyPreferences.setTransparencyEnabled(context, true)

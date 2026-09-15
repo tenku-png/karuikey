@@ -7,6 +7,10 @@
     <string name="subtype_english_us">English (US)</string>
     <string name="subtype_english_uk">English (UK)</string>
     <string name="subtype_english_india">English (India)</string>
+    <string name="subtype_german">German</string>
+    <string name="subtype_czech">Czech</string>
+    <string name="subtype_french">French</string>
+    <string name="subtype_spanish">Spanish</string>
     <string name="subtype_afrikaans">Afrikaans</string>
     <string name="subtype_azerbaijani">Azerbaijani</string>
     <string name="subtype_belarusian">Belarusian</string>
@@ -55,6 +59,7 @@
     <string name="clipboard_empty">Clipboard is empty</string>
     <string name="clipboard_non_text">No text in clipboard</string>
     <string name="clipboard_paste">Paste</string>
+    <string name="clipboard_back">Back to keyboard</string>
     <string name="language_switch">Switch language</string>
     <string name="keyboard_settings_note">Changes apply when the keyboard opens again.</string>
     <string name="appearance_note">Appearance changes refresh the current keyboard when possible; otherwise they apply the next time it opens.</string>
@@ -64,16 +69,17 @@
 
 Offline by default. No input logging, analytics, advertising, tracking, or network permission.
 
-Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. Optional starter suggestions use a small project-owned vocabulary; no external dictionary is bundled. See NOTICE in the source distribution.</string>
+Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. Optional suggestions use a project-owned English/Russian common-word lexicon; no external dictionary is bundled. See NOTICE in the source distribution.</string>
     <string name="typing_title">Typing</string>
     <string name="typing_summary">Suggestions</string>
     <string name="suggestions_setting">Suggestions</string>
-    <string name="suggestions_description">Show up to three offline starter-word suggestions</string>
+    <string name="suggestions_description">Show up to three offline common-word suggestions</string>
     <string name="setting_on">On</string>
     <string name="setting_off">Off</string>
     <string name="try_keyboard_title">Try Karuikey</string>
     <string name="try_keyboard_summary">Test text, email, multiline, and numeric fields</string>
     <string name="try_normal_hint">Normal text</string>
+    <string name="try_sentence_hint">Sentence capitalization</string>
     <string name="try_multiline_hint">Multiline text</string>
     <string name="try_email_hint">Email address</string>
     <string name="try_number_hint">Numbers</string>
@@ -82,7 +88,7 @@ Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open So
     <string name="transparency_amount_setting">Transparency: %1$d%%</string>
     <string name="blur_setting">Background blur</string>
     <string name="blur_supported">Uses Android background blur when supported</string>
-    <string name="blur_unavailable">Unavailable on this Android version</string>
+    <string name="blur_unavailable">Unavailable for this keyboard window</string>
     <string name="search_languages_hint">Search languages</string>
     <string name="no_languages_found">No matching languages</string>
 </resources>
