@@ -74,16 +74,14 @@
     <string name="keyboard_settings_note">Changes apply when the keyboard opens again.</string>
     <string name="appearance_note">Appearance changes refresh the current keyboard when possible; otherwise they apply the next time it opens.</string>
     <string name="about_title">About</string>
-    <string name="about_summary">Version, licenses, and privacy</string>
+    <string name="about_summary">Version and open-source notices</string>
     <string name="about_text">Karuikey %1$s
 
-Offline by default. No input logging, analytics, advertising, tracking, or network permission.
-
-Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. Optional suggestions use a project-owned English/Russian common-word lexicon; no external dictionary is bundled. See NOTICE in the source distribution.</string>
+Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open Source Project LatinIME code under the Apache License 2.0. See NOTICE in the source distribution.</string>
     <string name="typing_title">Typing</string>
     <string name="typing_summary">Suggestions</string>
     <string name="suggestions_setting">Suggestions</string>
-    <string name="suggestions_description">Show up to three offline common-word suggestions</string>
+    <string name="suggestions_description">Show offline word suggestions</string>
     <string name="setting_on">On</string>
     <string name="setting_off">Off</string>
     <string name="try_keyboard_title">Try Karuikey</string>

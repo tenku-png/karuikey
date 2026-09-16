@@ -474,6 +474,11 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         }
     }
 
+    @Override
+    public void updateKeyPreview(@NonNull final Key key, @Nullable final String label) {
+        mKeyPreviewChoreographer.updateKeyPreview(key, label);
+    }
+
     private void showKeyPreview(@NonNull final Key key) {
         final Keyboard keyboard = getKeyboard();
         if (keyboard == null) {
@@ -779,9 +784,6 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     public void startDisplayLanguageOnSpacebar(final boolean subtypeChanged,
             final int languageOnSpacebarFormatType,
             final boolean hasMultipleEnabledIMEsOrSubtypes) {
-        if (subtypeChanged) {
-            KeyPreviewView.clearTextCache();
-        }
         mLanguageOnSpacebarFormatType = languageOnSpacebarFormatType;
         mHasMultipleEnabledIMEsOrSubtypes = hasMultipleEnabledIMEsOrSubtypes;
         final ObjectAnimator animator = mLanguageOnSpacebarFadeoutAnimator;
@@ -892,7 +894,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         final int width = key.getWidth();
         final int height = key.getHeight();
         paint.setTextAlign(Align.CENTER);
-        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTypeface(getKeyDrawParams().mTypeface);
         paint.setTextSize(mLanguageOnSpacebarTextSize);
         final String language = layoutLanguageOnSpacebar(paint, keyboard.mId.mSubtype, width);
         // Draw language text with shadow

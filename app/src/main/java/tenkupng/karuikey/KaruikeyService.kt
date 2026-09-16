@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.Typeface
 import android.inputmethodservice.InputMethodService
 import android.text.InputType
 import android.text.TextUtils
@@ -43,6 +44,8 @@ import com.android.inputmethod.latin.utils.RecapitalizeStatus
 import com.android.inputmethod.latin.utils.SubtypeLocaleUtils
 
 class KaruikeyService : InputMethodService() {
+    private val keyboardTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 400) }
+    private val suggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 475) }
     private var inputView: KaruikeyInputView? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
@@ -69,6 +72,7 @@ class KaruikeyService : InputMethodService() {
         AccessibilityUtils.init(this)
         SubtypeLocaleUtils.init(this)
         super.onCreate()
+        SuggestionEngine.initialize(this)
         val preferences = getSharedPreferences("karuikey_settings", MODE_PRIVATE)
         preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
             inputView?.post { refreshInputViewForPreferences() }
@@ -128,19 +132,25 @@ class KaruikeyService : InputMethodService() {
                 Constants.CODE_SWITCH_ALPHA_SYMBOL -> {
                     finishEditorComposition(connection)
                     clearCurrentWord()
+                    suggestionSession.clearAutomaticSpace()
                 }
                 else -> if (primaryCode > 0) {
                     val text = StringUtils.newSingleCodePointString(primaryCode)
-                    if (Constants.isLetterCode(primaryCode) && suggestionsAllowed) {
+                    if (Character.isLetter(primaryCode) && suggestionsAllowed) {
                         appendToComposition(connection, text)
+                    } else if (suggestionSession.hasAutomaticSpace &&
+                        isAutoSpacePunctuation(primaryCode)
+                    ) {
+                        commitPunctuationAfterAutomaticSpace(connection, text)
                     } else {
+                        suggestionSession.clearAutomaticSpace()
                         finishEditorComposition(connection)
                         if (expectedCursorPosition >= 0) {
                             expectedCursorPosition += text.length
                             expectedSelectionEnd = expectedCursorPosition
                         }
                         duringEditorUpdate { connection?.commitText(text, 1) }
-                        if (Constants.isLetterCode(primaryCode)) {
+                        if (Character.isLetter(primaryCode)) {
                             clearCurrentWord()
                         } else {
                             completeCurrentWord()
@@ -157,6 +167,7 @@ class KaruikeyService : InputMethodService() {
 
         override fun onTextInput(text: String) {
             val connection = currentInputConnection
+            suggestionSession.clearAutomaticSpace()
             finishEditorComposition(connection)
             duringEditorUpdate { connection?.commitText(text, 1) }
             clearComposingWord()
@@ -173,6 +184,7 @@ class KaruikeyService : InputMethodService() {
                 locale, keyboardSwitcher?.getKeyboard(), batchPointers, suggestionSession.previousWord
             ) ?: return
             finishEditorComposition(currentInputConnection)
+            suggestionSession.clearAutomaticSpace()
             duringEditorUpdate { currentInputConnection?.commitText(candidate, 1) }
             if (expectedCursorPosition >= 0) {
                 expectedCursorPosition += candidate.length
@@ -218,6 +230,7 @@ class KaruikeyService : InputMethodService() {
         editorInfo = attribute
         currentLanguage = KaruikeyPreferences.activeLanguage(this)
         currentSubtype = subtypeFor(currentLanguage!!)
+        beginSuggestionSession(currentLanguage!!.locale)
         loadedWidth = 0
         loadedHeight = 0
         suggestionsAllowed = suggestionsEnabledFor(attribute)
@@ -259,6 +272,9 @@ class KaruikeyService : InputMethodService() {
             )
         }
         if (!suggestionsAllowed && editorUpdateDepth == 0) {
+            if (newSelStart != expectedCursorPosition || newSelEnd != expectedSelectionEnd) {
+                suggestionSession.clearAutomaticSpace()
+            }
             expectedCursorPosition = newSelStart
             expectedSelectionEnd = newSelEnd
         }
@@ -268,6 +284,9 @@ class KaruikeyService : InputMethodService() {
                     return
                 }
                 pendingEditorSelection = -1
+            }
+            if (newSelStart != expectedCursorPosition || newSelEnd != expectedSelectionEnd) {
+                suggestionSession.clearAutomaticSpace()
             }
             val compositionStillActive = composingStart >= 0 &&
                 newSelStart == newSelEnd &&
@@ -294,6 +313,7 @@ class KaruikeyService : InputMethodService() {
             currentLanguage = language
             KaruikeyPreferences.setActiveLanguage(this, language)
             currentSubtype = subtypeFor(language)
+            beginSuggestionSession(language.locale)
         }
         gestureAllowed = editorInfo?.let {
             gestureEnabledFor(it, currentLanguage?.locale ?: "")
@@ -312,6 +332,7 @@ class KaruikeyService : InputMethodService() {
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
+        suggestionSession.clearAutomaticSpace()
         if (finishingInput) clearComposingWord()
         super.onFinishInputView(finishingInput)
     }
@@ -321,6 +342,7 @@ class KaruikeyService : InputMethodService() {
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
         clearComposingWord()
+        SuggestionEngine.endSession()
         super.onFinishInput()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.resetForNewInput()
@@ -342,6 +364,7 @@ class KaruikeyService : InputMethodService() {
         super.onWindowHidden()
         keyboardSwitcher?.onHideWindow()
         keyboardSwitcher?.closing()
+        suggestionSession.clearAutomaticSpace()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -371,6 +394,7 @@ class KaruikeyService : InputMethodService() {
         }
         preferencesListener = null
         editorInfo = null
+        SuggestionEngine.endSession()
         super.onDestroy()
     }
 
@@ -439,6 +463,7 @@ class KaruikeyService : InputMethodService() {
         val next = enabled[(currentIndex + 1) % enabled.size]
         currentLanguage = next
         currentSubtype = subtypeFor(next)
+        beginSuggestionSession(next.locale)
         gestureAllowed = editorInfo?.let { gestureEnabledFor(it, next.locale) } ?: false
         KaruikeyPreferences.setActiveLanguage(this, next)
         clearComposingWord()
@@ -446,6 +471,15 @@ class KaruikeyService : InputMethodService() {
         loadedWidth = 0
         loadedHeight = 0
         loadKeyboardIfMeasured()
+        refreshSuggestions()
+    }
+
+    private fun beginSuggestionSession(locale: String) {
+        SuggestionEngine.beginSession(locale) {
+            inputView?.post {
+                if (editorInfo != null && currentLanguage?.locale == locale) refreshSuggestions()
+            }
+        }
     }
 
     private fun languageForSubtype(subtype: InputMethodSubtype): KaruikeyLanguage? {
@@ -537,6 +571,7 @@ class KaruikeyService : InputMethodService() {
         }
         SuggestionEngine.fill(
             currentLanguage?.locale ?: "en", suggestionSession.previousWord,
+            suggestionSession.recentWord(1), suggestionSession.recentWord(2),
             suggestionSession.prefix,
             suggestionResults
         )
@@ -569,15 +604,17 @@ class KaruikeyService : InputMethodService() {
             duringEditorUpdate { connection.commitText(replacement, 1) }
         }
         suggestionSession.completeWord(replacement)
-        clearSuggestions()
+        commitAutomaticSpace(connection)
+        refreshSuggestions()
     }
 
     private fun appendToComposition(connection: InputConnection?, text: String) {
         if (connection == null) return
+        suggestionSession.clearAutomaticSpace()
         if (composingStart < 0) composingStart = expectedCursorPosition.coerceAtLeast(0)
         suggestionSession.append(text)
-            expectedCursorPosition = composingStart + suggestionSession.prefix.length
-            expectedSelectionEnd = expectedCursorPosition
+        expectedCursorPosition = composingStart + suggestionSession.prefix.length
+        expectedSelectionEnd = expectedCursorPosition
         duringEditorUpdate { connection.setComposingText(suggestionSession.prefix, 1) }
     }
 
@@ -597,6 +634,16 @@ class KaruikeyService : InputMethodService() {
             if (removed > 0) clearSuggestions()
             return
         }
+        if (suggestionSession.hasAutomaticSpace) {
+            duringEditorUpdate { connection?.deleteSurroundingText(1, 0) }
+            suggestionSession.clearAutomaticSpace()
+            if (expectedCursorPosition > 0) {
+                expectedCursorPosition--
+                expectedSelectionEnd = expectedCursorPosition
+            }
+            clearSuggestions()
+            return
+        }
         duringEditorUpdate { connection?.deleteSurroundingText(1, 0) }
         suggestionSession.clear()
         composingStart = -1
@@ -608,6 +655,12 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun commitSeparator(connection: InputConnection?, separator: String) {
+        if (separator == " " && suggestionSession.hasAutomaticSpace) {
+            suggestionSession.clearAutomaticSpace()
+            suggestionSession.completeCurrentWord()
+            return
+        }
+        suggestionSession.clearAutomaticSpace()
         finishEditorComposition(connection)
         if (expectedCursorPosition >= 0) {
             pendingEditorSelection = expectedCursorPosition
@@ -619,11 +672,43 @@ class KaruikeyService : InputMethodService() {
         clearSuggestions()
     }
 
+    private fun commitAutomaticSpace(connection: InputConnection?) {
+        if (expectedCursorPosition >= 0) {
+            pendingEditorSelection = expectedCursorPosition
+            expectedCursorPosition++
+            expectedSelectionEnd = expectedCursorPosition
+        }
+        duringEditorUpdate { connection?.commitText(" ", 1) }
+        suggestionSession.markAutomaticSpace()
+    }
+
+    private fun commitPunctuationAfterAutomaticSpace(
+        connection: InputConnection?,
+        punctuation: String
+    ) {
+        finishEditorComposition(connection)
+        if (expectedCursorPosition > 0) expectedCursorPosition--
+        duringEditorUpdate {
+            connection?.deleteSurroundingText(1, 0)
+            connection?.commitText("$punctuation ", 1)
+        }
+        expectedSelectionEnd = expectedCursorPosition + punctuation.length + 1
+        expectedCursorPosition = expectedSelectionEnd
+        suggestionSession.clearAutomaticSpace()
+        suggestionSession.completeCurrentWord()
+    }
+
+    private fun isAutoSpacePunctuation(code: Int): Boolean = when (code) {
+        '.'.code, ','.code, '?'.code, '!'.code, ':'.code, ';'.code -> true
+        else -> false
+    }
+
     private fun moveCursorBy(steps: Int) {
         if (steps == 0 || expectedCursorPosition < 0 ||
             expectedSelectionEnd != expectedCursorPosition
         ) return
         val connection = currentInputConnection ?: return
+        suggestionSession.clearAutomaticSpace()
         var position = expectedCursorPosition
         val direction = if (steps < 0) -1 else 1
         for (stepIndex in 0 until kotlin.math.abs(steps)) {
@@ -824,12 +909,14 @@ class KaruikeyService : InputMethodService() {
         private val clipboardHeaderTitle = TextView(keyboardContext).apply {
             text = getString(R.string.toolbar_clipboard)
             textSize = 16f
+            typeface = keyboardTypeface
             gravity = Gravity.CENTER_VERTICAL
             setTextColor(appearance.primaryText)
             setPadding(dp(12), 0, 0, 0)
         }
         private val clipboardStatus = TextView(keyboardContext).apply {
             textSize = 12f
+            typeface = keyboardTypeface
             gravity = Gravity.CENTER_VERTICAL
             setTextColor(appearance.secondaryText)
             setPadding(dp(8), 0, dp(4), 0)
@@ -871,6 +958,7 @@ class KaruikeyService : InputMethodService() {
         private val clipboardClearAll = TextView(keyboardContext).apply {
             text = getString(R.string.clipboard_clear_all)
             textSize = 14f
+            typeface = keyboardTypeface
             gravity = Gravity.CENTER
             isClickable = true
             isFocusable = true
@@ -895,6 +983,7 @@ class KaruikeyService : InputMethodService() {
             TextView(keyboardContext).apply {
                 gravity = Gravity.CENTER
                 textSize = 14f
+                typeface = suggestionTypeface
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
                 isClickable = true
@@ -909,7 +998,9 @@ class KaruikeyService : InputMethodService() {
 
         init {
             setBackgroundColor(appearance.keyboardBackground)
-            toolbar.setBackgroundColor(appearance.keyboardBackground)
+            keyboardView.setBackgroundColor(Color.TRANSPARENT)
+            toolbar.setBackgroundColor(Color.TRANSPARENT)
+            clipboardPanel.setBackgroundColor(Color.TRANSPARENT)
             utilityToolbar.orientation = LinearLayout.HORIZONTAL
             utilityToolbar.gravity = Gravity.CENTER_VERTICAL
             utilityToolbar.addView(
@@ -1087,18 +1178,17 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun surfaceBackgroundColor(): Int {
-            val surface = appearance.keyboardBackground
-            if (!KaruikeyPreferences.transparencyEnabled(this@KaruikeyService)) return surface
-            return Color.argb(
-                (255 * KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)).toInt(),
-                Color.red(surface), Color.green(surface), Color.blue(surface)
+            return KaruikeyPreferences.resolvedKeyboardSurfaceColor(
+                appearance.keyboardBackground,
+                KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)
             )
         }
 
         fun applySurfaceBackground(color: Int) {
             setBackgroundColor(color)
-            toolbar.setBackgroundColor(color)
-            clipboardPanel.setBackgroundColor(color)
+            keyboardView.setBackgroundColor(Color.TRANSPARENT)
+            toolbar.setBackgroundColor(Color.TRANSPARENT)
+            clipboardPanel.setBackgroundColor(Color.TRANSPARENT)
         }
 
         fun showClipboard(
@@ -1133,6 +1223,7 @@ class KaruikeyService : InputMethodService() {
                         clipboardEmptyMessage
                     )
                     textSize = 14f
+                    typeface = keyboardTypeface
                     gravity = Gravity.CENTER
                     setTextColor(appearance.secondaryText)
                     setPadding(dp(16), dp(20), dp(16), dp(20))
@@ -1150,6 +1241,7 @@ class KaruikeyService : InputMethodService() {
                 val card = TextView(keyboardContext).apply {
                     text = item.text
                     textSize = 15f
+                    typeface = keyboardTypeface
                     maxLines = 4
                     ellipsize = TextUtils.TruncateAt.END
                     gravity = Gravity.CENTER_VERTICAL
@@ -1211,7 +1303,6 @@ class KaruikeyService : InputMethodService() {
             finishEditorComposition(currentInputConnection)
             duringEditorUpdate { currentInputConnection?.commitText(text, 1) }
             clearComposingWord()
-            hideClipboardPanel()
         }
 
         fun hideClipboardPanel(): Boolean {

@@ -1,6 +1,8 @@
 package tenkupng.karuikey
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SuggestionSessionTest {
@@ -29,5 +31,34 @@ class SuggestionSessionTest {
 
         assertEquals("hello", session.previousWord)
         assertEquals("", session.prefix.toString())
+    }
+
+    @Test
+    fun keepsOnlyThreeRecentCompletedWords() {
+        val session = SuggestionSession()
+
+        session.completeWord("one")
+        session.completeWord("two")
+        session.completeWord("three")
+        session.completeWord("four")
+
+        assertEquals("four", session.previousWord)
+        assertEquals("three", session.recentWord(1))
+        assertEquals("two", session.recentWord(2))
+        assertEquals(null, session.recentWord(3))
+    }
+
+    @Test
+    fun automaticSpaceIsTransientSessionState() {
+        val session = SuggestionSession()
+
+        assertFalse(session.hasAutomaticSpace)
+        session.markAutomaticSpace()
+        assertTrue(session.hasAutomaticSpace)
+        session.clearAutomaticSpace()
+        assertFalse(session.hasAutomaticSpace)
+        session.markAutomaticSpace()
+        session.clear()
+        assertFalse(session.hasAutomaticSpace)
     }
 }

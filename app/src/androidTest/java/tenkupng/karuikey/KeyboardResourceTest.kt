@@ -1,14 +1,21 @@
 package tenkupng.karuikey
 
 import android.text.InputType
+import android.graphics.Paint
+import android.content.Context
+import android.os.Debug
+import android.util.Log
 import android.view.inputmethod.EditorInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.inputmethod.compat.InputMethodSubtypeCompatUtils
 import com.android.inputmethod.keyboard.KeyDetector
+import com.android.inputmethod.keyboard.Key
 import com.android.inputmethod.keyboard.Keyboard
 import com.android.inputmethod.keyboard.KeyboardId
 import com.android.inputmethod.keyboard.KeyboardLayoutSet
+import com.android.inputmethod.keyboard.KeyboardView
+import com.android.inputmethod.keyboard.internal.PopupGeometry
 import com.android.inputmethod.latin.RichInputMethodSubtype
 import com.android.inputmethod.latin.common.Constants
 import com.android.inputmethod.latin.common.InputPointers
@@ -176,7 +183,101 @@ class KeyboardResourceTest {
         assertNotNull(alphabet.getKey(Constants.CODE_LANGUAGE_SWITCH))
         assertEquals('1'.code, alphabet.getKey('q'.code)?.getMoreKeys()?.first()?.mCode)
         assertEquals('0'.code, alphabet.getKey('p'.code)?.getMoreKeys()?.first()?.mCode)
-        assertTrue(symbols.getKey('$'.code)?.getMoreKeys()?.isNotEmpty() == true)
+        assertTrue((symbols.getKey('$'.code)?.getMoreKeys()?.size ?: 0) > 1)
+    }
+
+    @Test
+    fun qwertyNumberHintsAreSingleAlternates() {
+        val alphabet = keyboardLayoutSet(320, 260, "qwerty", "en_US")
+            .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+
+        for ((letter, number) in "qwertyuiop".zip("1234567890")) {
+            val moreKeys = alphabet.getKey(letter.code)?.getMoreKeys()
+            assertNotNull("Missing numeric alternate for $letter", moreKeys)
+            assertEquals(1, moreKeys!!.size)
+            assertEquals(number.code, moreKeys[0].mCode)
+        }
+    }
+
+    @Test
+    fun robotoFlexLoadsAndCoversKeyboardText() {
+        val typeface = KaruikeyTypeface.create(context, 425)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.typeface = typeface
+        }
+        for (text in listOf("Aa", "Русский", "123?!", "€$£¥₽")) {
+            assertTrue("No measurable glyphs for $text", paint.measureText(text) > 0f)
+        }
+    }
+
+    @Test
+    fun keyboardLabelAndPreviewResolveTheCachedRobotoFlexTypeface() {
+        val expected = KaruikeyTypeface.create(context, 425)
+        val expectedPreview = KaruikeyTypeface.create(context, 500)
+        val view = ExposedKeyboardView(KaruikeyPreferences.keyboardContext(context))
+        val key = keyboardLayoutSet(320, 260, "qwerty", "en_US")
+            .getKeyboard(KeyboardId.ELEMENT_ALPHABET).getKey('r'.code)
+
+        assertNotNull(key)
+        assertEquals(expected, view.defaultTypeface())
+        assertEquals(expected, view.labelTypeface(key!!))
+        assertEquals(expectedPreview, view.previewTypeface(key))
+    }
+
+    @Test
+    fun keyPreviewHeightIsBounded() {
+        val attrs = context.obtainStyledAttributes(
+            R.style.MainKeyboardView, R.styleable.MainKeyboardView
+        )
+        try {
+            val height = attrs.getDimensionPixelSize(
+                R.styleable.MainKeyboardView_keyPreviewHeight, 0
+            )
+            val density = context.resources.displayMetrics.density
+            assertTrue(height >= 70 * density)
+            assertTrue(height <= 74 * density)
+        } finally {
+            attrs.recycle()
+        }
+    }
+
+    @Test
+    fun previewGlyphsFitTheFixedPreviewBoundsAtAllKeyboardHeights() {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = KaruikeyTypeface.create(context, 500)
+        }
+        for (keyHeight in intArrayOf(85, 100, 115)) {
+            val keyWidth = (keyHeight * 0.9f).toInt()
+            val previewHeight = PopupGeometry.getPreviewHeight(keyHeight, 200)
+            val previewWidth = PopupGeometry.clampPreviewWidth(keyWidth, keyWidth)
+            val contentWidth = previewWidth - 24
+            val contentHeight = previewHeight - 12
+            for (label in listOf("1", "4", "6", "8", "0", "i", "I", "Я", "₽")) {
+                val desired = PopupGeometry.getPreviewTextSize((keyHeight * 0.55f).toInt())
+                val fitted = PopupGeometry.getFittedPreviewTextSize(
+                    paint, label, desired.toFloat(), contentWidth, contentHeight
+                )
+                paint.textSize = fitted
+                assertTrue("Width clipped for $label", paint.measureText(label) <= contentWidth + 0.1f)
+                assertTrue(
+                    "Height clipped for $label",
+                    paint.descent() - paint.ascent() <= contentHeight + 0.1f
+                )
+                assertTrue("Size grew for $label", fitted <= desired + 0.1f)
+            }
+        }
+    }
+
+    @Test
+    fun alternatePreviewKeepsTheKeyRelativeContainerWidth() {
+        for (keyWidth in intArrayOf(42, 60, 96, 180)) {
+            val before = PopupGeometry.clampPreviewWidth(keyWidth / 2, keyWidth)
+            val after = PopupGeometry.clampPreviewWidth(keyWidth * 2, keyWidth)
+            assertTrue(before >= PopupGeometry.getMinimumPreviewWidth(keyWidth))
+            assertTrue(after >= PopupGeometry.getMinimumPreviewWidth(keyWidth))
+            assertTrue(before <= PopupGeometry.getMaximumPreviewWidth(keyWidth))
+            assertTrue(after <= PopupGeometry.getMaximumPreviewWidth(keyWidth))
+        }
     }
 
     @Test
@@ -256,12 +357,85 @@ class KeyboardResourceTest {
             )
         }
 
-        assertEquals(
-            "привет",
-            SuggestionEngine.findGestureCandidate(
-                "ru_RU", keyboard, points, null
+        SuggestionEngine.loadForTests(context, "ru_RU")
+        try {
+            assertEquals(
+                "привет",
+                SuggestionEngine.findGestureCandidate(
+                    "ru_RU", keyboard, points, null
+                )
             )
-        )
+        } finally {
+            SuggestionEngine.endSession()
+        }
+    }
+
+    @Test
+    fun realDictionariesProvidePrefixContextFallbackAndContinuousCandidates() {
+        val suggestions = ArrayList<String>(3)
+        SuggestionEngine.endSession()
+        val start = System.nanoTime()
+        SuggestionEngine.loadForTests(context, "en_US")
+        val loadMs = (System.nanoTime() - start) / 1_000_000.0
+        try {
+            assertTrue(SuggestionEngine.isReady("en_US"))
+
+            SuggestionEngine.fill("en_US", "th", suggestions)
+            assertTrue(suggestions.any { it == "the" })
+            assertTrue(suggestions.size <= 3)
+
+            SuggestionEngine.fill("en_US", "the", null, null, "", suggestions)
+            assertEquals("first", suggestions.first())
+
+            var previous = "the"
+            repeat(6) {
+                SuggestionEngine.fill("en_US", previous, null, null, "", suggestions)
+                assertTrue("No candidate after $previous", suggestions.isNotEmpty())
+                previous = suggestions.first()
+            }
+
+            SuggestionEngine.fill("en_US", "not-in-the-index", null, null, "", suggestions)
+            assertEquals(3, suggestions.size)
+        } finally {
+            SuggestionEngine.endSession()
+        }
+
+        val memoryBefore = Debug.MemoryInfo().also(Debug::getMemoryInfo).totalPss
+        val russianStart = System.nanoTime()
+        SuggestionEngine.loadForTests(context, "ru_RU")
+        val russianLoadMs = (System.nanoTime() - russianStart) / 1_000_000.0
+        try {
+            assertTrue(SuggestionEngine.isReady("ru_RU"))
+            SuggestionEngine.fill("ru_RU", "при", suggestions)
+            assertTrue(suggestions.any { it.startsWith("при") })
+            SuggestionEngine.fill("ru_RU", "привет", null, null, "", suggestions)
+            assertTrue(suggestions.isNotEmpty())
+            val memoryAfter = Debug.MemoryInfo().also(Debug::getMemoryInfo).totalPss
+            val prefixNanos = measureAverageNanos {
+                SuggestionEngine.fill("ru_RU", "при", suggestions)
+            }
+            val nextNanos = measureAverageNanos {
+                SuggestionEngine.fill("ru_RU", "привет", null, null, "", suggestions)
+            }
+            val assetBytes = context.assets.open("dictionaries/ru.krd").use { it.available() }
+            Log.i(
+                "KaruikeyMetrics",
+                "ru bytes=$assetBytes loadMs=$russianLoadMs pssDeltaKb=${memoryAfter - memoryBefore} " +
+                    "prefixUs=${prefixNanos / 1_000.0} nextUs=${nextNanos / 1_000.0}"
+            )
+        } finally {
+            SuggestionEngine.endSession()
+        }
+
+        val englishBytes = context.assets.open("dictionaries/en_us.krd").use { it.available() }
+        Log.i("KaruikeyMetrics", "en bytes=$englishBytes loadMs=$loadMs")
+    }
+
+    private fun measureAverageNanos(block: () -> Unit): Double {
+        repeat(20) { block() }
+        val start = System.nanoTime()
+        repeat(200) { block() }
+        return (System.nanoTime() - start) / 200.0
     }
 
     private fun assertKeyboardBounds(keyboard: Keyboard, width: Int) {
@@ -303,5 +477,13 @@ class KeyboardResourceTest {
             .setVoiceInputKeyEnabled(false)
             .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled)
             .build()
+    }
+
+    private class ExposedKeyboardView(context: Context) : KeyboardView(context, null) {
+        fun defaultTypeface() = newLabelPaint(null).typeface
+
+        fun labelTypeface(key: Key) = key.selectTypeface(getKeyDrawParams())
+
+        fun previewTypeface(key: Key) = key.selectPreviewTypeface(getKeyDrawParams())
     }
 }

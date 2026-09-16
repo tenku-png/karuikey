@@ -1,6 +1,12 @@
 package tenkupng.karuikey
 
 import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,11 +28,13 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -37,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun AppearancePage(
@@ -58,6 +67,12 @@ fun AppearancePage(
     }
     var height by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.heightPercent(context).toFloat())
+    }
+    var toolbar by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.toolbarEnabled(context))
+    }
+    var keyPreview by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyPreviewEnabled(context))
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Theme")
@@ -125,12 +140,14 @@ fun AppearancePage(
             )
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.SETTINGS, "Toolbar", "Show clipboard and settings actions",
-                KaruikeyPreferences.toolbarEnabled(context)) {
+                toolbar) {
+                toolbar = it
                 KaruikeyPreferences.setToolbarEnabled(context, it)
             }
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Key preview", "Show the pressed key preview",
-                KaruikeyPreferences.keyPreviewEnabled(context)) {
+                keyPreview) {
+                keyPreview = it
                 KaruikeyPreferences.setKeyPreviewEnabled(context, it)
             }
         }
@@ -138,25 +155,49 @@ fun AppearancePage(
 }
 
 @Composable
-fun LanguagesPage(refreshVersion: Int, contentPadding: Modifier, onNavigate: (SettingsPage) -> Unit) {
+fun LanguagesPage(
+    refreshVersion: Int,
+    contentPadding: Modifier,
+    animateLanguageId: String? = null,
+    onNavigate: (SettingsPage) -> Unit
+) {
     val context = LocalContext.current
     val catalog = remember(refreshVersion) { KaruikeyPreferences.languages(context) }
+    val initiallyEnabled = remember(refreshVersion, animateLanguageId) {
+        KaruikeyPreferences.enabledLanguages(context).map { it.id }.toSet()
+    }
     var enabledIds by remember(refreshVersion) {
-        mutableStateOf(KaruikeyPreferences.enabledLanguages(context).map { it.id }.toSet())
+        mutableStateOf(initiallyEnabled)
+    }
+    var visibleIds by remember(refreshVersion, animateLanguageId) {
+        mutableStateOf(initiallyEnabled - animateLanguageId)
+    }
+    LaunchedEffect(animateLanguageId, initiallyEnabled) {
+        val id = animateLanguageId ?: return@LaunchedEffect
+        if (initiallyEnabled.contains(id)) visibleIds = visibleIds + id
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Enabled")
         SettingsGroup {
-            catalog.filter { enabledIds.contains(it.id) }.forEachIndexed { index, language ->
-                SettingsSwitchRow(KaruikeySymbol.LANGUAGE,
-                    language.displayName,
-                    "${language.nativeName} · ${language.layoutName}",
-                    true) { checked ->
-                    if (KaruikeyPreferences.setLanguageEnabled(context, language, checked)) {
-                        enabledIds = KaruikeyPreferences.enabledLanguages(context).map { it.id }.toSet()
+            val visibleLanguages = catalog.filter { visibleIds.contains(it.id) }
+            visibleLanguages.forEachIndexed { index, language ->
+                AnimatedLanguageRow(
+                    language = language,
+                    checked = enabledIds.contains(language.id),
+                    canChange = enabledIds.size > 1 || !enabledIds.contains(language.id),
+                    onCheckedChange = { checked ->
+                        if (KaruikeyPreferences.setLanguageEnabled(context, language, checked)) {
+                            enabledIds = KaruikeyPreferences.enabledLanguages(context)
+                                .map { it.id }.toSet()
+                        }
+                    },
+                    onExitFinished = {
+                        if (!enabledIds.contains(language.id)) {
+                            visibleIds = visibleIds - language.id
+                        }
                     }
-                }
-                if (index < enabledIds.size - 1) GroupDivider()
+                )
+                if (index < visibleLanguages.lastIndex) GroupDivider()
             }
         }
         Button(onClick = { onNavigate(SettingsPage.ADD_LANGUAGE) }, modifier = Modifier.fillMaxWidth()) {
@@ -166,7 +207,47 @@ fun LanguagesPage(refreshVersion: Int, contentPadding: Modifier, onNavigate: (Se
 }
 
 @Composable
-fun AddLanguagePage(refreshVersion: Int, contentPadding: Modifier, onAdded: () -> Unit) {
+private fun AnimatedLanguageRow(
+    language: KaruikeyLanguage,
+    checked: Boolean,
+    canChange: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onExitFinished: () -> Unit
+) {
+    val motion = MaterialTheme.motionScheme
+    val visibleState = remember(language.id) {
+        androidx.compose.animation.core.MutableTransitionState(false)
+    }
+    visibleState.targetState = checked
+    LaunchedEffect(visibleState, checked) {
+        if (!checked) {
+            snapshotFlow { visibleState.isIdle && !visibleState.currentState }
+                .first { it }
+            onExitFinished()
+        }
+    }
+    AnimatedVisibility(
+        visibleState = visibleState,
+        enter = fadeIn(motion.fastEffectsSpec()) +
+            expandVertically(motion.fastSpatialSpec()),
+        exit = fadeOut(motion.fastEffectsSpec()) +
+            shrinkVertically(motion.fastSpatialSpec()) +
+            slideOutVertically(motion.fastSpatialSpec()),
+        label = "language row visibility"
+    ) {
+        SettingsSwitchRow(
+            KaruikeySymbol.LANGUAGE,
+            language.displayName,
+            "${language.nativeName} · ${language.layoutName}",
+            checked,
+            enabled = canChange,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+fun AddLanguagePage(refreshVersion: Int, contentPadding: Modifier, onAdded: (String) -> Unit) {
     val context = LocalContext.current
     val catalog = remember(refreshVersion) { KaruikeyPreferences.languages(context) }
     val enabled = remember(refreshVersion) {
@@ -192,7 +273,7 @@ fun AddLanguagePage(refreshVersion: Int, contentPadding: Modifier, onAdded: () -
                 SettingsRow(KaruikeySymbol.LANGUAGE, language.displayName,
                     "${language.nativeName} · ${language.layoutName}") {
                     KaruikeyPreferences.setLanguageEnabled(context, language, true)
-                    onAdded()
+                    onAdded(language.id)
                 }
                 if (index < available.size - 1) GroupDivider()
             }
@@ -216,7 +297,7 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
         SectionLabel("Typing assistance")
         SettingsGroup {
             SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Suggestions",
-                "Up to three offline common-word suggestions", suggestions) {
+                "Show locally available word suggestions", suggestions) {
                 suggestions = it
                 KaruikeyPreferences.setSuggestionsEnabled(context, it)
             }
@@ -227,8 +308,6 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
                 KaruikeyPreferences.setAutoCapitalizationEnabled(context, it)
             }
         }
-        Text("Gesture typing is available for the bundled English and Russian starter lexicons. It remains disabled in fields that disallow suggestions.",
-            style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -390,17 +469,17 @@ fun AboutPage(contentPadding: Modifier, onLicenses: () -> Unit) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
-        Text("Karuikey", style = MaterialTheme.typography.displaySmall)
-        Text("Version ${packageInfo.versionName ?: ""}", style = MaterialTheme.typography.bodyLarge)
-        SettingsGroup {
-            SettingsRow(KaruikeySymbol.INFO, "Privacy", "Offline by default. No input logging, analytics, or tracking.") { }
-            GroupDivider()
-            SettingsRow(KaruikeySymbol.INFO, "Open source", "GPL-3.0 with adapted AOSP LatinIME code under Apache 2.0.") { }
-        }
-        Button(onClick = onLicenses, modifier = Modifier.fillMaxWidth()) {
-            Text("View GPL license and NOTICE")
-        }
+    Text("Karuikey", style = MaterialTheme.typography.displaySmall)
+    Text("Version ${packageInfo.versionName ?: ""}", style = MaterialTheme.typography.bodyLarge)
+    SettingsGroup {
+        SettingsRow(
+            KaruikeySymbol.INFO,
+            "Open source",
+            "GPL-3.0, AOSP Apache 2.0, and bundled font notices",
+            onLicenses
+        )
     }
+}
 }
 
 @Composable

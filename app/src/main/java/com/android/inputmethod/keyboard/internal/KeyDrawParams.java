@@ -28,6 +28,8 @@ import androidx.annotation.Nullable;
 public final class KeyDrawParams {
     @NonNull
     public Typeface mTypeface = Typeface.DEFAULT;
+    @NonNull
+    public Typeface mPreviewTypeface = Typeface.DEFAULT;
 
     public int mLetterSize;
     public int mLabelSize;
@@ -57,6 +59,7 @@ public final class KeyDrawParams {
 
     private KeyDrawParams(@NonNull final KeyDrawParams copyFrom) {
         mTypeface = copyFrom.mTypeface;
+        mPreviewTypeface = copyFrom.mPreviewTypeface;
 
         mLetterSize = copyFrom.mLetterSize;
         mLabelSize = copyFrom.mLabelSize;
@@ -90,6 +93,7 @@ public final class KeyDrawParams {
 
         if (attr.mTypeface != null) {
             mTypeface = attr.mTypeface;
+            mPreviewTypeface = attr.mTypeface;
         }
 
         mLetterSize = selectTextSizeFromDimensionOrRatio(keyHeight,
@@ -167,4 +171,3 @@ public final class KeyDrawParams {
         return defaultFloat;
     }
 }
-

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Karuikey adaptation: AOSP LatinIME layout hierarchy. -->
+<!-- Karuikey modification: numeric hints are the sole long-press alternate on Q-T. -->
 <!--
 /*
 **
@@ -25,27 +26,21 @@
     <Key
         latin:keySpec="!text/keyspec_q"
         latin:keyHintLabel="1"
-        latin:additionalMoreKeys="1"
-        latin:moreKeys="!text/morekeys_q" />
+        latin:additionalMoreKeys="1" />
     <Key
         latin:keySpec="!text/keyspec_w"
         latin:keyHintLabel="2"
-        latin:additionalMoreKeys="2"
-        latin:moreKeys="!text/morekeys_w" />
+        latin:additionalMoreKeys="2" />
     <Key
         latin:keySpec="e"
         latin:keyHintLabel="3"
-        latin:additionalMoreKeys="3"
-        latin:moreKeys="!text/morekeys_e" />
+        latin:additionalMoreKeys="3" />
     <Key
         latin:keySpec="r"
         latin:keyHintLabel="4"
-        latin:additionalMoreKeys="4"
-        latin:moreKeys="!text/morekeys_r" />
+        latin:additionalMoreKeys="4" />
     <Key
         latin:keySpec="t"
         latin:keyHintLabel="5"
-        latin:additionalMoreKeys="5"
-        latin:moreKeys="!text/morekeys_t" />
+        latin:additionalMoreKeys="5" />
 </merge>
-

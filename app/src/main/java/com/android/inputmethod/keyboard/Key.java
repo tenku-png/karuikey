@@ -38,6 +38,7 @@ import com.android.inputmethod.keyboard.internal.KeyboardIconsSet;
 import com.android.inputmethod.keyboard.internal.KeyboardParams;
 import com.android.inputmethod.keyboard.internal.KeyboardRow;
 import com.android.inputmethod.keyboard.internal.MoreKeySpec;
+import com.android.inputmethod.keyboard.internal.PopupGeometry;
 import tenkupng.karuikey.R;
 import com.android.inputmethod.latin.common.Constants;
 import com.android.inputmethod.latin.common.StringUtils;
@@ -640,7 +641,7 @@ public class Key implements Comparable<Key> {
     public final Typeface selectTypeface(final KeyDrawParams params) {
         switch (mLabelFlags & LABEL_FLAGS_FONT_MASK) {
         case LABEL_FLAGS_FONT_NORMAL:
-            return Typeface.DEFAULT;
+            return params.mTypeface;
         case LABEL_FLAGS_FONT_MONO_SPACE:
             return Typeface.MONOSPACE;
         case LABEL_FLAGS_FONT_DEFAULT:
@@ -707,18 +708,16 @@ public class Key implements Comparable<Key> {
     }
 
     public final int selectPreviewTextSize(final KeyDrawParams params) {
-        if (previewHasLetterSize()) {
-            return params.mPreviewTextSize;
-        }
-        return params.mLetterSize;
+        final int keyLabelSize = previewHasLetterSize() ? selectTextSize(params) : params.mLetterSize;
+        return PopupGeometry.getPreviewTextSize(keyLabelSize);
     }
 
     @NonNull
     public Typeface selectPreviewTypeface(final KeyDrawParams params) {
-        if (previewHasLetterSize()) {
-            return selectTypeface(params);
+        if ((mLabelFlags & LABEL_FLAGS_FONT_MASK) == LABEL_FLAGS_FONT_MONO_SPACE) {
+            return Typeface.MONOSPACE;
         }
-        return Typeface.DEFAULT_BOLD;
+        return params.mPreviewTypeface;
     }
 
     public final boolean isAlignHintLabelToBottom(final int defaultFlags) {

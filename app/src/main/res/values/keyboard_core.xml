@@ -56,7 +56,6 @@
         <item name="keyHintLetterColor">?attr/keyboardSecondaryTextColor</item>
         <item name="keyHintLabelColor">?attr/keyboardSecondaryTextColor</item>
         <item name="keyPreviewTextColor">?attr/keyboardTextColor</item>
-        <item name="keyTypeface">normal</item>
         <item name="keyTextShadowRadius">-1.0</item>
         <item name="verticalCorrection">0dp</item>
     </style>
@@ -64,6 +63,7 @@
         <item name="moreKeysKeyboardLayout">@layout/more_keys_keyboard</item>
         <item name="moreKeysKeyboardForActionLayout">@layout/more_keys_keyboard</item>
         <item name="keyPreviewBackground">@drawable/keyboard_key_preview_background</item>
+        <!-- Maximum; actual preview height is derived from the key visual height. -->
         <item name="keyPreviewHeight">72dp</item>
         <item name="keyPreviewOffset">0dp</item>
         <item name="keyPreviewShowUpAnimator">@anim/key_preview_show_up_holo</item>

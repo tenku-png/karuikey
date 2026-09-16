@@ -19,10 +19,7 @@ package com.android.inputmethod.keyboard.internal;
 
 
 import android.content.Context;
-import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.text.TextPaint;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -30,8 +27,6 @@ import android.widget.TextView;
 
 import com.android.inputmethod.keyboard.Key;
 import tenkupng.karuikey.R;
-
-import java.util.HashSet;
 
 /**
  * The pop up key preview view.
@@ -41,8 +36,7 @@ public class KeyPreviewView extends TextView {
     public static final int POSITION_LEFT = 1;
     public static final int POSITION_RIGHT = 2;
 
-    private final Rect mBackgroundPadding = new Rect();
-    private static final HashSet<String> sNoScaleXTextSet = new HashSet<>();
+    private float mDesiredTextSize;
 
     public KeyPreviewView(final Context context, final AttributeSet attrs) {
         this(context, attrs, 0);
@@ -51,6 +45,9 @@ public class KeyPreviewView extends TextView {
     public KeyPreviewView(final Context context, final AttributeSet attrs, final int defStyleAttr) {
         super(context, attrs, defStyleAttr);
         setGravity(Gravity.CENTER);
+        // TextView uses the typeface's FontMetrics for this centered baseline. Excluding the
+        // legacy extra font padding keeps the visible glyph optically centered in the keycap.
+        setIncludeFontPadding(false);
     }
 
     public void setPreviewVisual(final Key key, final KeyboardIconsSet iconsSet,
@@ -58,6 +55,7 @@ public class KeyPreviewView extends TextView {
         // What we show as preview should match what we show on a key top in onDraw().
         final int iconId = key.getIconId();
         if (iconId != KeyboardIconsSet.ICON_UNDEFINED) {
+            mDesiredTextSize = 0;
             setCompoundDrawables(null, null, null, key.getPreviewIcon(iconsSet));
             setText(null);
             return;
@@ -65,51 +63,27 @@ public class KeyPreviewView extends TextView {
 
         setCompoundDrawables(null, null, null, null);
         setTextColor(drawParams.mPreviewTextColor);
-        setTextSize(TypedValue.COMPLEX_UNIT_PX, key.selectPreviewTextSize(drawParams));
+        mDesiredTextSize = key.selectPreviewTextSize(drawParams);
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, mDesiredTextSize);
         setTypeface(key.selectPreviewTypeface(drawParams));
         // TODO Should take care of temporaryShiftLabel here.
-        setTextAndScaleX(key.getPreviewLabel());
+        setText(key.getPreviewLabel());
     }
 
-    private void setTextAndScaleX(final String text) {
-        setTextScaleX(1.0f);
-        setText(text);
-        if (sNoScaleXTextSet.contains(text)) {
+    public void fitPreviewText(final int width, final int height) {
+        if (mDesiredTextSize <= 0 || getText() == null || getText().length() == 0) {
             return;
         }
-        // TODO: Override {@link #setBackground(Drawable)} that is supported from API 16 and
-        // calculate maximum text width.
-        final Drawable background = getBackground();
-        if (background == null) {
-            return;
-        }
-        background.getPadding(mBackgroundPadding);
-        final int maxWidth = background.getIntrinsicWidth() - mBackgroundPadding.left
-                - mBackgroundPadding.right;
-        final float width = getTextWidth(text, getPaint());
-        if (width <= maxWidth) {
-            sNoScaleXTextSet.add(text);
-            return;
-        }
-        setTextScaleX(maxWidth / width);
+        final int contentWidth = width - getPaddingLeft() - getPaddingRight();
+        final int contentHeight = height - getPaddingTop() - getPaddingBottom();
+        final float fittedSize = PopupGeometry.getFittedPreviewTextSize(
+                getPaint(), getText(), mDesiredTextSize, contentWidth, contentHeight);
+        setTextSize(TypedValue.COMPLEX_UNIT_PX, fittedSize);
     }
 
-    public static void clearTextCache() {
-        sNoScaleXTextSet.clear();
-    }
-
-    private static float getTextWidth(final String text, final TextPaint paint) {
-        if (TextUtils.isEmpty(text)) {
-            return 0.0f;
-        }
-        final int len = text.length();
-        final float[] widths = new float[len];
-        final int count = paint.getTextWidths(text, 0, len, widths);
-        float width = 0;
-        for (int i = 0; i < count; i++) {
-            width += widths[i];
-        }
-        return width;
+    public void setPreviewLabel(final String label) {
+        setText(label);
+        fitPreviewText(getWidth(), getHeight());
     }
 
     // Background state set
@@ -139,4 +113,3 @@ public class KeyPreviewView extends TextView {
         background.setState(KEY_PREVIEW_BACKGROUND_STATE_TABLE[position][hasMoreKeysState]);
     }
 }
-

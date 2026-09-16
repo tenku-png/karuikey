@@ -36,8 +36,8 @@ class SettingsUiTest {
         composeRule.onNodeWithContentDescription("Back").performClick()
 
         composeRule.onNodeWithText("About").performClick()
-        composeRule.onNodeWithText("View GPL license and NOTICE").assertIsDisplayed()
-        composeRule.onNodeWithText("View GPL license and NOTICE").performClick()
+        composeRule.onNodeWithText("Open source").assertIsDisplayed()
+        composeRule.onNodeWithText("Open source").performClick()
         composeRule.onNodeWithText("GPL-3.0").assertIsDisplayed()
         composeRule.onNodeWithText("NOTICE / AOSP attribution").assertExists()
         composeRule.onNodeWithContentDescription("Back").performClick()

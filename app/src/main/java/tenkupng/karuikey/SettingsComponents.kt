@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -35,8 +36,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
@@ -44,9 +47,9 @@ import androidx.compose.ui.unit.sp
 
 object KaruikeySettingsTokens {
     val pageHorizontal = 20.dp
-    val pageVertical = 16.dp
-    val sectionGap = 20.dp
-    val groupGap = 12.dp
+    val pageVertical = 20.dp
+    val sectionGap = 24.dp
+    val groupGap = 14.dp
     val rowIconSize = 24.dp
 }
 
@@ -63,14 +66,14 @@ fun SettingsScaffold(
         topBar = {
             if (isHome) {
                 TopAppBar(
-                    title = { Text("Karuikey") },
+                    title = { Text("Karuikey Keyboard", style = MaterialTheme.typography.headlineSmall) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background
                     )
                 )
             } else {
                 TopAppBar(
-                    title = { Text(title) },
+                    title = { Text(title, style = MaterialTheme.typography.titleLarge) },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             MaterialSymbolIcon(KaruikeySymbol.ARROW_BACK, "Back", size = 24.sp)
@@ -87,44 +90,19 @@ fun SettingsScaffold(
 }
 
 @Composable
-fun SettingsGroup(content: @Composable () -> Unit) {
+fun SettingsGroup(
+    containerColor: Color? = null,
+    shape: Shape? = null,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 1.dp
+        modifier = modifier.fillMaxWidth(),
+        shape = shape ?: MaterialTheme.shapes.medium,
+        color = containerColor ?: MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp
     ) {
         Column { content() }
-    }
-}
-
-@Composable
-fun SettingsHero(title: String, summary: String, icon: KaruikeySymbol) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            MaterialSymbolIcon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(32.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
-        }
     }
 }
 
@@ -137,7 +115,7 @@ fun SettingsRow(
 ) {
     ExpressivePressSurface(onClick = onClick) {
         ListItem(
-            headlineContent = { Text(title) },
+            headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
             supportingContent = {
                 Text(summary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             },
@@ -176,7 +154,7 @@ fun SettingsSwitchRow(
         onCheckedChange(!checked)
     }) {
         ListItem(
-            headlineContent = { Text(title) },
+            headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
             supportingContent = { Text(summary, maxLines = 2, overflow = TextOverflow.Ellipsis) },
             leadingContent = {
                 MaterialSymbolIcon(icon, modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize))
@@ -202,7 +180,7 @@ fun SettingsSwitchRow(
 fun SectionLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
     )
@@ -256,6 +234,7 @@ fun ChoiceRow(title: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun ExpressivePressSurface(
     enabled: Boolean = true,
     onClick: () -> Unit,
@@ -263,11 +242,21 @@ private fun ExpressivePressSurface(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.985f else 1f, label = "row press scale")
-    val radius by animateDpAsState(if (pressed) 20.dp else 4.dp, label = "row press shape")
+    val motion = MaterialTheme.motionScheme
+    val scale by animateFloatAsState(
+        if (pressed) 0.985f else 1f,
+        animationSpec = motion.fastSpatialSpec(),
+        label = "row press scale"
+    )
+    val radius by animateDpAsState(
+        if (pressed) 16.dp else 8.dp,
+        animationSpec = motion.fastSpatialSpec(),
+        label = "row press shape"
+    )
     val color by animateColorAsState(
         if (pressed) MaterialTheme.colorScheme.surfaceContainerHighest
-        else androidx.compose.ui.graphics.Color.Transparent,
+        else Color.Transparent,
+        animationSpec = motion.fastEffectsSpec(),
         label = "row press tone"
     )
     Surface(

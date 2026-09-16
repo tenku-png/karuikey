@@ -12,7 +12,8 @@
         <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
         <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
-        <item name="keyboardPopupColor">?attr/colorSurface</item>
+        <item name="keyboardPreviewColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupColor">?attr/colorSurfaceContainerHighest</item>
         <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
     </style>
 
@@ -27,7 +28,8 @@
         <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
         <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
         <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
-        <item name="keyboardPopupColor">?attr/colorSurface</item>
+        <item name="keyboardPreviewColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupColor">?attr/colorSurfaceContainerHighest</item>
         <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
     </style>
 
@@ -42,6 +44,7 @@
         <item name="keyboardSecondaryTextColor">@color/keyboard_light_secondary_text</item>
         <item name="keyboardFunctionalTextColor">@color/keyboard_light_functional_text</item>
         <item name="keyboardDisabledTextColor">@color/keyboard_light_disabled_text</item>
+        <item name="keyboardPreviewColor">@color/keyboard_light_popup</item>
         <item name="keyboardPopupColor">@color/keyboard_light_popup</item>
         <item name="keyboardPopupSelectedColor">@color/keyboard_light_pressed</item>
     </style>
@@ -57,6 +60,7 @@
         <item name="keyboardSecondaryTextColor">@color/keyboard_dark_secondary_text</item>
         <item name="keyboardFunctionalTextColor">@color/keyboard_dark_functional_text</item>
         <item name="keyboardDisabledTextColor">@color/keyboard_dark_disabled_text</item>
+        <item name="keyboardPreviewColor">@color/keyboard_dark_popup</item>
         <item name="keyboardPopupColor">@color/keyboard_dark_popup</item>
         <item name="keyboardPopupSelectedColor">@color/keyboard_dark_pressed</item>
     </style>

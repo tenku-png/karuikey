@@ -30,6 +30,7 @@
     <attr name="keyboardSecondaryTextColor" format="color" />
     <attr name="keyboardFunctionalTextColor" format="color" />
     <attr name="keyboardDisabledTextColor" format="color" />
+    <attr name="keyboardPreviewColor" format="color" />
     <attr name="keyboardPopupColor" format="color" />
     <attr name="keyboardPopupSelectedColor" format="color" />
 

@@ -36,6 +36,7 @@ import android.view.View;
 
 import com.android.inputmethod.keyboard.internal.KeyDrawParams;
 import com.android.inputmethod.keyboard.internal.KeyVisualAttributes;
+import tenkupng.karuikey.KaruikeyTypeface;
 import tenkupng.karuikey.R;
 import com.android.inputmethod.latin.common.Constants;
 import com.android.inputmethod.latin.utils.TypefaceUtils;
@@ -172,6 +173,8 @@ public class KeyboardView extends View {
         mKeyVisualAttributes = KeyVisualAttributes.newInstance(keyAttr);
         keyAttr.recycle();
 
+        mKeyDrawParams.mTypeface = KaruikeyTypeface.create(context, 425);
+        mKeyDrawParams.mPreviewTypeface = KaruikeyTypeface.create(context, 500);
         mPaint.setAntiAlias(true);
     }
 
@@ -464,7 +467,7 @@ public class KeyboardView extends View {
             paint.setTextSize(key.selectHintTextSize(params));
             paint.setColor(key.selectHintTextColor(params));
             // TODO: Should add a way to specify type face for hint letters
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTypeface(params.mTypeface);
             blendAlpha(paint, params.mAnimAlpha);
             final float labelCharHeight = TypefaceUtils.getReferenceCharHeight(paint);
             final float labelCharWidth = TypefaceUtils.getReferenceCharWidth(paint);

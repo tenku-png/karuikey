@@ -26,6 +26,7 @@ import android.view.ViewGroup;
 
 import com.android.inputmethod.keyboard.Key;
 import com.android.inputmethod.latin.common.CoordinateUtils;
+import com.android.inputmethod.latin.common.StringUtils;
 import com.android.inputmethod.latin.utils.ViewLayoutUtils;
 
 import java.util.ArrayDeque;
@@ -113,9 +114,26 @@ public final class KeyPreviewChoreographer {
         keyPreviewView.setPreviewVisual(key, iconsSet, drawParams);
         keyPreviewView.measure(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        mParams.setGeometry(keyPreviewView);
-        final int previewWidth = keyPreviewView.getMeasuredWidth();
-        final int previewHeight = mParams.mPreviewHeight;
+        final int previewHeight = mParams.getPreviewHeight(key.getHeight());
+        final String previewLabel = key.getPreviewLabel();
+        final boolean isSingleCodePoint = previewLabel != null
+                && StringUtils.codePointCount(previewLabel) == 1;
+        final int availableWidth = Math.max(0, placerView.getWidth() > 0
+                ? placerView.getWidth() : keyboardViewWidth);
+        final int previewWidth;
+        if (isSingleCodePoint) {
+            final int minimumWidth = PopupGeometry.getMinimumPreviewWidth(key.getDrawWidth());
+            final int maximumWidth = Math.min(
+                    PopupGeometry.getMaximumPreviewWidth(key.getDrawWidth()), availableWidth);
+            previewWidth = Math.min(maximumWidth,
+                    Math.max(minimumWidth, keyPreviewView.getMeasuredWidth()));
+        } else {
+            previewWidth = Math.min(keyPreviewView.getMeasuredWidth(), availableWidth);
+        }
+        // Fit before placing the view. updateKeyPreview() repeats this against the fixed bounds
+        // when a long press replaces the primary label with an alternate character.
+        keyPreviewView.fitPreviewText(previewWidth, previewHeight);
+        mParams.setGeometry(keyPreviewView, previewWidth, previewHeight);
         final int keyDrawWidth = key.getDrawWidth();
         // The key preview is horizontally aligned with the center of the visible part of the
         // parent key. If it doesn't fit in this {@link KeyboardView}, it is moved inward to fit and
@@ -148,6 +166,13 @@ public final class KeyPreviewChoreographer {
                 keyPreviewView, previewX, previewY, previewWidth, previewHeight);
         keyPreviewView.setPivotX(previewWidth / 2.0f);
         keyPreviewView.setPivotY(previewHeight);
+    }
+
+    public void updateKeyPreview(final Key key, final String label) {
+        final KeyPreviewView keyPreviewView = mShowingKeyPreviewViews.get(key);
+        if (keyPreviewView != null) {
+            keyPreviewView.setPreviewLabel(label);
+        }
     }
 
     void showKeyPreview(final Key key, final KeyPreviewView keyPreviewView,

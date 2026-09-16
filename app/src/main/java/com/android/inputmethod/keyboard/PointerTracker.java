@@ -32,6 +32,7 @@ import com.android.inputmethod.keyboard.internal.GestureEnabler;
 import com.android.inputmethod.keyboard.internal.GestureStrokeDrawingParams;
 import com.android.inputmethod.keyboard.internal.GestureStrokeDrawingPoints;
 import com.android.inputmethod.keyboard.internal.GestureStrokeRecognitionParams;
+import com.android.inputmethod.keyboard.internal.MoreKeySpec;
 import com.android.inputmethod.keyboard.internal.PointerTrackerQueue;
 import com.android.inputmethod.keyboard.internal.TimerProxy;
 import com.android.inputmethod.keyboard.internal.TypingTimeRecorder;
@@ -121,6 +122,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     // The current key where this pointer is.
     private Key mCurrentKey = null;
+    // A single alternate replaces the normal preview on release; it does not need a panel.
+    @Nullable
+    private MoreKeySpec mSingleAlternate;
     // The position where the current key was recognized for the first time.
     private int mKeyX;
     private int mKeyY;
@@ -494,6 +498,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     private Key onMoveToNewKey(final Key newKey, final int x, final int y) {
         mCurrentKey = newKey;
+        mSingleAlternate = null;
         mKeyX = x;
         mKeyY = y;
         return newKey;
@@ -961,7 +966,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         resetKeySelectionByDraggingFinger();
         mIsDetectingGesture = false;
         final Key currentKey = mCurrentKey;
+        final MoreKeySpec singleAlternate = mSingleAlternate;
         mCurrentKey = null;
+        mSingleAlternate = null;
         final int currentRepeatingKeyCode = mCurrentRepeatingKeyCode;
         mCurrentRepeatingKeyCode = Constants.NOT_A_CODE;
         // Release the last pressed key.
@@ -996,7 +1003,11 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
                 && (currentKey.getCode() == currentRepeatingKeyCode) && !isInDraggingFinger) {
             return;
         }
-        detectAndSendKey(currentKey, mKeyX, mKeyY, eventTime);
+        if (singleAlternate != null) {
+            sendMoreKey(singleAlternate);
+        } else {
+            detectAndSendKey(currentKey, mKeyX, mKeyY, eventTime);
+        }
         if (isInSlidingKeyInput) {
             callListenerOnFinishSlidingInput();
         }
@@ -1023,13 +1034,15 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         if (key == null) {
             return;
         }
-        if (key.hasNoPanelAutoMoreKey()) {
+        final MoreKeySpec[] moreKeys = key.getMoreKeys();
+        if (moreKeys != null && moreKeys.length == 1 && !key.hasNoPanelAutoMoreKey()) {
+            mSingleAlternate = moreKeys[0];
+            sDrawingProxy.updateKeyPreview(key, mSingleAlternate.mLabel);
+            return;
+        }
+        if (moreKeys != null && key.hasNoPanelAutoMoreKey()) {
             cancelKeyTracking();
-            final int moreKeyCode = key.getMoreKeys()[0].mCode;
-            sListener.onPressKey(moreKeyCode, 0 /* repeatCont */, true /* isSinglePointer */);
-            sListener.onCodeInput(moreKeyCode, Constants.NOT_A_COORDINATE,
-                    Constants.NOT_A_COORDINATE, false /* isKeyRepeat */);
-            sListener.onReleaseKey(moreKeyCode, false /* withSliding */);
+            sendMoreKey(moreKeys[0]);
             return;
         }
         final int code = key.getCode();
@@ -1054,6 +1067,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
     }
 
     private void cancelKeyTracking() {
+        mSingleAlternate = null;
         resetKeySelectionByDraggingFinger();
         cancelTrackingForAction();
         setReleasedKeyGraphics(mCurrentKey, true /* withAnimation */);
@@ -1073,9 +1087,21 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     private void onCancelEventInternal() {
         sTimerProxy.cancelKeyTimersOf(this);
+        mSingleAlternate = null;
         setReleasedKeyGraphics(mCurrentKey, true /* withAnimation */);
         resetKeySelectionByDraggingFinger();
         dismissMoreKeysPanel();
+    }
+
+    private void sendMoreKey(final MoreKeySpec moreKey) {
+        sListener.onPressKey(moreKey.mCode, 0 /* repeatCont */, true /* isSinglePointer */);
+        if (moreKey.mCode == Constants.CODE_OUTPUT_TEXT) {
+            sListener.onTextInput(moreKey.mOutputText);
+        } else {
+            sListener.onCodeInput(moreKey.mCode, Constants.NOT_A_COORDINATE,
+                    Constants.NOT_A_COORDINATE, false /* isKeyRepeat */);
+        }
+        sListener.onReleaseKey(moreKey.mCode, false /* withSliding */);
     }
 
     private boolean isMajorEnoughMoveToBeOnNewKey(final int x, final int y, final long eventTime,

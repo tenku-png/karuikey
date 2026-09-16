@@ -2,6 +2,7 @@ package tenkupng.karuikey
 
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
@@ -196,6 +197,14 @@ object KaruikeyPreferences {
 
     fun keyboardSurfaceAlpha(context: Context) =
         if (transparencyEnabled(context)) 1f - transparencyAmount(context) / 100f else 1f
+
+    internal fun resolvedKeyboardSurfaceColor(surfaceColor: Int, alpha: Float): Int {
+        val resolvedAlpha = (Color.alpha(surfaceColor) * alpha.coerceIn(0f, 1f)).toInt()
+        return Color.argb(
+            resolvedAlpha,
+            Color.red(surfaceColor), Color.green(surfaceColor), Color.blue(surfaceColor)
+        )
+    }
 
     fun blurEnabled(context: Context) = prefs(context).getBoolean(BLUR, false)
 

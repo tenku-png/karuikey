@@ -33,6 +33,9 @@ public interface DrawingProxy {
      */
     public void onKeyPressed(@NonNull Key key, boolean withPreview);
 
+    /** Replace the visible label of an already shown preview without opening another popup. */
+    public void updateKeyPreview(@NonNull Key key, @Nullable String label);
+
     /**
      * Called when a key is being released.
      * @param key the {@link Key} that is being released.
@@ -79,4 +82,3 @@ public interface DrawingProxy {
      */
     public void dismissGestureFloatingPreviewTextWithoutDelay();
 }
-
