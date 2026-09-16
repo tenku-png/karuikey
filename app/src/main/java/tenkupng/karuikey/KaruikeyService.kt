@@ -518,6 +518,7 @@ class KaruikeyService : InputMethodService() {
 
     private fun suggestionsEnabledFor(info: EditorInfo): Boolean {
         if (!KaruikeyPreferences.suggestionsEnabled(this)) return false
+        if (!SuggestionEngine.hasDictionary(currentLanguage?.locale ?: "")) return false
         val inputType = info.inputType
         if ((inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
         if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return false

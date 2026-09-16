@@ -2,11 +2,14 @@ package tenkupng.karuikey
 
 import android.content.Context
 import android.content.res.AssetManager
+import android.net.Uri
 import com.android.inputmethod.keyboard.Keyboard
 import com.android.inputmethod.latin.common.InputPointers
 
 /** Offline dictionary access with one lazily loaded active-language index. */
 object SuggestionEngine {
+    enum class DictionarySource { NONE, BUNDLED, EXTERNAL }
+
     private data class DictionaryAsset(val languagePrefix: String, val assetName: String)
 
     private val dictionaryAssets = arrayOf(
@@ -16,6 +19,8 @@ object SuggestionEngine {
 
     @Volatile
     private var assetManager: AssetManager? = null
+    @Volatile
+    private var appContext: Context? = null
     @Volatile
     private var activeAssetName: String? = null
     @Volatile
@@ -29,14 +34,18 @@ object SuggestionEngine {
     @JvmStatic
     @Synchronized
     fun initialize(context: Context) {
-        if (assetManager == null) assetManager = context.applicationContext.assets
+        if (assetManager == null) {
+            val application = context.applicationContext
+            appContext = application
+            assetManager = application.assets
+        }
     }
 
     /** Starts loading only the dictionary needed by the current input session. */
     @Synchronized
     fun beginSession(locale: String, onReady: (() -> Unit)? = null) {
-        val assetName = assetNameForLocale(locale)
-        if (assetName == null) {
+        val sourceName = sourceNameForLocale(locale)
+        if (sourceName == null) {
             loadGeneration++
             activeAssetName = null
             activeDictionary = null
@@ -44,11 +53,11 @@ object SuggestionEngine {
             loadReadyCallback = null
             return
         }
-        if (activeAssetName == assetName && activeDictionary != null) {
+        if (activeAssetName == sourceName && activeDictionary != null) {
             onReady?.invoke()
             return
         }
-        if (loadingAssetName == assetName) {
+        if (loadingAssetName == sourceName) {
             loadReadyCallback = onReady
             return
         }
@@ -57,7 +66,7 @@ object SuggestionEngine {
         val generation = loadGeneration
         activeAssetName = null
         activeDictionary = null
-        loadingAssetName = assetName
+        loadingAssetName = sourceName
         loadReadyCallback = onReady
         val manager = assetManager ?: run {
             loadingAssetName = null
@@ -66,17 +75,20 @@ object SuggestionEngine {
         }
         loader = Thread({
             val dictionary = try {
-                manager.open(assetName, AssetManager.ACCESS_STREAMING).use { input ->
-                    LocalDictionary(input.readBytes())
+                if (sourceName.startsWith(EXTERNAL_SOURCE_PREFIX)) {
+                    val uri = Uri.parse(sourceName.removePrefix(EXTERNAL_SOURCE_PREFIX))
+                    appContext?.contentResolver?.openInputStream(uri)?.use(LocalDictionary::read)
+                } else {
+                    manager.open(sourceName, AssetManager.ACCESS_STREAMING).use(LocalDictionary::read)
                 }
             } catch (_: Exception) {
                 null
             }
             var readyCallback: (() -> Unit)? = null
             synchronized(this) {
-                if (generation == loadGeneration && loadingAssetName == assetName) {
+                if (generation == loadGeneration && loadingAssetName == sourceName) {
                     activeDictionary = dictionary
-                    activeAssetName = if (dictionary == null) null else assetName
+                    activeAssetName = if (dictionary == null) null else sourceName
                     loadingAssetName = null
                     loader = null
                     readyCallback = loadReadyCallback
@@ -128,8 +140,6 @@ object SuggestionEngine {
         )
     }
 
-    fun hasDictionary(locale: String): Boolean = assetNameForLocale(locale) != null
-
     fun findGestureCandidate(locale: String, sequence: CharSequence): String? =
         dictionaryFor(locale)?.findGestureCandidate(sequence)
 
@@ -158,8 +168,26 @@ object SuggestionEngine {
     }
 
     private fun dictionaryFor(locale: String): LocalDictionary? {
-        val assetName = assetNameForLocale(locale) ?: return null
-        return activeDictionary?.takeIf { activeAssetName == assetName }
+        val sourceName = sourceNameForLocale(locale) ?: return null
+        return activeDictionary?.takeIf { activeAssetName == sourceName }
+    }
+
+    fun dictionarySource(locale: String): DictionarySource = when {
+        appContext?.let { KaruikeyPreferences.dictionaryUriString(it, locale) }
+            ?.let { Uri.parse(it).scheme == CONTENT_URI_SCHEME } == true ->
+            DictionarySource.EXTERNAL
+        assetNameForLocale(locale) != null -> DictionarySource.BUNDLED
+        else -> DictionarySource.NONE
+    }
+
+    fun hasDictionary(locale: String): Boolean = dictionarySource(locale) != DictionarySource.NONE
+
+    private fun sourceNameForLocale(locale: String): String? {
+        val external = appContext?.let { KaruikeyPreferences.dictionaryUriString(it, locale) }
+        if (!external.isNullOrBlank() && Uri.parse(external).scheme == CONTENT_URI_SCHEME) {
+            return EXTERNAL_SOURCE_PREFIX + external
+        }
+        return assetNameForLocale(locale)
     }
 
     private fun assetNameForLocale(locale: String): String? {
@@ -170,4 +198,7 @@ object SuggestionEngine {
         }
         return null
     }
+
+    private const val EXTERNAL_SOURCE_PREFIX = "uri:"
+    private const val CONTENT_URI_SCHEME = "content"
 }

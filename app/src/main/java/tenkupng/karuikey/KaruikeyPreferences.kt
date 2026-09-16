@@ -3,6 +3,7 @@ package tenkupng.karuikey
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
@@ -18,6 +19,13 @@ data class KaruikeyLanguage(
     val nativeName: String,
     val layoutName: String,
     val spacebarLabel: String
+)
+
+data class LanguageCapabilities(
+    val layoutAvailable: Boolean,
+    val dictionaryAvailable: Boolean,
+    val suggestionsAvailable: Boolean,
+    val nextWordAvailable: Boolean
 )
 
 data class KeyboardAppearance(
@@ -58,6 +66,7 @@ object KaruikeyPreferences {
     private const val BLUR = "blur"
     private const val SUGGESTIONS = "suggestions"
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
+    private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -95,6 +104,17 @@ object KaruikeyPreferences {
         "keyboard_layout_set_${language.layoutSet}", "xml", context.packageName
     ) != 0
 
+    fun capabilities(context: Context, language: KaruikeyLanguage): LanguageCapabilities {
+        val dictionaryAvailable = SuggestionEngine.dictionarySource(language.locale) !=
+            SuggestionEngine.DictionarySource.NONE
+        return LanguageCapabilities(
+            layoutAvailable = hasKeyboardLayoutResource(context, language),
+            dictionaryAvailable = dictionaryAvailable,
+            suggestionsAvailable = dictionaryAvailable,
+            nextWordAvailable = dictionaryAvailable
+        )
+    }
+
     fun enabledLanguages(context: Context): List<KaruikeyLanguage> {
         val ids = prefs(context).getStringSet(
             ENABLED_LANGUAGES,
@@ -131,6 +151,18 @@ object KaruikeyPreferences {
     fun setActiveLanguage(context: Context, language: KaruikeyLanguage) {
         prefs(context).edit().putString(ACTIVE_LANGUAGE, language.id).apply()
     }
+
+    internal fun dictionaryUriString(context: Context, locale: String): String? =
+        prefs(context).getString(dictionaryUriKey(locale), null)
+
+    internal fun setDictionaryUri(context: Context, language: KaruikeyLanguage, uri: Uri) {
+        prefs(context).edit()
+            .putString(dictionaryUriKey(language.locale), uri.toString())
+            .apply()
+    }
+
+    private fun dictionaryUriKey(locale: String): String =
+        DICTIONARY_URI_PREFIX + locale.replace('-', '_').lowercase(Locale.ROOT)
 
     fun toolbarEnabled(context: Context) = prefs(context).getBoolean(TOOLBAR, true)
 

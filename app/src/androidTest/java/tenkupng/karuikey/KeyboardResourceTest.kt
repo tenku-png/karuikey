@@ -39,7 +39,14 @@ class KeyboardResourceTest {
                 "east_slavic" to "ru_RU",
                 "qwertz" to "de_DE",
                 "azerty" to "fr_FR",
-                "spanish" to "es_ES"
+                "spanish" to "es_ES",
+                "nordic" to "sv_SE",
+                "swiss" to "de_CH",
+                "greek" to "el_GR",
+                "bulgarian" to "bg_BG",
+                "serbian_qwertz" to "sr_RS",
+                "colemak" to "en_US",
+                "dvorak" to "en_US"
             )) {
                 val layoutSet = keyboardLayoutSet(width, 260, layout, locale)
                 for (element in intArrayOf(
@@ -126,6 +133,11 @@ class KeyboardResourceTest {
             val keyboard = keyboardLayoutSet(320, 260, language.layoutSet, language.locale)
                 .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
             assertTrue("No keys for ${language.id}", keyboard.getSortedKeys().isNotEmpty())
+            assertNotNull("Missing Shift for ${language.id}", keyboard.getKey(Constants.CODE_SHIFT))
+            assertNotNull("Missing Delete for ${language.id}", keyboard.getKey(Constants.CODE_DELETE))
+            assertNotNull("Missing Space for ${language.id}", keyboard.getKey(Constants.CODE_SPACE))
+            assertTrue("Missing action key for ${language.id}",
+                keyboard.getSortedKeys().any { it.isActionKey() })
         }
     }
 
@@ -408,6 +420,10 @@ class KeyboardResourceTest {
             assertTrue(SuggestionEngine.isReady("ru_RU"))
             SuggestionEngine.fill("ru_RU", "при", suggestions)
             assertTrue(suggestions.any { it.startsWith("при") })
+            Log.i("KaruikeySuggestions", "ru prefix=при candidates=${suggestions.joinToString()}")
+            assertEquals("привет", SuggestionEngine.findGestureCandidate("ru_RU", "привет"))
+            SuggestionEngine.fill("ru_RU", "как", "привет", null, "д", suggestions)
+            Log.i("KaruikeySuggestions", "ru context=привет как prefix=д candidates=${suggestions.joinToString()}")
             SuggestionEngine.fill("ru_RU", "привет", null, null, "", suggestions)
             assertTrue(suggestions.isNotEmpty())
             val memoryAfter = Debug.MemoryInfo().also(Debug::getMemoryInfo).totalPss

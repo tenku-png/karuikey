@@ -29,5 +29,10 @@
         <item>de-CH|de_CH|swiss|German (Switzerland)|Deutsch|Swiss|Deutsch</item>
         <item>fr-CH|fr_CH|swiss|French (Switzerland)|Français|Swiss|Français</item>
         <item>it-CH|it_CH|swiss|Italian (Switzerland)|Italiano|Swiss|Italiano</item>
+        <item>el-GR|el_GR|greek|Greek|Ελληνικά|Greek|Ελληνικά</item>
+        <item>bg-BG|bg_BG|bulgarian|Bulgarian|Български|Bulgarian|Български</item>
+        <item>sr-RS|sr_RS|serbian_qwertz|Serbian|Српски|Serbian QWERTZ|Српски</item>
+        <item>en-US-Colemak|en_US|colemak|English (US) Colemak|English|Colemak|English</item>
+        <item>en-US-Dvorak|en_US|dvorak|English (US) Dvorak|English|Dvorak|English</item>
     </string-array>
 </resources>

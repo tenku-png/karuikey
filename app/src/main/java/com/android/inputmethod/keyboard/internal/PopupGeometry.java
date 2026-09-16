@@ -35,6 +35,57 @@ public final class PopupGeometry {
         return Math.max(0, Math.min(max, desired));
     }
 
+    /** Returns the full width occupied by a row of popup keys and dividers. */
+    public static int getPopupWidth(final int columnCount, final int keyWidth,
+            final int dividerWidth) {
+        if (columnCount <= 0) {
+            return 0;
+        }
+        return columnCount * Math.max(1, keyWidth)
+                + Math.max(0, columnCount - 1) * Math.max(0, dividerWidth);
+    }
+
+    /** Reduces the requested columns only when even one-pixel keys could not fit. */
+    public static int fitPopupColumnCount(final int keyCount, final int requestedColumns,
+            final int dividerWidth, final int availableWidth) {
+        if (keyCount <= 0) {
+            return 0;
+        }
+        int columns = Math.max(1, Math.min(keyCount, requestedColumns));
+        while (columns > 1 && getPopupWidth(columns, 1, dividerWidth) > availableWidth) {
+            columns--;
+        }
+        return columns;
+    }
+
+    /** Keeps dividers while guaranteeing room for at least one pixel per column. */
+    public static int fitPopupDividerWidth(final int columnCount, final int dividerWidth,
+            final int availableWidth) {
+        if (columnCount <= 1 || availableWidth <= columnCount) {
+            return 0;
+        }
+        final int maximum = (availableWidth - columnCount) / (columnCount - 1);
+        return Math.min(Math.max(0, dividerWidth), maximum);
+    }
+
+    /** Fits equal-width popup keys into the available content width. */
+    public static int fitPopupKeyWidth(final int requestedKeyWidth, final int columnCount,
+            final int dividerWidth, final int availableWidth) {
+        if (columnCount <= 0 || availableWidth <= 0) {
+            return 1;
+        }
+        final int dividerTotal = Math.max(0, columnCount - 1) * Math.max(0, dividerWidth);
+        final int maximum = Math.max(1, (availableWidth - dividerTotal) / columnCount);
+        return Math.min(Math.max(1, requestedKeyWidth), maximum);
+    }
+
+    /** Calculates the outer popup origin; drawing and touch translation share this origin. */
+    public static int getPanelLeft(final int touchX, final int defaultCoordX,
+            final int panelWidth, final int availableWidth, final int containerPaddingLeft) {
+        return clampPosition(touchX - defaultCoordX - containerPaddingLeft,
+                panelWidth, availableWidth);
+    }
+
     /** Returns a compact preview height derived from the visible keycap height. */
     public static int getPreviewHeight(final int keyHeight, final int maxPreviewHeight) {
         if (keyHeight <= 0 || maxPreviewHeight <= 0) {

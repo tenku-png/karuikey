@@ -25,6 +25,7 @@ import com.android.inputmethod.annotations.UsedForTesting;
 import com.android.inputmethod.keyboard.internal.KeyboardBuilder;
 import com.android.inputmethod.keyboard.internal.KeyboardParams;
 import com.android.inputmethod.keyboard.internal.MoreKeySpec;
+import com.android.inputmethod.keyboard.internal.PopupGeometry;
 import tenkupng.karuikey.R;
 import com.android.inputmethod.latin.common.StringUtils;
 import com.android.inputmethod.latin.utils.TypefaceUtils;
@@ -81,18 +82,24 @@ public final class MoreKeysKeyboard extends Keyboard {
                 final boolean isMoreKeysFixedColumn, final boolean isMoreKeysFixedOrder,
                 final int dividerWidth) {
             mIsMoreKeysFixedOrder = isMoreKeysFixedOrder;
-            if (parentKeyboardWidth / keyWidth < Math.min(numKeys, numColumn)) {
+            if (numKeys <= 0 || numColumn <= 0 || keyWidth <= 0 || rowHeight <= 0
+                    || parentKeyboardWidth <= 0) {
                 throw new IllegalArgumentException("Keyboard is too small to hold more keys: "
                         + parentKeyboardWidth + " " + keyWidth + " " + numKeys + " " + numColumn);
             }
-            mDefaultKeyWidth = keyWidth;
-            mDefaultRowHeight = rowHeight;
 
-            final int numRows = (numKeys + numColumn - 1) / numColumn;
-            mNumRows = numRows;
-            final int numColumns = isMoreKeysFixedColumn ? Math.min(numKeys, numColumn)
+            mNumRows = (numKeys + numColumn - 1) / numColumn;
+            final int requestedColumns = isMoreKeysFixedColumn ? Math.min(numKeys, numColumn)
                     : getOptimizedColumns(numKeys, numColumn);
+            final int numColumns = PopupGeometry.fitPopupColumnCount(numKeys, requestedColumns,
+                    dividerWidth, parentKeyboardWidth);
             mNumColumns = numColumns;
+            mNumRows = (numKeys + numColumns - 1) / numColumns;
+            mDividerWidth = PopupGeometry.fitPopupDividerWidth(numColumns, dividerWidth,
+                    parentKeyboardWidth);
+            mDefaultKeyWidth = PopupGeometry.fitPopupKeyWidth(keyWidth, numColumns,
+                    mDividerWidth, parentKeyboardWidth);
+            mDefaultRowHeight = rowHeight;
             final int topKeys = numKeys % numColumns;
             mTopKeys = topKeys == 0 ? numColumns : topKeys;
 
@@ -130,7 +137,6 @@ public final class MoreKeysKeyboard extends Keyboard {
             // Adjustment of the top row.
             mTopRowAdjustment = isMoreKeysFixedOrder ? getFixedOrderTopRowAdjustment()
                     : getAutoOrderTopRowAdjustment();
-            mDividerWidth = dividerWidth;
             mColumnWidth = mDefaultKeyWidth + mDividerWidth;
             mBaseWidth = mOccupiedWidth = mNumColumns * mColumnWidth - mDividerWidth;
             // Need to subtract the bottom row's gutter only.
@@ -259,6 +265,7 @@ public final class MoreKeysKeyboard extends Keyboard {
 
     public static class Builder extends KeyboardBuilder<MoreKeysKeyboardParams> {
         private final Key mParentKey;
+        private final int mParentKeyboardWidth;
 
         private static final float LABEL_PADDING_RATIO = 0.2f;
         private static final float DIVIDER_RATIO = 0.2f;
@@ -277,8 +284,17 @@ public final class MoreKeysKeyboard extends Keyboard {
         public Builder(final Context context, final Key key, final Keyboard keyboard,
                 final boolean isSingleMoreKeyWithPreview, final int keyPreviewVisibleWidth,
                 final int keyPreviewVisibleHeight, final Paint paintToMeasure) {
+            this(context, key, keyboard, isSingleMoreKeyWithPreview, keyPreviewVisibleWidth,
+                    keyPreviewVisibleHeight, keyboard.mId.mWidth, paintToMeasure);
+        }
+
+        public Builder(final Context context, final Key key, final Keyboard keyboard,
+                final boolean isSingleMoreKeyWithPreview, final int keyPreviewVisibleWidth,
+                final int keyPreviewVisibleHeight, final int parentKeyboardWidth,
+                final Paint paintToMeasure) {
             super(context, new MoreKeysKeyboardParams());
             load(keyboard.mMoreKeysTemplate, keyboard.mId);
+            mParentKeyboardWidth = parentKeyboardWidth;
 
             // TODO: More keys keyboard's vertical gap is currently calculated heuristically.
             // Should revise the algorithm.
@@ -313,7 +329,7 @@ public final class MoreKeysKeyboard extends Keyboard {
             }
             final MoreKeySpec[] moreKeys = key.getMoreKeys();
             mParams.setParameters(moreKeys.length, key.getMoreKeysColumnNumber(), keyWidth,
-                    rowHeight, key.getX() + key.getWidth() / 2, keyboard.mId.mWidth,
+                    rowHeight, key.getX() + key.getWidth() / 2, mParentKeyboardWidth,
                     key.isMoreKeysFixedColumn(), key.isMoreKeysFixedOrder(), dividerWidth);
         }
 
@@ -369,4 +385,3 @@ public final class MoreKeysKeyboard extends Keyboard {
         }
     }
 }
-

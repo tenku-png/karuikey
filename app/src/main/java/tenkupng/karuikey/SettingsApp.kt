@@ -33,7 +33,10 @@ enum class SettingsPage {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun KaruikeySettingsApp(refreshVersion: Int) {
+fun KaruikeySettingsApp(
+    refreshVersion: Int,
+    onAddDictionary: (KaruikeyLanguage) -> Unit = {}
+) {
     val context = LocalContext.current
     var page by rememberSaveable { mutableStateOf(SettingsPage.HOME) }
     var pendingLanguageAnimation by rememberSaveable { mutableStateOf<String?>(null) }
@@ -85,7 +88,7 @@ fun KaruikeySettingsApp(refreshVersion: Int) {
                 }
             }
             SettingsPage.LANGUAGES -> SettingsScaffold("Languages", false, back) { padding ->
-                LanguagesPage(refreshVersion, padding, pendingLanguageAnimation) {
+                LanguagesPage(refreshVersion, padding, pendingLanguageAnimation, onAddDictionary) {
                     pendingLanguageAnimation = null
                     page = it
                 }
@@ -141,10 +144,7 @@ private fun HomePage(
         "History off"
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
-        SettingsGroup(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shape = MaterialTheme.shapes.large
-        ) {
+        SettingsGroup {
             SettingsRow(KaruikeySymbol.LANGUAGE, "Languages",
                 languages.joinToString { it.displayName }) { onNavigate(SettingsPage.LANGUAGES) }
         }
@@ -157,7 +157,7 @@ private fun HomePage(
                 onNavigate(SettingsPage.TYPING)
             }
         }
-        SettingsGroup(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        SettingsGroup {
             SettingsRow(KaruikeySymbol.CONTENT_PASTE, "Clipboard", clipboardSummary) {
                 onNavigate(SettingsPage.CLIPBOARD)
             }
@@ -172,12 +172,11 @@ private fun HomePage(
             }
         }
         SectionLabel("System")
-        SettingsGroup(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
+        SettingsGroup {
             SettingsRow(KaruikeySymbol.SETTINGS, "Keyboard setup", "Open Android keyboard settings") {
                 context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
             }
-        }
-        SettingsGroup {
+            GroupDivider()
             SettingsRow(KaruikeySymbol.KEYBOARD, "Input method picker", "Choose the active keyboard") {
                 context.getSystemService(InputMethodManager::class.java).showInputMethodPicker()
             }

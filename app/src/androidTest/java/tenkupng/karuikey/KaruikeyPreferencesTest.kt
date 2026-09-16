@@ -1,6 +1,7 @@
 package tenkupng.karuikey
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
@@ -146,5 +147,26 @@ class KaruikeyPreferencesTest {
         assertFalse(KaruikeyPreferences.autoCapitalizationEnabled(context))
         KaruikeyPreferences.setAutoCapitalizationEnabled(context, true)
         assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
+    }
+
+    @Test
+    fun dictionaryCapabilityIsPerLanguageAndExternalKrdCanBeAssociated() {
+        SuggestionEngine.initialize(context)
+        val english = KaruikeyPreferences.languages(context).first {
+            it.id == KaruikeyPreferences.ENGLISH_ID
+        }
+        val greek = KaruikeyPreferences.languages(context).first { it.id == "el-GR" }
+
+        assertTrue(KaruikeyPreferences.capabilities(context, english).suggestionsAvailable)
+        assertFalse(KaruikeyPreferences.capabilities(context, greek).dictionaryAvailable)
+
+        KaruikeyPreferences.setDictionaryUri(
+            context, greek, Uri.parse("content://com.example.test/dictionaries/greek.krd")
+        )
+        assertTrue(KaruikeyPreferences.capabilities(context, greek).nextWordAvailable)
+        assertEquals(
+            SuggestionEngine.DictionarySource.EXTERNAL,
+            SuggestionEngine.dictionarySource(greek.locale)
+        )
     }
 }

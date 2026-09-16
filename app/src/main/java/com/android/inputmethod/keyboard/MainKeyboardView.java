@@ -607,6 +607,10 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
         if (moreKeys == null) {
             return null;
         }
+        final View container = key.isActionKey() ? mMoreKeysKeyboardForActionContainer
+                : mMoreKeysKeyboardContainer;
+        final int popupAvailableWidth = Math.max(1,
+                getWidth() - container.getPaddingLeft() - container.getPaddingRight());
         Keyboard moreKeysKeyboard = mMoreKeysKeyboardCache.get(key);
         if (moreKeysKeyboard == null) {
             // {@link KeyPreviewDrawParams#mPreviewVisibleWidth} should have been set at
@@ -620,13 +624,12 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
             final MoreKeysKeyboard.Builder builder = new MoreKeysKeyboard.Builder(
                     getContext(), key, getKeyboard(), isSingleMoreKeyWithPreview,
                     mKeyPreviewDrawParams.getVisibleWidth(),
-                    mKeyPreviewDrawParams.getVisibleHeight(), newLabelPaint(key));
+                    mKeyPreviewDrawParams.getVisibleHeight(), popupAvailableWidth,
+                    newLabelPaint(key));
             moreKeysKeyboard = builder.build();
             mMoreKeysKeyboardCache.put(key, moreKeysKeyboard);
         }
 
-        final View container = key.isActionKey() ? mMoreKeysKeyboardForActionContainer
-                : mMoreKeysKeyboardContainer;
         final MoreKeysKeyboardView moreKeysKeyboardView =
                 (MoreKeysKeyboardView)container.findViewById(R.id.more_keys_keyboard_view);
         moreKeysKeyboardView.setKeyboard(moreKeysKeyboard);

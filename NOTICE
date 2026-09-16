@@ -24,6 +24,19 @@ The resulting indexes contain 100,000 English words / 101,564 links and 100,000 
 is permitted under CC BY 4.0 subject to its attribution and modification requirements.
 These indexes are not the AOSP bundled Lexiteria dictionaries and no Lexiteria data is bundled.
 
+Additional keyboard layout resources
+------------------------------------
+The Greek, Bulgarian, Serbian QWERTZ, Colemak, and Dvorak layout closures were adapted from
+the Android Open Source Project LatinIME repository at commit
+127336e9f29d69607eab55982324b210279ae8c5:
+https://android.googlesource.com/platform/packages/inputmethods/LatinIME/
+The imported files are the corresponding keyboard_layout_set_*.xml, kbd_*.xml, rows_*.xml,
+rowkeys_*.xml files and keys_dvorak_123.xml under app/src/main/res/xml. Their AOSP custom
+resource namespace was changed to Android's standalone res-auto namespace; the layout data and
+Apache 2.0 headers are retained. These files are marked as Karuikey adaptations. No HeliBoard
+code or keyboard assets are redistributed in this build; HeliBoard was used only for source
+comparison.
+
 Material Symbols Rounded font
 Copyright Google LLC. Source: Google Material Design Icons repository,
 variablefont/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf. Karuikey bundles a deterministic

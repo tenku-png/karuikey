@@ -1,5 +1,7 @@
 package tenkupng.karuikey
 
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
 /**
@@ -20,11 +22,12 @@ internal class LocalDictionary(private val data: ByteArray) {
         wordCount = readInt(8)
         recordsOffset = readInt(12)
         offsetsOffset = 16 + topCount * 4
-        require(wordCount > 0 && topCount > 0)
-        require(offsetsOffset >= 16 &&
-            offsetsOffset + (wordCount + 1) * 4 <= data.size)
-        require(recordsOffset >= offsetsOffset + (wordCount + 1) * 4)
-        require(recordsOffset <= data.size)
+        val offsetsEnd = 16L + topCount * 4L + (wordCount + 1L) * 4L
+        require(wordCount > 0 && topCount in 1..wordCount)
+        require(offsetsEnd <= data.size)
+        require(recordsOffset.toLong() >= offsetsEnd)
+        require(recordsOffset in 0..data.size)
+        validateRecords()
     }
 
     fun fill(
@@ -43,10 +46,12 @@ internal class LocalDictionary(private val data: ByteArray) {
             return
         }
 
-        var contextCount = appendContext(previousWord, prefix, out)
-        if (contextCount == 0) contextCount = appendContext(secondPreviousWord, prefix, out)
-        if (contextCount == 0) appendContext(thirdPreviousWord, prefix, out)
-        if (out.size < 3) appendPrefixMatches(prefix, out)
+        // A typed prefix is a hard constraint. Context can fill unused slots, but must never
+        // displace a literal completion with an incompatible word.
+        appendPrefixMatches(prefix, out)
+        if (out.size < 3) appendContext(previousWord, prefix, out)
+        if (out.size < 3) appendContext(secondPreviousWord, prefix, out)
+        if (out.size < 3) appendContext(thirdPreviousWord, prefix, out)
     }
 
     fun findGestureCandidate(sequence: CharSequence): String? {
@@ -252,4 +257,59 @@ internal class LocalDictionary(private val data: ByteArray) {
             ((data[position + 1].toInt() and 0xff) shl 8) or
             ((data[position + 2].toInt() and 0xff) shl 16) or
             ((data[position + 3].toInt() and 0xff) shl 24)
+
+    private fun validateRecords() {
+        val recordsEnd = data.size
+        var previousOffset = 0
+        for (id in 0 until wordCount) {
+            val offset = readInt(offsetsOffset + id * 4)
+            val nextOffset = readInt(offsetsOffset + (id + 1) * 4)
+            require(offset >= previousOffset && nextOffset >= offset)
+            require(nextOffset <= recordsEnd - recordsOffset)
+
+            val record = recordsOffset + offset
+            val recordEnd = recordsOffset + nextOffset
+            require(record + 4 <= recordEnd)
+            val wordLength = readU16(record)
+            val nextCount = data[record + 3].toInt() and 0xff
+            val nextStart = record + 4 + wordLength
+            require(nextStart <= recordEnd)
+            require(nextStart + nextCount * 4 <= recordEnd)
+            require(wordLength > 0)
+            if (id > 0) require(compareWord(id - 1, wordAt(id)) <= 0)
+            var nextPointer = nextStart
+            repeat(nextCount) {
+                val nextId = readInt(nextPointer)
+                require(nextId in 0 until wordCount)
+                nextPointer += 4
+            }
+            previousOffset = nextOffset
+        }
+        require(readInt(offsetsOffset + wordCount * 4) == data.size - recordsOffset)
+        for (index in 0 until topCount) {
+            require(readInt(16 + index * 4) in 0 until wordCount)
+        }
+    }
+
+    companion object {
+        const val MAX_BYTES = 16 * 1024 * 1024
+
+        fun read(input: InputStream): LocalDictionary? {
+            val output = ByteArrayOutputStream(8192)
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                if (total > MAX_BYTES) return null
+                output.write(buffer, 0, count)
+            }
+            return try {
+                LocalDictionary(output.toByteArray())
+            } catch (_: RuntimeException) {
+                null
+            }
+        }
+    }
 }

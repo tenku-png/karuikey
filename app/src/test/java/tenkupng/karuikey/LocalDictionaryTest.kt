@@ -1,5 +1,6 @@
 package tenkupng.karuikey
 
+import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
@@ -8,6 +9,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalDictionaryTest {
+    @Test
+    fun rejectsMalformedKrdInput() {
+        assertEquals(null, LocalDictionary.read(ByteArrayInputStream("not KRD1".toByteArray())))
+    }
+
     @Test
     fun ranksPrefixContextAndFallbackCandidatesWithoutChangingTheLexicon() {
         val dictionary = dictionary(
@@ -41,6 +47,23 @@ class LocalDictionaryTest {
         assertEquals("apple", dictionary.findGestureCandidate("aple"))
         assertEquals(null, dictionary.findGestureCandidate("apxle"))
         assertTrue(dictionary.findGestureCandidate("") == null)
+    }
+
+    @Test
+    fun literalPrefixMatchesOutrankCompatibleContextCandidates() {
+        val dictionary = dictionary(
+            Entry("apple", 100, intArrayOf(5)),
+            Entry("apricot", 70, intArrayOf()),
+            Entry("banana", 90, intArrayOf()),
+            Entry("cake", 50, intArrayOf()),
+            Entry("car", 60, intArrayOf()),
+            Entry("cat", 10, intArrayOf())
+        )
+        val suggestions = mutableListOf<String>()
+
+        dictionary.fill("apple", null, null, "ca", suggestions)
+
+        assertEquals(listOf("car", "cake", "cat"), suggestions)
     }
 
     private data class Entry(val word: String, val frequency: Int, val next: IntArray)

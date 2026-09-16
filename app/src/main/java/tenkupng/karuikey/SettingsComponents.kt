@@ -53,6 +53,30 @@ object KaruikeySettingsTokens {
     val rowIconSize = 24.dp
 }
 
+data class SettingsSurfacePalette(
+    val pageBackground: Color,
+    val sectionContainer: Color,
+    val interactiveContainer: Color,
+    val selectedContainer: Color,
+    val supportingText: Color,
+    val iconTint: Color,
+    val divider: Color
+)
+
+@Composable
+fun karuikeySettingsSurfacePalette(): SettingsSurfacePalette {
+    val colors = MaterialTheme.colorScheme
+    return SettingsSurfacePalette(
+        pageBackground = colors.background,
+        sectionContainer = colors.surfaceContainerLow,
+        interactiveContainer = colors.surfaceContainerHighest,
+        selectedContainer = colors.secondaryContainer,
+        supportingText = colors.onSurfaceVariant,
+        iconTint = colors.onSurfaceVariant,
+        divider = colors.outlineVariant
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScaffold(
@@ -62,13 +86,14 @@ fun SettingsScaffold(
     content: @Composable (Modifier) -> Unit
 ) {
     if (!isHome) BackHandler(onBack = onBack)
+    val surfaces = karuikeySettingsSurfacePalette()
     Scaffold(
         topBar = {
             if (isHome) {
                 TopAppBar(
                     title = { Text("Karuikey Keyboard", style = MaterialTheme.typography.headlineSmall) },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
+                        containerColor = surfaces.pageBackground
                     )
                 )
             } else {
@@ -80,18 +105,17 @@ fun SettingsScaffold(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
+                        containerColor = surfaces.pageBackground
                     )
                 )
             }
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = surfaces.pageBackground
     ) { padding -> content(Modifier.padding(padding)) }
 }
 
 @Composable
 fun SettingsGroup(
-    containerColor: Color? = null,
     shape: Shape? = null,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
@@ -99,7 +123,7 @@ fun SettingsGroup(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = shape ?: MaterialTheme.shapes.medium,
-        color = containerColor ?: MaterialTheme.colorScheme.surfaceContainerLow,
+        color = karuikeySettingsSurfacePalette().sectionContainer,
         tonalElevation = 0.dp
     ) {
         Column { content() }
@@ -113,22 +137,25 @@ fun SettingsRow(
     summary: String,
     onClick: () -> Unit
 ) {
+    val surfaces = karuikeySettingsSurfacePalette()
     ExpressivePressSurface(onClick = onClick) {
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
             supportingContent = {
-                Text(summary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(summary, color = surfaces.supportingText, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
             },
             leadingContent = {
                 MaterialSymbolIcon(
                     icon,
+                    tint = surfaces.iconTint,
                     modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize)
                 )
             },
             trailingContent = {
                 MaterialSymbolIcon(
                     KaruikeySymbol.CHEVRON_RIGHT,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = surfaces.iconTint,
                     size = 20.sp
                 )
             },
@@ -149,15 +176,20 @@ fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     val view = LocalView.current
+    val surfaces = karuikeySettingsSurfacePalette()
     ExpressivePressSurface(enabled = enabled, onClick = {
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         onCheckedChange(!checked)
     }) {
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
-            supportingContent = { Text(summary, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                Text(summary, color = surfaces.supportingText,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            },
             leadingContent = {
-                MaterialSymbolIcon(icon, modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize))
+                MaterialSymbolIcon(icon, tint = surfaces.iconTint,
+                    modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize))
             },
             trailingContent = {
                 Switch(
@@ -205,19 +237,24 @@ fun PageColumn(
 
 @Composable
 fun GroupDivider() {
+    val surfaces = karuikeySettingsSurfacePalette()
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = KaruikeySettingsTokens.pageHorizontal),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        color = surfaces.divider
     )
 }
 
 @Composable
 fun ChoiceRow(title: String, selected: Boolean, onClick: () -> Unit) {
     val view = LocalView.current
-    ExpressivePressSurface(onClick = {
-        view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-        onClick()
-    }) {
+    val surfaces = karuikeySettingsSurfacePalette()
+    ExpressivePressSurface(
+        restingColor = if (selected) surfaces.selectedContainer else Color.Transparent,
+        onClick = {
+            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+            onClick()
+        }
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -237,12 +274,14 @@ fun ChoiceRow(title: String, selected: Boolean, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun ExpressivePressSurface(
     enabled: Boolean = true,
+    restingColor: Color = Color.Transparent,
     onClick: () -> Unit,
     content: @Composable () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val motion = MaterialTheme.motionScheme
+    val surfaces = karuikeySettingsSurfacePalette()
     val scale by animateFloatAsState(
         if (pressed) 0.985f else 1f,
         animationSpec = motion.fastSpatialSpec(),
@@ -254,8 +293,7 @@ private fun ExpressivePressSurface(
         label = "row press shape"
     )
     val color by animateColorAsState(
-        if (pressed) MaterialTheme.colorScheme.surfaceContainerHighest
-        else Color.Transparent,
+        if (pressed) surfaces.interactiveContainer else restingColor,
         animationSpec = motion.fastEffectsSpec(),
         label = "row press tone"
     )

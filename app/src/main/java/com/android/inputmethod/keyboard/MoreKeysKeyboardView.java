@@ -129,7 +129,6 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         final View container = getContainerView();
         // The coordinates of panel's left-top corner in parentView's coordinate system.
         // We need to consider background drawable paddings.
-        final int x = pointX - getDefaultCoordX() - container.getPaddingLeft() - getPaddingLeft();
         final int y = pointY - container.getMeasuredHeight() + container.getPaddingBottom()
                 + getPaddingBottom();
 
@@ -138,8 +137,9 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         // AOSP code only clamped the visual X position, which left edge popups selecting a key
         // from the unclamped coordinate space; the top row could also place the panel above the
         // visible IME surface.
-        final int panelLocalX = PopupGeometry.clampPosition(
-                x, container.getMeasuredWidth(), parentView.getMeasuredWidth());
+        final int panelLocalX = PopupGeometry.getPanelLeft(
+                pointX, getDefaultCoordX() + getPaddingLeft(), container.getMeasuredWidth(),
+                parentView.getMeasuredWidth(), container.getPaddingLeft());
         final int panelLocalY = PopupGeometry.clampPosition(
                 y, container.getMeasuredHeight(), parentView.getMeasuredHeight());
         final int panelX = panelLocalX + CoordinateUtils.x(mCoordinates);

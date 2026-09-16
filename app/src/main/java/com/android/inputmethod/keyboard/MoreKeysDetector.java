@@ -42,6 +42,10 @@ public final class MoreKeysDetector extends KeyDetector {
         }
         final int touchX = getTouchX(x);
         final int touchY = getTouchY(y);
+        if (touchX < 0 || touchY < 0 || touchX >= keyboard.mOccupiedWidth
+                || touchY >= keyboard.mOccupiedHeight) {
+            return null;
+        }
 
         Key nearestKey = null;
         int nearestDist = (y < 0) ? mSlideAllowanceSquareTop : mSlideAllowanceSquare;
@@ -55,4 +59,3 @@ public final class MoreKeysDetector extends KeyDetector {
         return nearestKey;
     }
 }
-

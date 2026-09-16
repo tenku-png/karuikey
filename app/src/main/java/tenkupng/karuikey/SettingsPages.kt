@@ -159,6 +159,7 @@ fun LanguagesPage(
     refreshVersion: Int,
     contentPadding: Modifier,
     animateLanguageId: String? = null,
+    onAddDictionary: (KaruikeyLanguage) -> Unit = {},
     onNavigate: (SettingsPage) -> Unit
 ) {
     val context = LocalContext.current
@@ -197,12 +198,31 @@ fun LanguagesPage(
                         }
                     }
                 )
+                GroupDivider()
+                SettingsRow(
+                    KaruikeySymbol.EDIT,
+                    "Dictionary",
+                    dictionarySummary(context, language)
+                ) { onAddDictionary(language) }
                 if (index < visibleLanguages.lastIndex) GroupDivider()
             }
         }
         Button(onClick = { onNavigate(SettingsPage.ADD_LANGUAGE) }, modifier = Modifier.fillMaxWidth()) {
             Text("Add language")
         }
+    }
+}
+
+private fun dictionarySummary(context: android.content.Context, language: KaruikeyLanguage): String {
+    val capabilities = KaruikeyPreferences.capabilities(context, language)
+    return when (SuggestionEngine.dictionarySource(language.locale)) {
+        SuggestionEngine.DictionarySource.BUNDLED ->
+            if (capabilities.suggestionsAvailable) "Bundled offline suggestions available"
+            else "Bundled dictionary unavailable"
+        SuggestionEngine.DictionarySource.EXTERNAL ->
+            if (capabilities.nextWordAvailable) "Karuikey KRD1 dictionary installed"
+            else "Karuikey KRD1 dictionary unavailable"
+        SuggestionEngine.DictionarySource.NONE -> "Not installed · Add a local KRD1 dictionary"
     }
 }
 

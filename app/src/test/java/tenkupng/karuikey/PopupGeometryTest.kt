@@ -37,6 +37,55 @@ class PopupGeometryTest {
     }
 
     @Test
+    fun multiOptionPopupFitsAtEdgesAndKeepsBothItemsVisible() {
+        val availableWidth = 320
+        val containerPadding = 4
+        val contentWidth = availableWidth - containerPadding * 2
+        val optionCounts = intArrayOf(2, 3, 4, 7)
+        val touchPositions = intArrayOf(0, availableWidth / 2, availableWidth - 1)
+
+        for (optionCount in optionCounts) {
+            val columns = minOf(optionCount, 5)
+            val divider = PopupGeometry.fitPopupDividerWidth(columns, 16, contentWidth)
+            val keyWidth = PopupGeometry.fitPopupKeyWidth(96, columns, divider, contentWidth)
+            val popupContentWidth = PopupGeometry.getPopupWidth(columns, keyWidth, divider)
+            val popupWidth = popupContentWidth + containerPadding * 2
+
+            for (touchX in touchPositions) {
+                val left = PopupGeometry.getPanelLeft(
+                    touchX, keyWidth / 2, popupWidth, availableWidth, containerPadding
+                )
+                assertTrue(left >= 0)
+                assertTrue(left + popupWidth <= availableWidth)
+                assertTrue(left + containerPadding >= 0)
+                assertTrue(left + containerPadding + popupContentWidth <= availableWidth - containerPadding)
+
+                val contentLeft = left + containerPadding
+                val translatedTouch = touchX - contentLeft
+                assertTrue(translatedTouch >= -keyWidth)
+                assertTrue(translatedTouch <= popupContentWidth + keyWidth)
+            }
+        }
+    }
+
+    @Test
+    fun popupColumnAndKeyGeometryNeverExceedsAvailableWidth() {
+        for (availableWidth in intArrayOf(96, 160, 240, 320, 411, 1080)) {
+            for (optionCount in intArrayOf(2, 3, 4, 7)) {
+                val requestedColumns = minOf(optionCount, 5)
+                val columns = PopupGeometry.fitPopupColumnCount(
+                    optionCount, requestedColumns, 24, availableWidth
+                )
+                val divider = PopupGeometry.fitPopupDividerWidth(columns, 24, availableWidth)
+                val keyWidth = PopupGeometry.fitPopupKeyWidth(
+                    120, columns, divider, availableWidth
+                )
+                assertTrue(PopupGeometry.getPopupWidth(columns, keyWidth, divider) <= availableWidth)
+            }
+        }
+    }
+
+    @Test
     fun previewHeightFollowsKeyHeightAndStaysCompact() {
         for (keyHeight in intArrayOf(85, 100, 115)) {
             val previewHeight = PopupGeometry.getPreviewHeight(keyHeight, 160)
