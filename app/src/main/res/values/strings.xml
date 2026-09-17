@@ -106,9 +106,9 @@ Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open So
     <string name="transparency_setting">Keyboard transparency</string>
     <string name="transparency_description">Let the app behind show through the keyboard</string>
     <string name="transparency_amount_setting">Transparency: %1$d%%</string>
-    <string name="blur_setting">Background blur</string>
-    <string name="blur_supported">Uses Android background blur when supported</string>
-    <string name="blur_unavailable">Unavailable for this keyboard window</string>
+    <string name="blur_setting">Blur</string>
+    <string name="blur_supported">Uses blur when supported</string>
+    <string name="blur_unavailable">Not supported on this device</string>
     <string name="search_languages_hint">Search languages</string>
     <string name="no_languages_found">No matching languages</string>
 </resources>

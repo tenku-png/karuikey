@@ -160,13 +160,17 @@ class KaruikeyPreferencesTest {
         assertTrue(KaruikeyPreferences.capabilities(context, english).suggestionsAvailable)
         assertFalse(KaruikeyPreferences.capabilities(context, greek).dictionaryAvailable)
 
-        KaruikeyPreferences.setDictionaryUri(
-            context, greek, Uri.parse("content://com.example.test/dictionaries/greek.krd")
-        )
-        assertTrue(KaruikeyPreferences.capabilities(context, greek).nextWordAvailable)
-        assertEquals(
-            SuggestionEngine.DictionarySource.EXTERNAL,
-            SuggestionEngine.dictionarySource(greek.locale)
-        )
+        try {
+            KaruikeyPreferences.setDictionaryUri(
+                context, greek, Uri.parse("content://com.example.test/dictionaries/greek.krd")
+            )
+            assertTrue(KaruikeyPreferences.capabilities(context, greek).nextWordAvailable)
+            assertEquals(
+                SuggestionEngine.DictionarySource.EXTERNAL,
+                SuggestionEngine.dictionarySource(greek.locale)
+            )
+        } finally {
+            KaruikeyPreferences.clearDictionaryUri(context, greek)
+        }
     }
 }

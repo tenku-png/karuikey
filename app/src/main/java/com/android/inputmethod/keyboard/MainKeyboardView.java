@@ -611,6 +611,8 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
                 : mMoreKeysKeyboardContainer;
         final int popupAvailableWidth = Math.max(1,
                 getWidth() - container.getPaddingLeft() - container.getPaddingRight());
+        final int popupAvailableHeight = Math.max(1,
+                getHeight() - container.getPaddingTop() - container.getPaddingBottom());
         Keyboard moreKeysKeyboard = mMoreKeysKeyboardCache.get(key);
         if (moreKeysKeyboard == null) {
             // {@link KeyPreviewDrawParams#mPreviewVisibleWidth} should have been set at
@@ -625,6 +627,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
                     getContext(), key, getKeyboard(), isSingleMoreKeyWithPreview,
                     mKeyPreviewDrawParams.getVisibleWidth(),
                     mKeyPreviewDrawParams.getVisibleHeight(), popupAvailableWidth,
+                    popupAvailableHeight,
                     newLabelPaint(key));
             moreKeysKeyboard = builder.build();
             mMoreKeysKeyboardCache.put(key, moreKeysKeyboard);

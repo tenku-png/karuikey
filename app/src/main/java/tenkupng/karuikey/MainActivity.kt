@@ -50,7 +50,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     Toast.makeText(
                         this,
-                        "Unsupported dictionary. Select a Karuikey KRD1 file.",
+                        "Unsupported suggestion data. Select a valid local file.",
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -69,7 +69,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     Toast.makeText(
                         this,
-                        "Could not keep access to that dictionary.",
+                        "Could not keep access to that suggestion data.",
                         Toast.LENGTH_LONG
                     ).show()
                 }

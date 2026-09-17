@@ -15,6 +15,7 @@ import com.android.inputmethod.keyboard.Keyboard
 import com.android.inputmethod.keyboard.KeyboardId
 import com.android.inputmethod.keyboard.KeyboardLayoutSet
 import com.android.inputmethod.keyboard.KeyboardView
+import com.android.inputmethod.keyboard.MoreKeysKeyboard
 import com.android.inputmethod.keyboard.internal.PopupGeometry
 import com.android.inputmethod.latin.RichInputMethodSubtype
 import com.android.inputmethod.latin.common.Constants
@@ -196,6 +197,40 @@ class KeyboardResourceTest {
         assertEquals('1'.code, alphabet.getKey('q'.code)?.getMoreKeys()?.first()?.mCode)
         assertEquals('0'.code, alphabet.getKey('p'.code)?.getMoreKeys()?.first()?.mCode)
         assertTrue((symbols.getKey('$'.code)?.getMoreKeys()?.size ?: 0) > 1)
+    }
+
+    @Test
+    fun largeGreekMoreKeysFitTheRequestedPopupViewport() {
+        for (width in intArrayOf(240, 411, 1080)) {
+            for (height in intArrayOf(180, 260, 420, 760)) {
+                val alphabet = keyboardLayoutSet(width, height, "greek", "el_GR")
+                    .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+                val parent = alphabet.getKey('α'.code)
+                assertNotNull(parent)
+                assertTrue((parent!!.getMoreKeys()?.size ?: 0) >= 10)
+                val keyboard = MoreKeysKeyboard.Builder(
+                    context, parent, alphabet, false, 0, 0,
+                    width - 8, height - 8,
+                    ExposedKeyboardView(KaruikeyPreferences.keyboardContext(context))
+                        .labelPaint(parent)
+                ).build()
+
+                assertTrue(keyboard.mOccupiedWidth + 8 <= width)
+                assertTrue(keyboard.mOccupiedHeight + 8 <= height)
+                assertTrue(keyboard.getSortedKeys().isNotEmpty())
+                for (key in keyboard.getSortedKeys()) {
+                    assertTrue("left=${key.x}", key.x >= 0)
+                    assertTrue("right=${key.x + key.width}",
+                        key.x + key.width <= keyboard.mOccupiedWidth)
+                    assertTrue("occupied=${keyboard.mOccupiedWidth}x${keyboard.mOccupiedHeight} hitBox=${key.hitBox}", key.hitBox.left >= 0)
+                    assertTrue("hitBox=${key.hitBox}",
+                        key.hitBox.right <= keyboard.mOccupiedWidth)
+                    assertTrue("hitBox=${key.hitBox}", key.hitBox.top >= 0)
+                    assertTrue("occupied=${keyboard.mOccupiedWidth}x${keyboard.mOccupiedHeight} hitBox=${key.hitBox}",
+                        key.hitBox.bottom <= keyboard.mOccupiedHeight)
+                }
+            }
+        }
     }
 
     @Test
@@ -497,6 +532,8 @@ class KeyboardResourceTest {
 
     private class ExposedKeyboardView(context: Context) : KeyboardView(context, null) {
         fun defaultTypeface() = newLabelPaint(null).typeface
+
+        fun labelPaint(key: Key) = newLabelPaint(key)
 
         fun labelTypeface(key: Key) = key.selectTypeface(getKeyDrawParams())
 

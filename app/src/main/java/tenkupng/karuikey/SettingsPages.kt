@@ -121,8 +121,8 @@ fun AppearancePage(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Background blur",
-                "Unavailable for this keyboard window", false, false) { }
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Blur",
+                "Not supported on this device", false, false) { }
         }
         SettingsGroup {
             Text("Keyboard height ${height.toInt()}%",
@@ -182,8 +182,11 @@ fun LanguagesPage(
         SettingsGroup {
             val visibleLanguages = catalog.filter { visibleIds.contains(it.id) }
             visibleLanguages.forEachIndexed { index, language ->
+                val source = SuggestionEngine.dictionarySource(language.locale)
                 AnimatedLanguageRow(
                     language = language,
+                    summary = "${language.nativeName} · ${language.layoutName} · " +
+                        suggestionStatus(source),
                     checked = enabledIds.contains(language.id),
                     canChange = enabledIds.size > 1 || !enabledIds.contains(language.id),
                     onCheckedChange = { checked ->
@@ -198,12 +201,18 @@ fun LanguagesPage(
                         }
                     }
                 )
-                GroupDivider()
-                SettingsRow(
-                    KaruikeySymbol.EDIT,
-                    "Dictionary",
-                    dictionarySummary(context, language)
-                ) { onAddDictionary(language) }
+                if (source != SuggestionEngine.DictionarySource.BUNDLED) {
+                    GroupDivider()
+                    SettingsRow(
+                        KaruikeySymbol.EDIT,
+                        "Suggestions",
+                        if (source == SuggestionEngine.DictionarySource.EXTERNAL) {
+                            "Local suggestions installed"
+                        } else {
+                            "Suggestions unavailable · Add suggestion data"
+                        }
+                    ) { onAddDictionary(language) }
+                }
                 if (index < visibleLanguages.lastIndex) GroupDivider()
             }
         }
@@ -213,22 +222,16 @@ fun LanguagesPage(
     }
 }
 
-private fun dictionarySummary(context: android.content.Context, language: KaruikeyLanguage): String {
-    val capabilities = KaruikeyPreferences.capabilities(context, language)
-    return when (SuggestionEngine.dictionarySource(language.locale)) {
-        SuggestionEngine.DictionarySource.BUNDLED ->
-            if (capabilities.suggestionsAvailable) "Bundled offline suggestions available"
-            else "Bundled dictionary unavailable"
-        SuggestionEngine.DictionarySource.EXTERNAL ->
-            if (capabilities.nextWordAvailable) "Karuikey KRD1 dictionary installed"
-            else "Karuikey KRD1 dictionary unavailable"
-        SuggestionEngine.DictionarySource.NONE -> "Not installed · Add a local KRD1 dictionary"
-    }
+internal fun suggestionStatus(source: SuggestionEngine.DictionarySource): String = when (source) {
+    SuggestionEngine.DictionarySource.BUNDLED -> "Suggestions ready"
+    SuggestionEngine.DictionarySource.EXTERNAL -> "Local suggestions installed"
+    SuggestionEngine.DictionarySource.NONE -> "Suggestions unavailable"
 }
 
 @Composable
 private fun AnimatedLanguageRow(
     language: KaruikeyLanguage,
+    summary: String,
     checked: Boolean,
     canChange: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -258,7 +261,7 @@ private fun AnimatedLanguageRow(
         SettingsSwitchRow(
             KaruikeySymbol.LANGUAGE,
             language.displayName,
-            "${language.nativeName} · ${language.layoutName}",
+            summary,
             checked,
             enabled = canChange,
             onCheckedChange = onCheckedChange

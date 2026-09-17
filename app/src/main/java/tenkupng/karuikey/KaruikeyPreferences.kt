@@ -161,6 +161,10 @@ object KaruikeyPreferences {
             .apply()
     }
 
+    internal fun clearDictionaryUri(context: Context, language: KaruikeyLanguage) {
+        prefs(context).edit().remove(dictionaryUriKey(language.locale)).apply()
+    }
+
     private fun dictionaryUriKey(locale: String): String =
         DICTIONARY_URI_PREFIX + locale.replace('-', '_').lowercase(Locale.ROOT)
 
@@ -244,11 +248,7 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(BLUR, enabled).apply()
     }
 
-    /**
-     * The IME window is wider than the keyboard surface, so FLAG_BLUR_BEHIND would blur
-     * application content outside the keyboard. Keep the preference visible as an explicit
-     * unavailable capability until a bounded surface/window implementation exists.
-     */
+    /** Cross-window blur cannot currently be bounded to this IME's keyboard surface. */
     fun blurSupported() = false
 
     fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, false)

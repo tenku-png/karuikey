@@ -86,6 +86,76 @@ class PopupGeometryTest {
     }
 
     @Test
+    fun popupLayoutsFitCellsWithinBothViewportDimensions() {
+        for (availableWidth in intArrayOf(180, 320, 411, 1080)) {
+            for (availableHeight in intArrayOf(180, 260, 420, 760)) {
+                for (optionCount in intArrayOf(2, 3, 4, 5, 6, 8, 10, 12)) {
+                    val viewportWidth = availableWidth - 8
+                    val viewportHeight = availableHeight - 8
+                    val layout = PopupGeometry.fitPopupLayout(
+                        optionCount, 5, 120, 150, 12, 4,
+                        6, 6, 6, 6, viewportWidth, viewportHeight
+                    )
+                    assertTrue(layout.width + 8 <= availableWidth)
+                    assertTrue(layout.height + 8 <= availableHeight)
+                    assertTrue(layout.columns >= 1)
+                    assertTrue(layout.rows >= 1)
+                    assertTrue(layout.rows * layout.columns >= optionCount)
+                    for (index in 0 until optionCount) {
+                        val row = index / layout.columns
+                        val column = index % layout.columns
+                        val left = 6 + column * (layout.keyWidth + layout.dividerWidth)
+                        val top = 6 + row * layout.rowHeight
+                        assertTrue(left >= 6)
+                        assertTrue(left + layout.keyWidth <= layout.width - 6)
+                        assertTrue(top >= 6)
+                        val cellHeight = layout.rowHeight - 4
+                        assertTrue(top + cellHeight <= layout.height - 6)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun popupLayoutClampsPaddingWhenViewportIsSmallerThanTheNormalInsets() {
+        for (availableWidth in intArrayOf(1, 2, 7, 20)) {
+            for (availableHeight in intArrayOf(20, 40)) {
+                val layout = PopupGeometry.fitPopupLayout(
+                    12, 5, 120, 150, 12, 4,
+                    6, 6, 6, 6, availableWidth, availableHeight
+                )
+                assertTrue(layout.width <= availableWidth)
+                assertTrue(layout.height <= availableHeight)
+            }
+        }
+    }
+
+    @Test
+    fun popupOriginUsesTheSameClampedPanelForDrawingAndTouch() {
+        for (availableWidth in intArrayOf(240, 411, 1080)) {
+            val layout = PopupGeometry.fitPopupLayout(
+                12, 5, 160, 150, 12, 4,
+                6, 6, 6, 6, availableWidth - 8, 420 - 8
+            )
+            for (touchX in intArrayOf(0, availableWidth / 2, availableWidth - 1)) {
+                val outerWidth = layout.width + 8
+                val panelLeft = PopupGeometry.getPanelLeft(
+                    touchX, 6 + layout.keyWidth / 2, outerWidth, availableWidth, 4
+                )
+                assertTrue(panelLeft >= 0)
+                assertTrue(panelLeft + outerWidth <= availableWidth)
+                val origin = panelLeft + 4 + 6
+                assertTrue(touchX - origin <= layout.width)
+                assertEquals(panelLeft, PopupGeometry.clampPosition(
+                    touchX - (6 + layout.keyWidth / 2) - 4,
+                    outerWidth, availableWidth
+                ))
+            }
+        }
+    }
+
+    @Test
     fun previewHeightFollowsKeyHeightAndStaysCompact() {
         for (keyHeight in intArrayOf(85, 100, 115)) {
             val previewHeight = PopupGeometry.getPreviewHeight(keyHeight, 160)

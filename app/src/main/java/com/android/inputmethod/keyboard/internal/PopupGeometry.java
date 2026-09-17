@@ -20,6 +20,7 @@ import android.graphics.Paint;
 
 /** Small, allocation-free bounds calculation shared by keyboard popup surfaces. */
 public final class PopupGeometry {
+    private static final float MINIMUM_POPUP_ITEM_RATIO = 0.55f;
     private static final float PREVIEW_HEIGHT_RATIO = 1.15f;
     private static final float PREVIEW_MIN_WIDTH_RATIO = 1.0f;
     private static final float PREVIEW_WIDTH_RATIO = 1.25f;
@@ -28,6 +29,101 @@ public final class PopupGeometry {
     private static final float PREVIEW_TEXT_MAX_RATIO = 1.35f;
 
     private PopupGeometry() {}
+
+    /** Final equal-cell popup geometry used by both the builder and its tests. */
+    public static final class Layout {
+        public final int columns;
+        public final int rows;
+        public final int keyWidth;
+        public final int rowHeight;
+        public final int dividerWidth;
+        public final int width;
+        public final int height;
+
+        private Layout(final int columns, final int rows, final int keyWidth,
+                final int rowHeight, final int dividerWidth, final int width, final int height) {
+            this.columns = columns;
+            this.rows = rows;
+            this.keyWidth = keyWidth;
+            this.rowHeight = rowHeight;
+            this.dividerWidth = dividerWidth;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    /**
+     * Fits a popup grid before its panel is positioned. The returned dimensions include the
+     * keyboard paddings, while keyWidth and rowHeight describe the actual cells.
+     */
+    public static Layout fitPopupLayout(final int optionCount, final int requestedColumns,
+            final int requestedKeyWidth, final int requestedRowHeight, final int dividerWidth,
+            final int verticalGap, final int paddingLeft, final int paddingRight,
+            final int paddingTop, final int paddingBottom, final int availableWidth,
+            final int availableHeight) {
+        if (optionCount <= 0 || requestedColumns <= 0 || requestedKeyWidth <= 0
+                || requestedRowHeight <= 0 || availableWidth <= 0 || availableHeight <= 0) {
+            return new Layout(0, 0, 0, 0, 0, 0, 0);
+        }
+        final int requestedLeft = Math.max(0, paddingLeft);
+        final int requestedRight = Math.max(0, paddingRight);
+        final int requestedTop = Math.max(0, paddingTop);
+        final int requestedBottom = Math.max(0, paddingBottom);
+        final int horizontalPaddingLimit = Math.max(0, availableWidth - 1);
+        final int verticalPaddingLimit = Math.max(0, availableHeight - 1);
+        final int requestedHorizontalPadding = requestedLeft + requestedRight;
+        final int requestedVerticalPadding = requestedTop + requestedBottom;
+        final int left = requestedHorizontalPadding <= horizontalPaddingLimit
+                ? requestedLeft
+                : requestedLeft * horizontalPaddingLimit / requestedHorizontalPadding;
+        final int right = requestedHorizontalPadding <= horizontalPaddingLimit
+                ? requestedRight : horizontalPaddingLimit - left;
+        final int top = requestedVerticalPadding <= verticalPaddingLimit
+                ? requestedTop
+                : requestedTop * verticalPaddingLimit / requestedVerticalPadding;
+        final int bottom = requestedVerticalPadding <= verticalPaddingLimit
+                ? requestedBottom : verticalPaddingLimit - top;
+        final int horizontalPadding = left + right;
+        final int verticalPadding = top + bottom;
+        final int contentWidth = Math.max(1, availableWidth - horizontalPadding);
+        final int contentHeight = Math.max(1, availableHeight - verticalPadding);
+        final int maximumColumns = fitPopupColumnCount(optionCount,
+                requestedColumns, dividerWidth, contentWidth);
+        final int minimumKeyWidth = Math.max(1,
+                Math.round(requestedKeyWidth * MINIMUM_POPUP_ITEM_RATIO));
+        final int minimumRowHeight = Math.max(1,
+                Math.round(requestedRowHeight * MINIMUM_POPUP_ITEM_RATIO));
+        Layout fallback = null;
+
+        // Start at the requested maximum: that produces the fewest rows. Reduce columns only
+        // when the desired minimum cell width cannot fit the available viewport.
+        for (int columns = maximumColumns; columns >= 1; columns--) {
+            final int fittedDividerWidth = fitPopupDividerWidth(
+                    columns, dividerWidth, contentWidth);
+            final int fittedKeyWidth = fitPopupKeyWidth(
+                    requestedKeyWidth, columns, fittedDividerWidth, contentWidth);
+            final int rows = (optionCount + columns - 1) / columns;
+            final int maxRowHeight = Math.max(1,
+                    (contentHeight + Math.max(0, verticalGap)) / rows);
+            final int fittedRowHeight = Math.min(requestedRowHeight, maxRowHeight);
+            final int contentPopupWidth = getPopupWidth(
+                    columns, fittedKeyWidth, fittedDividerWidth);
+            final int contentPopupHeight = Math.max(1,
+                    rows * fittedRowHeight - Math.max(0, verticalGap));
+            final Layout candidate = new Layout(columns, rows, fittedKeyWidth,
+                    fittedRowHeight, fittedDividerWidth, contentPopupWidth + horizontalPadding,
+                    contentPopupHeight + verticalPadding);
+            if (fallback == null) {
+                fallback = candidate;
+            }
+            if (fittedKeyWidth >= minimumKeyWidth && fittedRowHeight >= minimumRowHeight) {
+                return candidate;
+            }
+        }
+        // The fallback still uses the largest width-fitting grid and is height-clamped. This is
+        // only reachable for a very small viewport where the sensible minimum is impossible.
+        return fallback;
+    }
 
     /** Returns a position for an object that keeps its whole rectangle in the available area. */
     public static int clampPosition(final int desired, final int size, final int available) {
