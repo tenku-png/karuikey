@@ -30,8 +30,8 @@
         <item name="iconLanguageSwitchKey">@drawable/ic_keyboard_language</item>
         <item name="iconZwnjKey">@drawable/ic_keyboard_symbol</item>
         <item name="iconZwjKey">@drawable/ic_keyboard_symbol</item>
-        <item name="iconEmojiActionKey">@drawable/ic_keyboard_symbol</item>
-        <item name="iconEmojiNormalKey">@drawable/ic_keyboard_symbol</item>
+        <item name="iconEmojiActionKey">@drawable/ic_keyboard_emoji</item>
+        <item name="iconEmojiNormalKey">@drawable/ic_keyboard_emoji</item>
     </style>
     <style name="KeyboardView">
         <item name="keyBackground">@drawable/keyboard_key_background</item>

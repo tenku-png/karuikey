@@ -45,14 +45,16 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
 
     public void loadKeyboard(@NonNull final EditorInfo editorInfo,
             @NonNull final InputMethodSubtype subtype, final int width, final int height,
-            final int autoCapsFlags, final boolean languageSwitchKeyEnabled) {
+            final int autoCapsFlags, final boolean languageSwitchKeyEnabled,
+            final boolean emojiKeyEnabled) {
         final RichInputMethodSubtype richSubtype = new RichInputMethodSubtype(subtype);
         final KeyboardLayoutSet.Builder builder = new KeyboardLayoutSet.Builder(
                 mContext, editorInfo);
         builder.setKeyboardGeometry(width, height)
                 .setSubtype(richSubtype)
                 .setVoiceInputKeyEnabled(false)
-                .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled);
+                .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled)
+                .setEmojiKeyEnabled(emojiKeyEnabled);
         mLanguageSwitchKeyEnabled = languageSwitchKeyEnabled;
         mKeyboardLayoutSet = builder.build();
         mState.onLoadKeyboard(autoCapsFlags,
@@ -63,6 +65,11 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         mState = new KeyboardState(this);
         mKeyboardLayoutSet = null;
         mLanguageSwitchKeyEnabled = false;
+    }
+
+    public void showAlphabetKeyboard(final int autoCapsFlags) {
+        mState.onResetKeyboardStateToAlphabet(autoCapsFlags,
+                RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE);
     }
 
     public void closing() {

@@ -1,6 +1,7 @@
 package tenkupng.karuikey
 
 import android.content.Context
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import androidx.test.platform.app.InstrumentationRegistry
@@ -139,6 +140,33 @@ class KaruikeyPreferencesTest {
             android.graphics.Color.alpha(darkAppearance.keyboardBackground))
         assertTrue(android.graphics.Color.alpha(darkAppearance.popupSurface) >=
             android.graphics.Color.alpha(darkAppearance.keySurface))
+    }
+
+    @Test
+    fun glassUsesTheResolvedMaterialPaletteForDifferentAccentColors() {
+        for (accent in listOf(
+            Color.rgb(34, 139, 74),
+            Color.rgb(42, 96, 180),
+            Color.rgb(126, 78, 172)
+        )) {
+            val material = KaruikeyPreferences.resolveKeyboardAppearance(
+                context, KaruikeyPreferences.THEME_LIGHT, false
+            ).copy(
+                keyboardBackground = accent,
+                keySurface = accent,
+                functionalKeySurface = accent,
+                actionSurface = accent,
+                popupSurface = accent,
+                pressedSurface = accent,
+                shiftLockedSurface = accent
+            )
+            val glass = KaruikeyPreferences.glassAppearance(material)
+            assertEquals(Color.red(accent), Color.red(glass.actionSurface))
+            assertEquals(Color.green(accent), Color.green(glass.actionSurface))
+            assertEquals(Color.blue(accent), Color.blue(glass.actionSurface))
+            assertEquals(Color.red(accent), Color.red(glass.keySurface))
+            assertTrue(Color.alpha(glass.keyboardBackground) < Color.alpha(accent))
+        }
     }
 
     @Test

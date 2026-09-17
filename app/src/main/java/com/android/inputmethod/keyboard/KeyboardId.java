@@ -81,6 +81,7 @@ public final class KeyboardId {
     public final EditorInfo mEditorInfo;
     public final boolean mClobberSettingsKey;
     public final boolean mLanguageSwitchKeyEnabled;
+    public final boolean mEmojiKeyEnabled;
     public final String mCustomActionLabel;
     public final boolean mHasShortcutKey;
     public final boolean mIsSplitLayout;
@@ -96,6 +97,7 @@ public final class KeyboardId {
         mEditorInfo = params.mEditorInfo;
         mClobberSettingsKey = params.mNoSettingsKey;
         mLanguageSwitchKeyEnabled = params.mLanguageSwitchKeyEnabled;
+        mEmojiKeyEnabled = params.mEmojiKeyEnabled;
         mCustomActionLabel = (mEditorInfo.actionLabel != null)
                 ? mEditorInfo.actionLabel.toString() : null;
         mHasShortcutKey = params.mVoiceInputKeyEnabled;
@@ -114,6 +116,7 @@ public final class KeyboardId {
                 id.mClobberSettingsKey,
                 id.mHasShortcutKey,
                 id.mLanguageSwitchKeyEnabled,
+                id.mEmojiKeyEnabled,
                 id.isMultiLine(),
                 id.imeAction(),
                 id.mCustomActionLabel,
@@ -135,6 +138,7 @@ public final class KeyboardId {
                 && other.mClobberSettingsKey == mClobberSettingsKey
                 && other.mHasShortcutKey == mHasShortcutKey
                 && other.mLanguageSwitchKeyEnabled == mLanguageSwitchKeyEnabled
+                && other.mEmojiKeyEnabled == mEmojiKeyEnabled
                 && other.isMultiLine() == isMultiLine()
                 && other.imeAction() == imeAction()
                 && TextUtils.equals(other.mCustomActionLabel, mCustomActionLabel)
@@ -192,7 +196,7 @@ public final class KeyboardId {
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "[%s %s:%s %dx%d %s %s%s%s%s%s%s%s%s%s]",
+        return String.format(Locale.ROOT, "[%s %s:%s %dx%d %s %s%s%s%s%s%s%s%s%s%s]",
                 elementIdToName(mElementId),
                 mSubtype.getLocale(),
                 mSubtype.getExtraValueOf(KEYBOARD_LAYOUT_SET),
@@ -205,6 +209,7 @@ public final class KeyboardId {
                 (passwordInput() ? " passwordInput" : ""),
                 (mHasShortcutKey ? " hasShortcutKey" : ""),
                 (mLanguageSwitchKeyEnabled ? " languageSwitchKeyEnabled" : ""),
+                (mEmojiKeyEnabled ? " emojiKeyEnabled" : ""),
                 (isMultiLine() ? " isMultiLine" : ""),
                 (mIsSplitLayout ? " isSplitLayout" : "")
         );

@@ -55,6 +55,11 @@ object KaruikeyPreferences {
     const val THEME_DARK = "dark"
     const val KEYBOARD_STYLE_MATERIAL = "material"
     const val KEYBOARD_STYLE_GLASS = "glass"
+    const val EMOJI_PLACEMENT_TOOLBAR = "toolbar"
+    const val EMOJI_PLACEMENT_BOTTOM = "bottom"
+    const val EMOJI_PLACEMENT_OFF = "off"
+    const val SPACEBAR_SWIPE_CURSOR = "cursor"
+    const val SPACEBAR_SWIPE_LANGUAGE = "language"
 
     private const val PREFS = "karuikey_settings"
     private const val ENABLED_LANGUAGES = "enabled_languages"
@@ -72,6 +77,8 @@ object KaruikeyPreferences {
     private const val NEXT_WORD_SUGGESTIONS = "next_word_suggestions"
     private const val PERSONALIZED_SUGGESTIONS = "personalized_suggestions"
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
+    private const val EMOJI_PLACEMENT = "emoji_placement"
+    private const val SPACEBAR_SWIPE = "spacebar_swipe"
     private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
 
     private fun prefs(context: Context) =
@@ -298,6 +305,37 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(AUTO_CAPITALIZATION, enabled).apply()
     }
 
+    fun emojiKeyPlacement(context: Context) = prefs(context)
+        .getString(EMOJI_PLACEMENT, EMOJI_PLACEMENT_TOOLBAR)
+        ?.takeIf {
+            it == EMOJI_PLACEMENT_TOOLBAR || it == EMOJI_PLACEMENT_BOTTOM ||
+                it == EMOJI_PLACEMENT_OFF
+        } ?: EMOJI_PLACEMENT_TOOLBAR
+
+    fun setEmojiKeyPlacement(context: Context, placement: String) {
+        prefs(context).edit().putString(
+            EMOJI_PLACEMENT,
+            when (placement) {
+                EMOJI_PLACEMENT_BOTTOM -> EMOJI_PLACEMENT_BOTTOM
+                EMOJI_PLACEMENT_OFF -> EMOJI_PLACEMENT_OFF
+                else -> EMOJI_PLACEMENT_TOOLBAR
+            }
+        ).apply()
+    }
+
+    fun spacebarSwipe(context: Context) = prefs(context)
+        .getString(SPACEBAR_SWIPE, SPACEBAR_SWIPE_CURSOR)
+        ?.takeIf { it == SPACEBAR_SWIPE_LANGUAGE || it == SPACEBAR_SWIPE_CURSOR }
+        ?: SPACEBAR_SWIPE_CURSOR
+
+    fun setSpacebarSwipe(context: Context, mode: String) {
+        prefs(context).edit().putString(
+            SPACEBAR_SWIPE,
+            if (mode == SPACEBAR_SWIPE_LANGUAGE) SPACEBAR_SWIPE_LANGUAGE
+            else SPACEBAR_SWIPE_CURSOR
+        ).apply()
+    }
+
     fun resolveKeyboardAppearance(
         context: Context,
         themeMode: String = theme(context),
@@ -324,6 +362,10 @@ object KaruikeyPreferences {
     fun keyboardContext(context: Context): Context {
         val appearance = resolveKeyboardAppearance(context)
         val style = when {
+            appearance.style == KEYBOARD_STYLE_GLASS && appearance.usesDynamicColors &&
+                appearance.isDark -> R.style.Theme_Karuikey_Keyboard_Glass_Dynamic_Dark
+            appearance.style == KEYBOARD_STYLE_GLASS && appearance.usesDynamicColors ->
+                R.style.Theme_Karuikey_Keyboard_Glass_Dynamic_Light
             appearance.style == KEYBOARD_STYLE_GLASS && appearance.isDark ->
                 R.style.Theme_Karuikey_Keyboard_Glass_Dark
             appearance.style == KEYBOARD_STYLE_GLASS -> R.style.Theme_Karuikey_Keyboard_Glass_Light
@@ -402,7 +444,7 @@ object KaruikeyPreferences {
         )
     }
 
-    private fun glassAppearance(base: KeyboardAppearance): KeyboardAppearance {
+    internal fun glassAppearance(base: KeyboardAppearance): KeyboardAppearance {
         fun translucent(color: Int, alpha: Int) = Color.argb(
             alpha, Color.red(color), Color.green(color), Color.blue(color)
         )

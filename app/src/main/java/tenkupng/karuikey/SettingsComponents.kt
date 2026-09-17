@@ -91,7 +91,13 @@ fun SettingsScaffold(
         topBar = {
             if (isHome) {
                 TopAppBar(
-                    title = { Text("Karuikey Keyboard", style = MaterialTheme.typography.headlineSmall) },
+                    title = {
+                        Text(
+                            "Karuikey Keyboard",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = surfaces.pageBackground
                     )

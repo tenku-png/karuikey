@@ -61,6 +61,7 @@ class KaruikeyService : InputMethodService() {
     private var gestureRequestId = 0L
     private var suggestionsAllowed = false
     private var gestureAllowed = false
+    private var emojiBottomRow = false
     private var expectedCursorPosition = -1
     private var expectedSelectionEnd = -1
     private var composingStart = -1
@@ -111,9 +112,21 @@ class KaruikeyService : InputMethodService() {
             y: Int,
             isKeyRepeat: Boolean
         ) {
+            if (inputView?.isEmojiSearchActive == true) {
+                handleEmojiSearchCode(primaryCode)
+                return
+            }
             gestureRequestId++
             pendingEditorSelection = -1
+            if (primaryCode == Constants.CODE_EMOJI) {
+                openEmojiPanel()
+                return
+            }
             if (primaryCode == Constants.CODE_LANGUAGE_SWITCH) {
+                if (emojiBottomRow) {
+                    openEmojiPanel()
+                    return
+                }
                 cycleLanguage()
                 return
             }
@@ -170,6 +183,10 @@ class KaruikeyService : InputMethodService() {
         }
 
         override fun onTextInput(text: String) {
+            if (inputView?.isEmojiSearchActive == true) {
+                inputView?.appendEmojiSearchText(text)
+                return
+            }
             val connection = currentInputConnection
             suggestionSession.clearAutomaticSpace()
             finishEditorComposition(connection)
@@ -239,6 +256,7 @@ class KaruikeyService : InputMethodService() {
         gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         editorInfo = attribute
         currentLanguage = KaruikeyPreferences.activeLanguage(this)
@@ -252,6 +270,7 @@ class KaruikeyService : InputMethodService() {
         expectedSelectionEnd = attribute.initialSelEnd
         clearComposingWord()
         composingStart = -1
+        emojiBottomRow = false
         keyboardSwitcher?.resetForNewInput()
     }
 
@@ -343,6 +362,7 @@ class KaruikeyService : InputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
         suggestionSession.clearAutomaticSpace()
@@ -354,6 +374,7 @@ class KaruikeyService : InputMethodService() {
         gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         clearComposingWord()
         SuggestionEngine.endSession()
@@ -375,6 +396,7 @@ class KaruikeyService : InputMethodService() {
         gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         super.onWindowHidden()
         keyboardSwitcher?.onHideWindow()
@@ -385,6 +407,7 @@ class KaruikeyService : InputMethodService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
         loadedWidth = 0
@@ -396,6 +419,7 @@ class KaruikeyService : InputMethodService() {
     override fun onDestroy() {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
         keyboardSwitcher?.deallocateMemory()
@@ -454,13 +478,17 @@ class KaruikeyService : InputMethodService() {
         val language = currentLanguage ?: KaruikeyPreferences.activeLanguage(this)
         val subtype = currentSubtype ?: subtypeFor(language)
         val multipleLanguages = KaruikeyPreferences.enabledLanguages(this).size > 1
+        val showEmojiOnBottomRow = emojiKeyAllowed() &&
+            KaruikeyPreferences.emojiKeyPlacement(this) == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM
+        emojiBottomRow = showEmojiOnBottomRow
         keyboardSwitcher?.loadKeyboard(
             editor,
             subtype,
             keyboardView.width,
             keyboardView.height,
             autoCapsMode(),
-            multipleLanguages
+            multipleLanguages && !showEmojiOnBottomRow,
+            showEmojiOnBottomRow
         )
         keyboardView.setMainDictionaryAvailability(gestureAllowed)
         // Keep the optional AOSP trail off until its visual parameters are configured for this
@@ -471,11 +499,15 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun cycleLanguage() {
+        cycleLanguage(1)
+    }
+
+    private fun cycleLanguage(direction: Int) {
         val enabled = KaruikeyPreferences.enabledLanguages(this)
         if (enabled.size < 2) return
         val currentId = currentLanguage?.id ?: KaruikeyPreferences.activeLanguage(this).id
         val currentIndex = enabled.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
-        val next = enabled[(currentIndex + 1) % enabled.size]
+        val next = enabled[(currentIndex + direction).mod(enabled.size)]
         currentLanguage = next
         currentSubtype = subtypeFor(next)
         beginSuggestionSession(next.locale)
@@ -487,6 +519,44 @@ class KaruikeyService : InputMethodService() {
         loadedHeight = 0
         loadKeyboardIfMeasured()
         refreshSuggestions()
+    }
+
+    private fun handleEmojiSearchCode(primaryCode: Int) {
+        when (primaryCode) {
+            Constants.CODE_DELETE -> inputView?.deleteEmojiSearchCodePoint()
+            Constants.CODE_ENTER -> Unit
+            Constants.CODE_SPACE -> inputView?.appendEmojiSearchText(" ")
+            Constants.CODE_SHIFT,
+            Constants.CODE_CAPSLOCK,
+            Constants.CODE_SWITCH_ALPHA_SYMBOL,
+            Constants.CODE_LANGUAGE_SWITCH,
+            Constants.CODE_EMOJI -> Unit
+            else -> if (primaryCode > 0) inputView?.appendEmojiSearchCodePoint(primaryCode)
+        }
+    }
+
+    private fun emojiKeyAllowed(): Boolean {
+        val info = editorInfo ?: return false
+        if ((info.inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
+        return !isSensitiveInput(info)
+    }
+
+    private fun openEmojiPanel() {
+        if (!emojiKeyAllowed()) return
+        keyboardSwitcher?.showAlphabetKeyboard(autoCapsMode())
+        inputView?.showEmojiPanel()
+    }
+
+    private fun commitEmoji(emoji: String) {
+        if (!emojiKeyAllowed()) return
+        val connection = currentInputConnection ?: return
+        finishEditorComposition(connection)
+        if (expectedCursorPosition >= 0) {
+            expectedCursorPosition += emoji.length
+            expectedSelectionEnd = expectedCursorPosition
+        }
+        duringEditorUpdate { connection.commitText(emoji, 1) }
+        clearCurrentWord()
     }
 
     private fun beginSuggestionSession(locale: String) {
@@ -577,7 +647,8 @@ class KaruikeyService : InputMethodService() {
 
     private fun clearSuggestionsView() {
         suggestionResults.clear()
-        inputView?.setSuggestions(suggestionResults)
+        inputView?.setSuggestions(suggestionResults, suggestionRequestId,
+            suggestionSession.prefix.toString())
     }
 
     private fun completeCurrentWord() {
@@ -606,13 +677,14 @@ class KaruikeyService : InputMethodService() {
             clearCurrentWord()
             return
         }
-        clearSuggestionsView()
         if (suggestionSession.prefix.isEmpty() &&
             !KaruikeyPreferences.nextWordSuggestionsEnabled(this)
         ) {
+            clearSuggestionsView()
             return
         }
         val locale = currentLanguage?.locale ?: "en"
+        inputView?.markSuggestionsPending(requestId, suggestionSession.prefix.toString())
         SuggestionEngine.requestFill(
             locale,
             suggestionSession.previousWord,
@@ -627,7 +699,8 @@ class KaruikeyService : InputMethodService() {
                 ) return@post
                 suggestionResults.clear()
                 suggestionResults.addAll(results)
-                inputView?.setSuggestions(suggestionResults)
+                inputView?.setSuggestions(suggestionResults, requestId,
+                    suggestionSession.prefix.toString())
             }
         }
     }
@@ -922,7 +995,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK && inputView?.hideClipboardPanel() == true) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && inputView?.handleBack() == true) {
             return true
         }
         return super.onKeyDown(keyCode, event)
@@ -942,6 +1015,15 @@ class KaruikeyService : InputMethodService() {
         private val keyboardContent = FrameLayout(keyboardContext)
         private val utilityToolbar = LinearLayout(keyboardContext)
         private val suggestionToolbar = LinearLayout(keyboardContext)
+        private val candidateRegion = LinearLayout(keyboardContext)
+        private val emojiPanel = EmojiPanel(
+            keyboardContext,
+            appearance,
+            onEmojiSelected = ::commitEmoji,
+            onClose = ::hideEmojiPanel,
+            onSearchRequested = ::showEmojiSearchLayout,
+            onSearchClosed = ::showEmojiCategoryLayout
+        )
         private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
         private var clipboardHistory: List<ClipboardHistoryItem> = emptyList()
         private var clipboardEmptyMessage = R.string.clipboard_history_empty
@@ -951,6 +1033,7 @@ class KaruikeyService : InputMethodService() {
         private var spaceCursorLastX = 0
         private var spaceCursorDistance = 0
         private var spaceCursorActive = false
+        private var spaceLanguageActive = false
         private val spaceCursorTrigger = dp(12)
         private val spaceCursorStep = dp(24)
         private val clipboardPanel = LinearLayout(keyboardContext).apply {
@@ -1043,24 +1126,17 @@ class KaruikeyService : InputMethodService() {
                 isFocusable = true
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
                 setTextColor(appearance.primaryText)
-                layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
-                setOnClickListener { (tag as? String)?.let(::commitSuggestion) }
-                setOnLongClickListener {
-                    val word = tag as? String ?: return@setOnLongClickListener false
-                    val locale = currentLanguage?.locale ?: return@setOnLongClickListener false
-                    PopupMenu(this@KaruikeyService, this).apply {
-                        menu.add(R.string.remove_suggestion)
-                        setOnMenuItemClickListener {
-                            SuggestionBlacklist.add(this@KaruikeyService, locale, word)
-                            refreshSuggestions()
-                            true
-                        }
-                        show()
-                    }
-                    true
-                }
+                layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT)
             }
         }
+        private val candidateQueries = arrayOfNulls<String>(3)
+        private val candidateRequestIds = LongArray(3)
+        private val emojiToolbarButton = toolbarButton(
+            R.drawable.ic_keyboard_emoji, R.string.toolbar_emoji
+        ) { showEmojiPanel() }
+        private val languageToolbarButton = toolbarButton(
+            R.drawable.ic_keyboard_language, R.string.toolbar_language
+        ) { cycleLanguage() }
         private var navigationBottomInset = 0
 
         init {
@@ -1068,6 +1144,17 @@ class KaruikeyService : InputMethodService() {
             keyboardView.setBackgroundColor(Color.TRANSPARENT)
             toolbar.setBackgroundColor(Color.TRANSPARENT)
             clipboardPanel.setBackgroundColor(Color.TRANSPARENT)
+            suggestionToolbar.orientation = LinearLayout.HORIZONTAL
+            suggestionToolbar.gravity = Gravity.CENTER_VERTICAL
+            candidateRegion.orientation = LinearLayout.HORIZONTAL
+            candidateRegion.gravity = Gravity.CENTER_VERTICAL
+            candidateViews.forEachIndexed { index, candidate ->
+                installCandidateListeners(index, candidate)
+                candidateRegion.addView(candidate)
+            }
+            suggestionToolbar.addView(candidateRegion, LinearLayout.LayoutParams(
+                0, LayoutParams.MATCH_PARENT
+            ))
             utilityToolbar.orientation = LinearLayout.HORIZONTAL
             utilityToolbar.gravity = Gravity.CENTER_VERTICAL
             utilityToolbar.addView(
@@ -1084,27 +1171,12 @@ class KaruikeyService : InputMethodService() {
                 ) { openSettings() },
                 fixedToolbarButtonParams()
             )
-            suggestionToolbar.orientation = LinearLayout.HORIZONTAL
-            suggestionToolbar.gravity = Gravity.CENTER_VERTICAL
-            candidateViews.forEach { suggestionToolbar.addView(it) }
-            suggestionToolbar.addView(
-                toolbarButton(
-                    R.drawable.ic_keyboard_clipboard,
-                    R.string.toolbar_clipboard
-                ) { showClipboard() },
-                fixedToolbarButtonParams()
-            )
-            suggestionToolbar.addView(
-                toolbarButton(
-                    R.drawable.ic_keyboard_settings,
-                    R.string.toolbar_settings
-                ) { openSettings() },
-                fixedToolbarButtonParams()
-            )
+            utilityToolbar.addView(emojiToolbarButton, fixedToolbarButtonParams())
+            utilityToolbar.addView(languageToolbarButton, fixedToolbarButtonParams())
+            suggestionToolbar.addView(utilityToolbar, LinearLayout.LayoutParams(
+                0, LayoutParams.MATCH_PARENT
+            ))
             toolbar.addView(suggestionToolbar, FrameLayout.LayoutParams.MATCH_PARENT, toolbarHeight)
-            toolbar.addView(utilityToolbar, FrameLayout.LayoutParams.MATCH_PARENT, toolbarHeight)
-            utilityToolbar.visibility = View.VISIBLE
-            suggestionToolbar.visibility = View.GONE
             val clipboardHeader = LinearLayout(keyboardContext).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -1138,7 +1210,9 @@ class KaruikeyService : InputMethodService() {
             ))
             addView(toolbar, LayoutParams.MATCH_PARENT, toolbarHeight)
             keyboardContent.addView(keyboardView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            keyboardContent.addView(emojiPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             keyboardContent.addView(clipboardPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            emojiPanel.visibility = View.GONE
             addView(keyboardContent, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
@@ -1175,8 +1249,22 @@ class KaruikeyService : InputMethodService() {
                     val x = event.x.toInt()
                     spaceCursorDistance += x - spaceCursorLastX
                     spaceCursorLastX = x
+                    if (spacebarLanguageGesture() &&
+                        !spaceCursorActive && !spaceLanguageActive &&
+                        kotlin.math.abs(spaceCursorDistance) >= spaceCursorTrigger
+                    ) {
+                        keyboardView.cancelAllOngoingEvents()
+                        cycleLanguage(if (spaceCursorDistance > 0) 1 else -1)
+                        keyboardView.performHapticFeedback(
+                            android.view.HapticFeedbackConstants.KEYBOARD_TAP
+                        )
+                        spaceLanguageActive = true
+                        spaceCursorDistance = 0
+                        return true
+                    }
+                    if (spaceLanguageActive) return true
                     if (!spaceCursorActive && SpaceCursor.triggerReached(
-                            spaceCursorDistance, spaceCursorTrigger
+                        spaceCursorDistance, spaceCursorTrigger
                         )
                     ) {
                         keyboardView.cancelAllOngoingEvents()
@@ -1197,6 +1285,10 @@ class KaruikeyService : InputMethodService() {
                     return false
                 }
                 android.view.MotionEvent.ACTION_UP -> {
+                    if (spaceLanguageActive) {
+                        resetSpaceCursor()
+                        return true
+                    }
                     if (spaceCursorActive) {
                         resetSpaceCursor()
                         return true
@@ -1205,12 +1297,91 @@ class KaruikeyService : InputMethodService() {
                     return false
                 }
                 android.view.MotionEvent.ACTION_CANCEL -> {
-                    val wasActive = spaceCursorActive
+                    val wasActive = spaceCursorActive || spaceLanguageActive
                     resetSpaceCursor()
                     return wasActive
                 }
             }
             return false
+        }
+
+        val isEmojiSearchActive: Boolean
+            get() = emojiPanel.isSearchActive()
+
+        fun appendEmojiSearchCodePoint(codePoint: Int) = emojiPanel.appendSearchCodePoint(codePoint)
+
+        fun appendEmojiSearchText(text: String) = emojiPanel.appendSearchText(text)
+
+        fun deleteEmojiSearchCodePoint() = emojiPanel.deleteSearchCodePoint()
+
+        fun showEmojiPanel() {
+            if (clipboardPanel.visibility == View.VISIBLE) hideClipboardPanel()
+            restoreEmojiLayout()
+            emojiPanel.exitSearch()
+            keyboardView.visibility = View.GONE
+            emojiPanel.visibility = View.VISIBLE
+            toolbar.visibility = View.GONE
+            requestLayout()
+        }
+
+        fun handleBack(): Boolean {
+            if (emojiPanel.visibility == View.VISIBLE) {
+                if (emojiPanel.handleBack()) return true
+                hideEmojiPanel()
+                return true
+            }
+            return hideClipboardPanel()
+        }
+
+        private fun showEmojiSearchLayout() {
+            keyboardView.visibility = View.VISIBLE
+            toolbar.visibility = View.GONE
+            requestLayout()
+            reloadKeyboardAfterLayout()
+        }
+
+        private fun showEmojiCategoryLayout() {
+            restoreEmojiLayout()
+            keyboardView.visibility = View.GONE
+            emojiPanel.visibility = View.VISIBLE
+            toolbar.visibility = View.GONE
+            requestLayout()
+        }
+
+        private fun restoreEmojiLayout() {
+            (keyboardView.layoutParams as FrameLayout.LayoutParams).apply {
+                width = LayoutParams.MATCH_PARENT
+                height = LayoutParams.MATCH_PARENT
+                topMargin = 0
+            }.also { keyboardView.layoutParams = it }
+            (emojiPanel.layoutParams as FrameLayout.LayoutParams).apply {
+                width = LayoutParams.MATCH_PARENT
+                height = LayoutParams.MATCH_PARENT
+                topMargin = 0
+            }.also { emojiPanel.layoutParams = it }
+            loadedHeight = 0
+        }
+
+        fun hideEmojiPanel(): Boolean {
+            if (emojiPanel.visibility != View.VISIBLE) {
+                return false
+            }
+            emojiPanel.exitSearch()
+            restoreEmojiLayout()
+            emojiPanel.visibility = View.GONE
+            keyboardView.visibility = View.VISIBLE
+            toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
+                View.VISIBLE
+            } else View.GONE
+            requestLayout()
+            reloadKeyboardAfterLayout()
+            return true
+        }
+
+        private fun reloadKeyboardAfterLayout() {
+            loadedWidth = 0
+            loadedHeight = 0
+            post { loadKeyboardIfMeasured() }
         }
 
         private fun beginSpaceCursor() {
@@ -1220,6 +1391,11 @@ class KaruikeyService : InputMethodService() {
             keyboardView.invalidateKey(spaceCursorKey)
         }
 
+        private fun spacebarLanguageGesture(): Boolean =
+            KaruikeyPreferences.spacebarSwipe(this@KaruikeyService) ==
+                KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE &&
+                KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
+
         fun resetSpaceCursor() {
             if (spaceCursorActive) {
                 spaceCursorKey?.onReleased()
@@ -1228,6 +1404,7 @@ class KaruikeyService : InputMethodService() {
             spaceCursorKey = null
             spaceCursorDistance = 0
             spaceCursorActive = false
+            spaceLanguageActive = false
         }
 
         fun applyPreferences() {
@@ -1236,6 +1413,13 @@ class KaruikeyService : InputMethodService() {
                     View.VISIBLE
                 } else View.GONE
             }
+            emojiToolbarButton.visibility = if (
+                emojiKeyAllowed() && KaruikeyPreferences.emojiKeyPlacement(this@KaruikeyService) ==
+                    KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR
+            ) View.VISIBLE else View.INVISIBLE
+            languageToolbarButton.visibility = if (
+                KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
+            ) View.VISIBLE else View.INVISIBLE
             applySurfaceBackground(surfaceBackgroundColor())
             keyboardView.setKeyPreviewPopupEnabled(
                 KaruikeyPreferences.keyPreviewEnabled(this@KaruikeyService),
@@ -1397,29 +1581,68 @@ class KaruikeyService : InputMethodService() {
             toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                 View.VISIBLE
             } else View.GONE
-            setSuggestions(suggestionResults)
+            setSuggestions(suggestionResults, suggestionRequestId,
+                suggestionSession.prefix.toString())
             if (!KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) toolbar.visibility = View.GONE
             requestLayout()
             return true
         }
 
-        fun setSuggestions(suggestions: List<String>) {
-            val hasSuggestions = suggestions.isNotEmpty()
+        fun markSuggestionsPending(requestId: Long, query: String) {
+            for (index in candidateViews.indices) {
+                candidateRequestIds[index] = requestId - 1
+                candidateQueries[index] = query
+                candidateViews[index].isEnabled = false
+            }
+        }
+
+        private fun installCandidateListeners(index: Int, candidate: TextView) {
+            candidate.setOnClickListener {
+                if (candidateRequestIds[index] == suggestionRequestId &&
+                    candidateQueries[index] == suggestionSession.prefix.toString()
+                ) {
+                    (candidate.tag as? String)?.let(::commitSuggestion)
+                }
+            }
+            candidate.setOnLongClickListener {
+                if (candidateRequestIds[index] != suggestionRequestId ||
+                    candidateQueries[index] != suggestionSession.prefix.toString()
+                ) return@setOnLongClickListener false
+                val word = candidate.tag as? String ?: return@setOnLongClickListener false
+                val locale = currentLanguage?.locale ?: return@setOnLongClickListener false
+                PopupMenu(this@KaruikeyService, candidate).apply {
+                    menu.add(R.string.remove_suggestion)
+                    setOnMenuItemClickListener {
+                        SuggestionBlacklist.add(this@KaruikeyService, locale, word)
+                        refreshSuggestions()
+                        true
+                    }
+                    show()
+                }
+                true
+            }
+        }
+
+        fun setSuggestions(suggestions: List<String>, requestId: Long, query: String) {
             candidateViews.forEachIndexed { index, candidate ->
                 if (index < suggestions.size) {
                     val text = suggestions[index]
                     candidate.text = text
                     candidate.tag = text
                     candidate.visibility = View.VISIBLE
+                    candidate.isEnabled = true
+                    candidateQueries[index] = query
+                    candidateRequestIds[index] = requestId
                 } else {
                     candidate.text = null
                     candidate.tag = null
                     // Keep empty slots reserved so one suggestion never becomes a giant button.
                     candidate.visibility = View.INVISIBLE
+                    candidate.isEnabled = false
+                    candidateQueries[index] = null
+                    candidateRequestIds[index] = requestId
                 }
             }
-            suggestionToolbar.visibility = if (hasSuggestions) View.VISIBLE else View.GONE
-            utilityToolbar.visibility = if (hasSuggestions) View.GONE else View.VISIBLE
         }
 
         private fun toolbarButton(icon: Int, description: Int, action: () -> Unit) =
@@ -1451,6 +1674,41 @@ class KaruikeyService : InputMethodService() {
             }
             val keyboardHeight = (height - visibleToolbarHeight - navigationBottomInset).coerceAtLeast(1)
             setMeasuredDimension(width, height)
+            val utilityWidth = SuggestionStripGeometry.utilityWidth(width, toolbarHeight)
+            val candidateWidth = SuggestionStripGeometry.candidateRegionWidth(width, toolbarHeight)
+            (candidateRegion.layoutParams as LinearLayout.LayoutParams).apply {
+                this.width = candidateWidth
+            }.also { candidateRegion.layoutParams = it }
+            (utilityToolbar.layoutParams as LinearLayout.LayoutParams).apply {
+                this.width = utilityWidth
+            }.also { utilityToolbar.layoutParams = it }
+            candidateViews.forEachIndexed { index, candidate ->
+                (candidate.layoutParams as LinearLayout.LayoutParams).apply {
+                    this.width = SuggestionStripGeometry.candidateSlotWidth(candidateWidth, index)
+                }.also { candidate.layoutParams = it }
+            }
+            val utilityButtonWidth = utilityWidth / SuggestionStripGeometry.UTILITY_COUNT
+            for (index in 0 until utilityToolbar.childCount) {
+                val child = utilityToolbar.getChildAt(index)
+                (child.layoutParams as LinearLayout.LayoutParams).apply {
+                    this.width = utilityButtonWidth
+                    this.weight = 0f
+                }.also { child.layoutParams = it }
+            }
+            val contentHeight = keyboardHeight
+            val emojiHeight = contentHeight * 58 / 100
+            if (emojiPanel.isSearchActive()) {
+                (emojiPanel.layoutParams as FrameLayout.LayoutParams).apply {
+                    this.width = LayoutParams.MATCH_PARENT
+                    this.height = emojiHeight
+                    topMargin = 0
+                }.also { emojiPanel.layoutParams = it }
+                (keyboardView.layoutParams as FrameLayout.LayoutParams).apply {
+                    this.width = LayoutParams.MATCH_PARENT
+                    this.height = contentHeight - emojiHeight
+                    topMargin = emojiHeight
+                }.also { keyboardView.layoutParams = it }
+            }
             toolbar.measure(
                 MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(visibleToolbarHeight, MeasureSpec.EXACTLY)

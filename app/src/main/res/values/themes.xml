@@ -96,4 +96,36 @@
         <item name="keyboardPopupColor">@color/keyboard_glass_dark_popup</item>
         <item name="keyboardPopupSelectedColor">@color/keyboard_glass_dark_pressed</item>
     </style>
+
+    <style name="Theme.Karuikey.Keyboard.Glass.Dynamic.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="keyboardKeyColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
+        <item name="keyboardActionColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardActionTextColor">?attr/colorOnPrimaryContainer</item>
+        <item name="keyboardPressedColor">?attr/colorPrimary</item>
+        <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardPreviewColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
+    </style>
+
+    <style name="Theme.Karuikey.Keyboard.Glass.Dynamic.Dark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="keyboardKeyColor">?attr/colorSurfaceContainerHigh</item>
+        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
+        <item name="keyboardActionColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardActionTextColor">?attr/colorOnPrimaryContainer</item>
+        <item name="keyboardPressedColor">?attr/colorPrimary</item>
+        <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardFunctionalTextColor">?attr/colorOnSurface</item>
+        <item name="keyboardDisabledTextColor">?attr/colorOnSurfaceVariant</item>
+        <item name="keyboardPreviewColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardPopupSelectedColor">?attr/colorPrimaryContainer</item>
+    </style>
 </resources>

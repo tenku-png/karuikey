@@ -68,6 +68,8 @@
     <string name="keyboard_height_setting">Keyboard height: %1$d%%</string>
     <string name="toolbar_clipboard">Clipboard</string>
     <string name="toolbar_settings">Settings</string>
+    <string name="toolbar_emoji">Emoji</string>
+    <string name="toolbar_language">Switch language</string>
     <string name="clipboard_empty">Clipboard is empty</string>
     <string name="clipboard_non_text">No text in clipboard</string>
     <string name="clipboard_paste">Paste</string>

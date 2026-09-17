@@ -51,7 +51,7 @@ class SettingsComponentsTest {
 
         toolbarSwitch.performScrollTo()
         toolbarSwitch.performClick().assertIsOn()
-        composeRule.onNodeWithText("Toolbar").performClick()
+        composeRule.onAllNodesWithText("Toolbar").assertCountEquals(2)[1].performClick()
         toolbarSwitch.assertIsOff()
 
         composeRule.onNodeWithText("Key preview").performScrollTo()

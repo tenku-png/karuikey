@@ -191,6 +191,65 @@ class KeyboardResourceTest {
     }
 
     @Test
+    fun emojiBottomRowReplacesLanguageKeyWithoutChangingKeyboardBounds() {
+        for (width in intArrayOf(240, 411, 1080)) {
+            val layoutSet = keyboardLayoutSet(
+                width, 260, "qwerty", "en_US", languageSwitchKeyEnabled = false,
+                emojiKeyEnabled = true
+            )
+            val alphabet = layoutSet.getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+
+            assertNotNull(alphabet.getKey(Constants.CODE_EMOJI))
+            assertNotNull(alphabet.getKey(Constants.CODE_SWITCH_ALPHA_SYMBOL))
+            assertNull(alphabet.getKey(Constants.CODE_LANGUAGE_SWITCH))
+            assertEquals(1, alphabet.getSortedKeys().count { it.code == Constants.CODE_EMOJI })
+            assertNotNull(alphabet.getKey(','.code))
+            assertNotNull(alphabet.getKey(Constants.CODE_SPACE))
+            assertNotNull(alphabet.getKey('.'.code))
+            assertKeyboardBounds(alphabet, width)
+        }
+    }
+
+    @Test
+    fun emojiCatalogProvidesCategoriesSearchAndVariants() {
+        assertTrue(EmojiCatalog.entries(EmojiCategory.FACES, context).isNotEmpty())
+        assertTrue(EmojiCatalog.search("smile").any { it.emoji == "😀" })
+        assertTrue(EmojiCatalog.search("cat").any { it.emoji == "🐱" })
+        val heartResults = EmojiCatalog.search("heart")
+        assertTrue(heartResults.any { it.emoji == "❤️" })
+        assertEquals(heartResults.size, heartResults.map { it.emoji }.distinct().size)
+        assertTrue(EmojiCatalog.entries(EmojiCategory.PEOPLE, context)
+            .first { it.emoji == "👍" }.variants.isNotEmpty())
+    }
+
+    @Test
+    fun emojiHistoryOrdersRepeatedEmojiWithoutStoringTextContext() {
+        EmojiHistory.clear(context)
+        try {
+            EmojiHistory.record(context, "😀")
+            EmojiHistory.record(context, "🔥")
+            EmojiHistory.record(context, "😀")
+            assertEquals(listOf("😀", "🔥"), EmojiHistory.recent(context).take(2))
+        } finally {
+            EmojiHistory.clear(context)
+        }
+    }
+
+    @Test
+    fun suggestionStripKeepsRegionsAndSlotsStable() {
+        for (width in intArrayOf(240, 411, 1080)) {
+            val utility = SuggestionStripGeometry.utilityWidth(width, 48)
+            val candidates = SuggestionStripGeometry.candidateRegionWidth(width, 48)
+            val slots = (0 until SuggestionStripGeometry.CANDIDATE_COUNT).map {
+                SuggestionStripGeometry.candidateSlotWidth(candidates, it)
+            }
+            assertEquals(width, utility + slots.sum())
+            assertEquals(candidates, slots.sum())
+            assertTrue(slots.all { it >= 0 })
+        }
+    }
+
+    @Test
     fun languageKeyAndMoreKeysAreProvidedByTheAospLayout() {
         val layoutSet = keyboardLayoutSet(320, 260, "qwerty", "en_US", true)
         val alphabet = layoutSet.getKeyboard(KeyboardId.ELEMENT_ALPHABET)
@@ -539,7 +598,8 @@ class KeyboardResourceTest {
         layout: String,
         locale: String,
         languageSwitchKeyEnabled: Boolean = false,
-        imeOptions: Int = EditorInfo.IME_ACTION_NONE
+        imeOptions: Int = EditorInfo.IME_ACTION_NONE,
+        emojiKeyEnabled: Boolean = false
     ): KeyboardLayoutSet {
         val subtype = InputMethodSubtypeCompatUtils.newInputMethodSubtype(
             0,
@@ -560,6 +620,7 @@ class KeyboardResourceTest {
             .setKeyboardGeometry(width, height)
             .setVoiceInputKeyEnabled(false)
             .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled)
+            .setEmojiKeyEnabled(emojiKeyEnabled)
             .build()
     }
 

@@ -667,6 +667,8 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
             final boolean languageSwitchKeyEnabledMatched = matchBoolean(caseAttr,
                     R.styleable.Keyboard_Case_languageSwitchKeyEnabled,
                     id.mLanguageSwitchKeyEnabled);
+            final boolean emojiKeyEnabledMatched = matchBoolean(caseAttr,
+                    R.styleable.Keyboard_Case_emojiKeyEnabled, id.mEmojiKeyEnabled);
             final boolean isMultiLineMatched = matchBoolean(caseAttr,
                     R.styleable.Keyboard_Case_isMultiLine, id.isMultiLine());
             final boolean imeActionMatched = matchInteger(caseAttr,
@@ -683,6 +685,7 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
                     && keyboardThemeMacthed && modeMatched && navigateNextMatched
                     && navigatePreviousMatched && passwordInputMatched && clobberSettingsKeyMatched
                     && hasShortcutKeyMatched  && languageSwitchKeyEnabledMatched
+                    && emojiKeyEnabledMatched
                     && isMultiLineMatched && imeActionMatched && isIconDefinedMatched
                     && localeCodeMatched && languageCodeMatched && countryCodeMatched
                     && splitLayoutMatched;
