@@ -1,28 +1,43 @@
-Karuikey includes source code and keyboard resources derived from the Android
-Open Source Project LatinIME keyboard. The derived files are materially
-modified for Karuikey and retain Apache License 2.0 notices. The imported
-foundation is limited to keyboard geometry, resource parsing, hit detection,
-keyboard selection, shift state, AOSP gesture path sampling, and the bundled alphabetic,
-numeric/phone layout resources; full dictionaries, autocorrect, native code, and telemetry are
-not included. Karuikey's optional suggestions use one active-language, read-only local index.
+Karuikey includes source code, keyboard resources, and a narrow read-only native
+dictionary bridge derived from the Android Open Source Project LatinIME keyboard.
+The derived files are materially modified for Karuikey and retain Apache License
+2.0 notices. The imported foundation covers keyboard geometry, resource parsing,
+hit detection, keyboard selection, shift state, gesture path sampling, the
+alphabetic/numeric/phone layouts, and the AOSP binary-dictionary query core.
+Karuikey loads only one active-language dictionary at a time. Autocorrect,
+telemetry, and remote services are not included.
+
+The Java/native dictionary bridge is derived from AOSP LatinIME at commit
+127336e9f29d69607eab55982324b210279ae8c5:
+https://android.googlesource.com/platform/packages/inputmethods/LatinIME/
+The standalone ndk-build files and the registered JNI surface are Karuikey
+adaptations. AOSP's java/NOTICE mentions Lexiteria dictionaries; no Lexiteria
+dictionary data is redistributed here.
 
 Dictionary data
 ---------------
-Karuikey bundles modified compact indexes converted from the experimental English (US) and
-Russian wordlists in the Helium314 aosp-dictionaries repository at commit
+Karuikey bundles the standard English (US) and experimental Russian binary dictionaries
+from the Helium314 aosp-dictionaries repository at commit
 55e6d1c64ad72481d5615113b1c94f0716617016:
 https://codeberg.org/Helium314/aosp-dictionaries
-The source entries are wordlists_experimental/main_en_US.source and
-wordlists_experimental/main_ru.source. Their source lists are identified as licensed under the
-Creative Commons Attribution 4.0 International license:
+The corresponding source manifests are wordlists/main_en_US.source and
+wordlists_experimental/main_ru.source. The English manifest points to the OpenBoard v1.4.5
+word list; retain the applicable OpenBoard license and attribution when redistributing it.
+The Russian manifest identifies its source lists as licensed under the Creative Commons
+Attribution 4.0 International license:
 https://creativecommons.org/licenses/by/4.0/
-The source lists are derived from Leipzig Corpora Collection downloads. Karuikey converts only
-the top 100,000 valid words per language, retains source frequencies and up to three next-word
-links, and writes the KRD1 index format; these are modifications and not the original files.
-The resulting indexes contain 100,000 English words / 101,564 links and 100,000 Russian words /
-163,719 links. Attribution and the license link are retained here, and redistribution/conversion
-is permitted under CC BY 4.0 subject to its attribution and modification requirements.
-These indexes are not the AOSP bundled Lexiteria dictionaries and no Lexiteria data is bundled.
+The English source is the OpenBoard v1.4.5 word list referenced by the source manifest. The
+Russian source is derived from Leipzig Corpora Collection downloads. Karuikey redistributes the
+binary dictionary files without modification and preserves this attribution. The English
+dictionary contains 160,715 words and next-word data; the Russian experimental dictionary
+contains 1,541,848 words and next-word data, as reported by the source repository.
+The resulting binary dictionaries are distributed as
+app/src/main/assets/dictionaries/main_en_us.dict (SHA-256
+bd950ef4b57655120eee65cee62a5d216a63f721d9a8bb759ce2022437840443) and
+main_ru.dict (SHA-256
+806243bb3b799ef89c3aa1a147b5d12d2ec19271c6b3c0bbff7147af14c14c01).
+Attribution and the license link are retained here. These files are not the
+AOSP bundled Lexiteria dictionaries and no Lexiteria data is bundled.
 
 Additional keyboard layout resources
 ------------------------------------

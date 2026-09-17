@@ -15,13 +15,14 @@
  */
 
 package com.android.inputmethod.keyboard;
-// Karuikey adaptation: imported from AOSP LatinIME; native proximity path removed.
+// Karuikey adaptation: AOSP proximity grid with the standalone JNI library restored.
 
 import android.graphics.Rect;
 import android.util.Log;
 
 import com.android.inputmethod.keyboard.internal.TouchPositionCorrection;
 import com.android.inputmethod.latin.common.Constants;
+import com.android.inputmethod.latin.utils.JniUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,6 +62,14 @@ public class ProximityInfo {
         return key.getCode() >= Constants.CODE_SPACE;
     }
 
+    private static int getProximityInfoKeysCount(final List<Key> keys) {
+        int count = 0;
+        for (final Key key : keys) {
+            if (needsProximityInfo(key)) count++;
+        }
+        return count;
+    }
+
     @SuppressWarnings("unchecked")
     ProximityInfo(final int gridWidth, final int gridHeight, final int minWidth, final int height,
             final int mostCommonKeyWidth, final int mostCommonKeyHeight,
@@ -82,12 +91,68 @@ public class ProximityInfo {
             return;
         }
         computeNearestNeighbors();
-        mNativeProximityInfo = 0L;
+        mNativeProximityInfo = createNativeProximityInfo();
     }
 
     private long mNativeProximityInfo;
+
+    static {
+        JniUtils.loadNativeLibrary();
+    }
+
+    private static native long setProximityInfoNative(int displayWidth, int displayHeight,
+            int gridWidth, int gridHeight, int mostCommonKeyWidth, int mostCommonKeyHeight,
+            int[] proximityCharsArray, int keyCount, int[] keyXCoordinates, int[] keyYCoordinates,
+            int[] keyWidths, int[] keyHeights, int[] keyCharCodes, float[] sweetSpotCenterXs,
+            float[] sweetSpotCenterYs, float[] sweetSpotRadii);
+
+    private static native void releaseProximityInfoNative(long nativeProximityInfo);
+
+    private long createNativeProximityInfo() {
+        final int[] proximityChars = new int[mGridSize * MAX_PROXIMITY_CHARS_SIZE];
+        Arrays.fill(proximityChars, Constants.NOT_A_CODE);
+        for (int cell = 0; cell < mGridSize; cell++) {
+            int output = cell * MAX_PROXIMITY_CHARS_SIZE;
+            for (final Key key : mGridNeighbors[cell]) {
+                if (!needsProximityInfo(key) || output == (cell + 1) * MAX_PROXIMITY_CHARS_SIZE) {
+                    continue;
+                }
+                proximityChars[output++] = key.getCode();
+            }
+        }
+        final int keyCount = getProximityInfoKeysCount(mSortedKeys);
+        final int[] keyX = new int[keyCount];
+        final int[] keyY = new int[keyCount];
+        final int[] keyWidths = new int[keyCount];
+        final int[] keyHeights = new int[keyCount];
+        final int[] keyCodes = new int[keyCount];
+        int index = 0;
+        for (final Key key : mSortedKeys) {
+            if (!needsProximityInfo(key)) continue;
+            keyX[index] = key.getX();
+            keyY[index] = key.getY();
+            keyWidths[index] = key.getWidth();
+            keyHeights[index] = key.getHeight();
+            keyCodes[index++] = key.getCode();
+        }
+        return setProximityInfoNative(mKeyboardMinWidth, mKeyboardHeight, mGridWidth, mGridHeight,
+                mMostCommonKeyWidth, mMostCommonKeyHeight, proximityChars, keyCount, keyX, keyY,
+                keyWidths, keyHeights, keyCodes, null, null, null);
+    }
     public long getNativeProximityInfo() {
         return mNativeProximityInfo;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        try {
+            if (mNativeProximityInfo != 0) {
+                releaseProximityInfoNative(mNativeProximityInfo);
+                mNativeProximityInfo = 0;
+            }
+        } finally {
+            super.finalize();
+        }
     }
 
     private void computeNearestNeighbors() {

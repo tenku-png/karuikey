@@ -41,11 +41,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun validateAndInstallDictionary(uri: Uri, language: KaruikeyLanguage) {
         Thread({
-            val valid = try {
-                contentResolver.openInputStream(uri)?.use { LocalDictionary.read(it) != null } == true
-            } catch (_: Exception) {
-                false
-            }
+            val valid = SuggestionEngine.validateDictionary(this, uri, language.locale)
             if (!valid) {
                 runOnUiThread {
                     Toast.makeText(

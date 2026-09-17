@@ -24,6 +24,7 @@ import android.widget.FrameLayout
 import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import java.util.HashSet
@@ -56,6 +57,8 @@ class KaruikeyService : InputMethodService() {
     private var preferencesListener: SharedPreferences.OnSharedPreferenceChangeListener? = null
     private val suggestionSession = SuggestionSession()
     private val suggestionResults = ArrayList<String>(3)
+    private var suggestionRequestId = 0L
+    private var gestureRequestId = 0L
     private var suggestionsAllowed = false
     private var gestureAllowed = false
     private var expectedCursorPosition = -1
@@ -108,6 +111,7 @@ class KaruikeyService : InputMethodService() {
             y: Int,
             isKeyRepeat: Boolean
         ) {
+            gestureRequestId++
             pendingEditorSelection = -1
             if (primaryCode == Constants.CODE_LANGUAGE_SWITCH) {
                 cycleLanguage()
@@ -180,21 +184,29 @@ class KaruikeyService : InputMethodService() {
         override fun onEndBatchInput(batchPointers: InputPointers) {
             if (!gestureAllowed) return
             val locale = currentLanguage?.locale ?: return
-            val candidate = SuggestionEngine.findGestureCandidate(
-                locale, keyboardSwitcher?.getKeyboard(), batchPointers, suggestionSession.previousWord
-            ) ?: return
-            finishEditorComposition(currentInputConnection)
-            suggestionSession.clearAutomaticSpace()
-            duringEditorUpdate { currentInputConnection?.commitText(candidate, 1) }
-            if (expectedCursorPosition >= 0) {
-                expectedCursorPosition += candidate.length
-                expectedSelectionEnd = expectedCursorPosition
+            val requestId = ++gestureRequestId
+            val keyboard = keyboardSwitcher?.getKeyboard()
+            val previousWord = suggestionSession.previousWord
+            SuggestionEngine.requestGestureCandidate(
+                locale, keyboard, batchPointers, previousWord
+            ) { candidate ->
+                inputView?.post {
+                    if (candidate.isNullOrEmpty() || requestId != gestureRequestId ||
+                        editorInfo == null || currentLanguage?.locale != locale
+                    ) return@post
+                    finishEditorComposition(currentInputConnection)
+                    suggestionSession.clearAutomaticSpace()
+                    duringEditorUpdate { currentInputConnection?.commitText(candidate, 1) }
+                    if (expectedCursorPosition >= 0) {
+                        expectedCursorPosition += candidate.length
+                        expectedSelectionEnd = expectedCursorPosition
+                    }
+                    completeWord(candidate)
+                    keyboardSwitcher?.requestUpdatingShiftState(
+                        autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
+                    )
+                }
             }
-            suggestionSession.completeWord(candidate)
-            clearSuggestions()
-            keyboardSwitcher?.requestUpdatingShiftState(
-                autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
-            )
         }
 
         override fun onFinishSlidingInput() {
@@ -224,6 +236,7 @@ class KaruikeyService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
+        gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
@@ -338,6 +351,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     override fun onFinishInput() {
+        gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
@@ -358,6 +372,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     override fun onWindowHidden() {
+        gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         stopClipboardMonitoring()
@@ -556,27 +571,65 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun clearSuggestions() {
+        suggestionRequestId++
+        clearSuggestionsView()
+    }
+
+    private fun clearSuggestionsView() {
         suggestionResults.clear()
         inputView?.setSuggestions(suggestionResults)
     }
 
     private fun completeCurrentWord() {
+        val word = suggestionSession.prefix.toString()
+        val previousWord = suggestionSession.previousWord
         suggestionSession.completeCurrentWord()
+        recordCompletedWord(word, previousWord)
         clearSuggestions()
     }
 
+    private fun completeWord(word: String) {
+        val previousWord = suggestionSession.previousWord
+        suggestionSession.completeWord(word)
+        recordCompletedWord(word, previousWord)
+        clearSuggestions()
+    }
+
+    private fun recordCompletedWord(word: String, previousWord: String?) {
+        if (word.isBlank() || editorInfo?.let(::isSensitiveInput) != false) return
+        PredictionHistory.record(this, currentLanguage?.locale ?: return, word, previousWord)
+    }
+
     private fun refreshSuggestions() {
+        val requestId = ++suggestionRequestId
         if (!suggestionsAllowed) {
             clearCurrentWord()
             return
         }
-        SuggestionEngine.fill(
-            currentLanguage?.locale ?: "en", suggestionSession.previousWord,
-            suggestionSession.recentWord(1), suggestionSession.recentWord(2),
+        clearSuggestionsView()
+        if (suggestionSession.prefix.isEmpty() &&
+            !KaruikeyPreferences.nextWordSuggestionsEnabled(this)
+        ) {
+            return
+        }
+        val locale = currentLanguage?.locale ?: "en"
+        SuggestionEngine.requestFill(
+            locale,
+            suggestionSession.previousWord,
+            suggestionSession.recentWord(1),
+            suggestionSession.recentWord(2),
             suggestionSession.prefix,
-            suggestionResults
-        )
-        inputView?.setSuggestions(suggestionResults)
+            keyboardSwitcher?.getKeyboard()
+        ) { results ->
+            inputView?.post {
+                if (requestId != suggestionRequestId || editorInfo == null ||
+                    currentLanguage?.locale != locale || !suggestionsAllowed
+                ) return@post
+                suggestionResults.clear()
+                suggestionResults.addAll(results)
+                inputView?.setSuggestions(suggestionResults)
+            }
+        }
     }
 
     private fun commitSuggestion(candidate: String) {
@@ -604,7 +657,7 @@ class KaruikeyService : InputMethodService() {
             }
             duringEditorUpdate { connection.commitText(replacement, 1) }
         }
-        suggestionSession.completeWord(replacement)
+        completeWord(replacement)
         commitAutomaticSpace(connection)
         refreshSuggestions()
     }
@@ -658,7 +711,7 @@ class KaruikeyService : InputMethodService() {
     private fun commitSeparator(connection: InputConnection?, separator: String) {
         if (separator == " " && suggestionSession.hasAutomaticSpace) {
             suggestionSession.clearAutomaticSpace()
-            suggestionSession.completeCurrentWord()
+            completeCurrentWord()
             return
         }
         suggestionSession.clearAutomaticSpace()
@@ -669,8 +722,7 @@ class KaruikeyService : InputMethodService() {
             expectedSelectionEnd = expectedCursorPosition
         }
         duringEditorUpdate { connection?.commitText(separator, 1) }
-        suggestionSession.completeCurrentWord()
-        clearSuggestions()
+        completeCurrentWord()
     }
 
     private fun commitAutomaticSpace(connection: InputConnection?) {
@@ -993,6 +1045,20 @@ class KaruikeyService : InputMethodService() {
                 setTextColor(appearance.primaryText)
                 layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
                 setOnClickListener { (tag as? String)?.let(::commitSuggestion) }
+                setOnLongClickListener {
+                    val word = tag as? String ?: return@setOnLongClickListener false
+                    val locale = currentLanguage?.locale ?: return@setOnLongClickListener false
+                    PopupMenu(this@KaruikeyService, this).apply {
+                        menu.add(R.string.remove_suggestion)
+                        setOnMenuItemClickListener {
+                            SuggestionBlacklist.add(this@KaruikeyService, locale, word)
+                            refreshSuggestions()
+                            true
+                        }
+                        show()
+                    }
+                    true
+                }
             }
         }
         private var navigationBottomInset = 0
@@ -1179,9 +1245,18 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun surfaceBackgroundColor(): Int {
+            val configuredAlpha = KaruikeyPreferences.keyboardSurfaceAlpha(
+                this@KaruikeyService
+            )
+            val minimumMultiplier = if (appearance.style == KaruikeyPreferences.KEYBOARD_STYLE_GLASS) {
+                KaruikeyPreferences.minimumGlassSurfaceAlpha() /
+                    (Color.alpha(appearance.keyboardBackground) / 255f)
+            } else {
+                0f
+            }
             return KaruikeyPreferences.resolvedKeyboardSurfaceColor(
                 appearance.keyboardBackground,
-                KaruikeyPreferences.keyboardSurfaceAlpha(this@KaruikeyService)
+                maxOf(configuredAlpha, minimumMultiplier)
             )
         }
 

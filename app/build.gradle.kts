@@ -12,6 +12,7 @@ android {
     compileSdk {
         version = release(37)
     }
+    ndkVersion = "28.1.13356709"
 
     defaultConfig {
         applicationId = "tenkupng.karuikey"
@@ -21,6 +22,22 @@ android {
         versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+
+        externalNativeBuild {
+            ndkBuild {
+                arguments += "NDK_APPLICATION_MK:=src/main/jni/Application.mk"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path = file("src/main/jni/Android.mk")
+        }
     }
 
     buildTypes {

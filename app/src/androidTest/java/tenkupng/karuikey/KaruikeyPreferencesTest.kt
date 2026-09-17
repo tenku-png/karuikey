@@ -117,6 +117,31 @@ class KaruikeyPreferencesTest {
     }
 
     @Test
+    fun glassAppearanceKeepsTheSurfaceReadableAndKeycapsMoreOpaque() {
+        val appearance = KaruikeyPreferences.resolveKeyboardAppearance(
+            context, KaruikeyPreferences.THEME_LIGHT, false,
+            KaruikeyPreferences.KEYBOARD_STYLE_GLASS
+        )
+        assertEquals(KaruikeyPreferences.KEYBOARD_STYLE_GLASS, appearance.style)
+        assertTrue(android.graphics.Color.alpha(appearance.keyboardBackground) >= 199)
+        assertTrue(android.graphics.Color.alpha(appearance.keySurface) >=
+            android.graphics.Color.alpha(appearance.keyboardBackground))
+        assertTrue(android.graphics.Color.alpha(appearance.popupSurface) >=
+            android.graphics.Color.alpha(appearance.keySurface))
+
+        val darkAppearance = KaruikeyPreferences.resolveKeyboardAppearance(
+            context, KaruikeyPreferences.THEME_DARK, false,
+            KaruikeyPreferences.KEYBOARD_STYLE_GLASS
+        )
+        assertTrue(darkAppearance.isDark)
+        assertTrue(android.graphics.Color.alpha(darkAppearance.keyboardBackground) >= 199)
+        assertTrue(android.graphics.Color.alpha(darkAppearance.keySurface) >=
+            android.graphics.Color.alpha(darkAppearance.keyboardBackground))
+        assertTrue(android.graphics.Color.alpha(darkAppearance.popupSurface) >=
+            android.graphics.Color.alpha(darkAppearance.keySurface))
+    }
+
+    @Test
     fun keyboardHeightPreferenceIsClampedToTheSupportedRange() {
         KaruikeyPreferences.setHeightPercent(context, 85)
         assertEquals(85, KaruikeyPreferences.heightPercent(context))
@@ -132,7 +157,7 @@ class KaruikeyPreferencesTest {
         assertEquals(0, KaruikeyPreferences.transparencyAmount(context))
         assertFalse(KaruikeyPreferences.blurEnabled(context))
         assertFalse(KaruikeyPreferences.blurSupported())
-        assertFalse(KaruikeyPreferences.suggestionsEnabled(context))
+        assertTrue(KaruikeyPreferences.suggestionsEnabled(context))
         assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
 
         KaruikeyPreferences.setTransparencyEnabled(context, true)
@@ -147,6 +172,39 @@ class KaruikeyPreferencesTest {
         assertFalse(KaruikeyPreferences.autoCapitalizationEnabled(context))
         KaruikeyPreferences.setAutoCapitalizationEnabled(context, true)
         assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
+    }
+
+    @Test
+    fun personalizedSuggestionsAreOptInAndClearedWhenDisabled() {
+        PredictionHistory.clear(context)
+        assertFalse(KaruikeyPreferences.personalizedSuggestionsEnabled(context))
+
+        PredictionHistory.record(context, "en_US", "hello", "world")
+        val suggestions = ArrayList<String>()
+        PredictionHistory.fill(context, "en_US", "", "world", suggestions)
+        assertTrue(suggestions.isEmpty())
+
+        KaruikeyPreferences.setPersonalizedSuggestionsEnabled(context, true)
+        PredictionHistory.record(context, "en_US", "hello", "world")
+        PredictionHistory.fill(context, "en_US", "", "world", suggestions)
+        assertEquals(listOf("hello"), suggestions)
+
+        KaruikeyPreferences.setPersonalizedSuggestionsEnabled(context, false)
+        suggestions.clear()
+        PredictionHistory.fill(context, "en_US", "", "world", suggestions)
+        assertTrue(suggestions.isEmpty())
+    }
+
+    @Test
+    fun suggestionBlacklistIsLocalAndCaseInsensitive() {
+        SuggestionBlacklist.clear(context)
+        SuggestionBlacklist.add(context, "en_US", "Unwanted")
+
+        assertTrue(SuggestionBlacklist.contains(context, "en_US", "unwanted"))
+        assertFalse(SuggestionBlacklist.contains(context, "ru_RU", "unwanted"))
+
+        SuggestionBlacklist.clear(context)
+        assertFalse(SuggestionBlacklist.contains(context, "en_US", "unwanted"))
     }
 
     @Test

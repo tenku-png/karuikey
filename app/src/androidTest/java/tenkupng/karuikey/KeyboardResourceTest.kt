@@ -4,7 +4,6 @@ import android.text.InputType
 import android.graphics.Paint
 import android.content.Context
 import android.os.Debug
-import android.util.Log
 import android.view.inputmethod.EditorInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -22,11 +21,15 @@ import com.android.inputmethod.latin.common.Constants
 import com.android.inputmethod.latin.common.InputPointers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 @RunWith(AndroidJUnit4::class)
 class KeyboardResourceTest {
@@ -421,18 +424,32 @@ class KeyboardResourceTest {
     fun realDictionariesProvidePrefixContextFallbackAndContinuousCandidates() {
         val suggestions = ArrayList<String>(3)
         SuggestionEngine.endSession()
-        val start = System.nanoTime()
         SuggestionEngine.loadForTests(context, "en_US")
-        val loadMs = (System.nanoTime() - start) / 1_000_000.0
         try {
             assertTrue(SuggestionEngine.isReady("en_US"))
 
-            SuggestionEngine.fill("en_US", "th", suggestions)
-            assertTrue(suggestions.any { it == "the" })
+            val englishKeyboard = keyboardLayoutSet(411, 260, "qwerty", "en_US")
+                .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+            SuggestionEngine.fill(
+                "en_US", null, null, null, "th", suggestions, englishKeyboard
+            )
+            assertTrue(suggestions.isNotEmpty())
+            assertTrue(suggestions.all { it.startsWith("th", ignoreCase = true) })
             assertTrue(suggestions.size <= 3)
 
+            for (prefix in arrayOf("hel", "tha", "bec", "thank", "good")) {
+                SuggestionEngine.fill("en_US", null, null, null, prefix, suggestions, englishKeyboard)
+                assertTrue("No candidate for $prefix", suggestions.isNotEmpty())
+                assertTrue(suggestions.all { it.startsWith(prefix, ignoreCase = true) })
+            }
+
             SuggestionEngine.fill("en_US", "the", null, null, "", suggestions)
-            assertEquals("first", suggestions.first())
+            assertTrue(suggestions.isNotEmpty())
+            SuggestionEngine.fill("en_US", "how", null, null, "", suggestions)
+            assertTrue(suggestions.isNotEmpty())
+            SuggestionEngine.fill("en_US", "how", null, null, "are", suggestions, englishKeyboard)
+            assertTrue(suggestions.isNotEmpty())
+            assertTrue(suggestions.all { it.startsWith("are", ignoreCase = true) })
 
             var previous = "the"
             repeat(6) {
@@ -447,46 +464,62 @@ class KeyboardResourceTest {
             SuggestionEngine.endSession()
         }
 
-        val memoryBefore = Debug.MemoryInfo().also(Debug::getMemoryInfo).totalPss
-        val russianStart = System.nanoTime()
         SuggestionEngine.loadForTests(context, "ru_RU")
-        val russianLoadMs = (System.nanoTime() - russianStart) / 1_000_000.0
         try {
             assertTrue(SuggestionEngine.isReady("ru_RU"))
-            SuggestionEngine.fill("ru_RU", "при", suggestions)
+            val russianKeyboard = keyboardLayoutSet(411, 260, "east_slavic", "ru_RU")
+                .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+            SuggestionEngine.fill(
+                "ru_RU", null, null, null, "при", suggestions, russianKeyboard
+            )
             assertTrue(suggestions.any { it.startsWith("при") })
-            Log.i("KaruikeySuggestions", "ru prefix=при candidates=${suggestions.joinToString()}")
-            assertEquals("привет", SuggestionEngine.findGestureCandidate("ru_RU", "привет"))
-            SuggestionEngine.fill("ru_RU", "как", "привет", null, "д", suggestions)
-            Log.i("KaruikeySuggestions", "ru context=привет как prefix=д candidates=${suggestions.joinToString()}")
+            SuggestionEngine.fill(
+                "ru_RU", "как", "привет", null, "д", suggestions, russianKeyboard
+            )
+            assertTrue(suggestions.isNotEmpty())
+            assertTrue(suggestions.all { it.startsWith("д") })
             SuggestionEngine.fill("ru_RU", "привет", null, null, "", suggestions)
             assertTrue(suggestions.isNotEmpty())
-            val memoryAfter = Debug.MemoryInfo().also(Debug::getMemoryInfo).totalPss
-            val prefixNanos = measureAverageNanos {
-                SuggestionEngine.fill("ru_RU", "при", suggestions)
-            }
-            val nextNanos = measureAverageNanos {
-                SuggestionEngine.fill("ru_RU", "привет", null, null, "", suggestions)
-            }
-            val assetBytes = context.assets.open("dictionaries/ru.krd").use { it.available() }
-            Log.i(
-                "KaruikeyMetrics",
-                "ru bytes=$assetBytes loadMs=$russianLoadMs pssDeltaKb=${memoryAfter - memoryBefore} " +
-                    "prefixUs=${prefixNanos / 1_000.0} nextUs=${nextNanos / 1_000.0}"
-            )
         } finally {
             SuggestionEngine.endSession()
         }
-
-        val englishBytes = context.assets.open("dictionaries/en_us.krd").use { it.available() }
-        Log.i("KaruikeyMetrics", "en bytes=$englishBytes loadMs=$loadMs")
     }
 
-    private fun measureAverageNanos(block: () -> Unit): Double {
-        repeat(20) { block() }
-        val start = System.nanoTime()
-        repeat(200) { block() }
-        return (System.nanoTime() - start) / 200.0
+    @Test
+    fun asynchronousSuggestionsDoNotQueryAnEmptyFieldWithoutContext() {
+        SuggestionEngine.endSession()
+        SuggestionEngine.loadForTests(context, "en_US")
+        try {
+            val keyboard = keyboardLayoutSet(411, 260, "qwerty", "en_US")
+                .getKeyboard(KeyboardId.ELEMENT_ALPHABET)
+            val callerThread = Thread.currentThread().id
+            val prefixResult = ArrayList<String>()
+            val prefixThread = AtomicLong(-1)
+            val prefixReady = CountDownLatch(1)
+            SuggestionEngine.requestFill(
+                "en_US", null, null, null, "th", keyboard
+            ) { result ->
+                prefixResult.addAll(result)
+                prefixThread.set(Thread.currentThread().id)
+                prefixReady.countDown()
+            }
+            assertTrue(prefixReady.await(5, TimeUnit.SECONDS))
+            assertNotEquals(callerThread, prefixThread.get())
+            assertTrue(prefixResult.isNotEmpty())
+
+            val emptyResult = ArrayList<String>()
+            val emptyReady = CountDownLatch(1)
+            SuggestionEngine.requestFill(
+                "en_US", null, null, null, "", keyboard
+            ) {
+                emptyResult.addAll(it)
+                emptyReady.countDown()
+            }
+            assertTrue(emptyReady.await(5, TimeUnit.SECONDS))
+            assertTrue(emptyResult.isEmpty())
+        } finally {
+            SuggestionEngine.endSession()
+        }
     }
 
     private fun assertKeyboardBounds(keyboard: Keyboard, width: Int) {

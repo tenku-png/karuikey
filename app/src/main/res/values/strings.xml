@@ -94,6 +94,7 @@ Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open So
     <string name="typing_summary">Suggestions</string>
     <string name="suggestions_setting">Suggestions</string>
     <string name="suggestions_description">Show offline word suggestions</string>
+    <string name="remove_suggestion">Remove suggestion</string>
     <string name="setting_on">On</string>
     <string name="setting_off">Off</string>
     <string name="try_keyboard_title">Try Karuikey</string>

@@ -15,6 +15,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.After
@@ -40,11 +42,14 @@ class SettingsComponentsTest {
         KaruikeyPreferences.setToolbarEnabled(context, false)
         KaruikeyPreferences.setKeyPreviewEnabled(context, false)
         composeRule.onNodeWithText("Appearance").performClick()
-        val switches = composeRule.onAllNodes(isToggleable())
-        switches.assertCountEquals(5)
-        val toolbarSwitch = switches[3]
-        val keyPreviewSwitch = switches[4]
+        val toolbarSwitch = composeRule.onNode(
+            isToggleable() and hasAnyAncestor(hasText("Toolbar"))
+        )
+        val keyPreviewSwitch = composeRule.onNode(
+            isToggleable() and hasAnyAncestor(hasText("Key preview"))
+        )
 
+        toolbarSwitch.performScrollTo()
         toolbarSwitch.performClick().assertIsOn()
         composeRule.onNodeWithText("Toolbar").performClick()
         toolbarSwitch.assertIsOff()

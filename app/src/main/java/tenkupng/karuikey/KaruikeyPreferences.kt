@@ -43,7 +43,8 @@ data class KeyboardAppearance(
     val popupSurface: Int,
     val popupText: Int,
     val pressedSurface: Int,
-    val shiftLockedSurface: Int
+    val shiftLockedSurface: Int,
+    val style: String = KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL
 )
 
 object KaruikeyPreferences {
@@ -52,6 +53,8 @@ object KaruikeyPreferences {
     const val THEME_SYSTEM = "system"
     const val THEME_LIGHT = "light"
     const val THEME_DARK = "dark"
+    const val KEYBOARD_STYLE_MATERIAL = "material"
+    const val KEYBOARD_STYLE_GLASS = "glass"
 
     private const val PREFS = "karuikey_settings"
     private const val ENABLED_LANGUAGES = "enabled_languages"
@@ -60,11 +63,14 @@ object KaruikeyPreferences {
     private const val KEY_PREVIEW = "key_preview"
     private const val THEME = "theme"
     private const val DYNAMIC_COLORS = "dynamic_colors"
+    private const val KEYBOARD_STYLE = "keyboard_style"
     private const val HEIGHT_PERCENT = "height_percent"
     private const val TRANSPARENCY = "transparency"
     private const val TRANSPARENCY_AMOUNT = "transparency_amount"
     private const val BLUR = "blur"
     private const val SUGGESTIONS = "suggestions"
+    private const val NEXT_WORD_SUGGESTIONS = "next_word_suggestions"
+    private const val PERSONALIZED_SUGGESTIONS = "personalized_suggestions"
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
     private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
 
@@ -193,6 +199,17 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(DYNAMIC_COLORS, enabled).apply()
     }
 
+    fun keyboardStyle(context: Context) =
+        prefs(context).getString(KEYBOARD_STYLE, KEYBOARD_STYLE_MATERIAL)
+            ?.takeIf { it == KEYBOARD_STYLE_GLASS } ?: KEYBOARD_STYLE_MATERIAL
+
+    fun setKeyboardStyle(context: Context, value: String) {
+        prefs(context).edit().putString(
+            KEYBOARD_STYLE,
+            if (value == KEYBOARD_STYLE_GLASS) KEYBOARD_STYLE_GLASS else KEYBOARD_STYLE_MATERIAL
+        ).apply()
+    }
+
     fun applyAppTheme(context: Context) {
         AppCompatDelegate.setDefaultNightMode(
             when (theme(context)) {
@@ -234,6 +251,8 @@ object KaruikeyPreferences {
     fun keyboardSurfaceAlpha(context: Context) =
         if (transparencyEnabled(context)) 1f - transparencyAmount(context) / 100f else 1f
 
+    internal fun minimumGlassSurfaceAlpha() = 0.78f
+
     internal fun resolvedKeyboardSurfaceColor(surfaceColor: Int, alpha: Float): Int {
         val resolvedAlpha = (Color.alpha(surfaceColor) * alpha.coerceIn(0f, 1f)).toInt()
         return Color.argb(
@@ -251,10 +270,25 @@ object KaruikeyPreferences {
     /** Cross-window blur cannot currently be bounded to this IME's keyboard surface. */
     fun blurSupported() = false
 
-    fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, false)
+    fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, true)
 
     fun setSuggestionsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(SUGGESTIONS, enabled).apply()
+    }
+
+    fun nextWordSuggestionsEnabled(context: Context) =
+        prefs(context).getBoolean(NEXT_WORD_SUGGESTIONS, true)
+
+    fun setNextWordSuggestionsEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(NEXT_WORD_SUGGESTIONS, enabled).apply()
+    }
+
+    fun personalizedSuggestionsEnabled(context: Context) =
+        prefs(context).getBoolean(PERSONALIZED_SUGGESTIONS, false)
+
+    fun setPersonalizedSuggestionsEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(PERSONALIZED_SUGGESTIONS, enabled).apply()
+        if (!enabled) PredictionHistory.clear(context)
     }
 
     fun autoCapitalizationEnabled(context: Context) =
@@ -267,7 +301,8 @@ object KaruikeyPreferences {
     fun resolveKeyboardAppearance(
         context: Context,
         themeMode: String = theme(context),
-        dynamicEnabled: Boolean = dynamicColorsEnabled(context)
+        dynamicEnabled: Boolean = dynamicColorsEnabled(context),
+        styleMode: String = keyboardStyle(context)
     ): KeyboardAppearance {
         val systemDark = (context.resources.configuration.uiMode and
             Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -276,16 +311,22 @@ object KaruikeyPreferences {
             THEME_DARK -> true
             else -> systemDark
         }
-        return if (dynamicEnabled && Build.VERSION.SDK_INT >= 31) {
+        val material = if (dynamicEnabled && Build.VERSION.SDK_INT >= 31) {
             dynamicAppearance(context, isDark)
         } else {
             fallbackAppearance(context, isDark)
         }
+        return if (styleMode == KEYBOARD_STYLE_GLASS) {
+            glassAppearance(material)
+        } else material
     }
 
     fun keyboardContext(context: Context): Context {
         val appearance = resolveKeyboardAppearance(context)
         val style = when {
+            appearance.style == KEYBOARD_STYLE_GLASS && appearance.isDark ->
+                R.style.Theme_Karuikey_Keyboard_Glass_Dark
+            appearance.style == KEYBOARD_STYLE_GLASS -> R.style.Theme_Karuikey_Keyboard_Glass_Light
             appearance.usesDynamicColors && appearance.isDark -> R.style.Theme_Karuikey_Keyboard_Dynamic_Dark
             appearance.usesDynamicColors -> R.style.Theme_Karuikey_Keyboard_Dynamic_Light
             appearance.isDark -> R.style.Theme_Karuikey_Keyboard_Fallback_Dark
@@ -358,6 +399,23 @@ object KaruikeyPreferences {
             isDark, true, neutralSurface, keySurface, functionalSurface, actionSurface,
             primaryText, secondaryText, primaryText, actionText, disabled,
             keySurface, primaryText, pressed, locked
+        )
+    }
+
+    private fun glassAppearance(base: KeyboardAppearance): KeyboardAppearance {
+        fun translucent(color: Int, alpha: Int) = Color.argb(
+            alpha, Color.red(color), Color.green(color), Color.blue(color)
+        )
+        val dark = base.isDark
+        return base.copy(
+            keyboardBackground = translucent(base.keyboardBackground, if (dark) 224 else 222),
+            keySurface = translucent(base.keySurface, if (dark) 246 else 244),
+            functionalKeySurface = translucent(base.functionalKeySurface, if (dark) 238 else 236),
+            actionSurface = translucent(base.actionSurface, 244),
+            pressedSurface = translucent(base.pressedSurface, 248),
+            shiftLockedSurface = translucent(base.shiftLockedSurface, 248),
+            popupSurface = translucent(base.popupSurface, 250),
+            style = KEYBOARD_STYLE_GLASS
         )
     }
 }

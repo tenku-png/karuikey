@@ -74,6 +74,9 @@ fun AppearancePage(
     var keyPreview by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.keyPreviewEnabled(context))
     }
+    var keyboardStyle by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyboardStyle(context))
+    }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Theme")
         SettingsGroup {
@@ -123,6 +126,18 @@ fun AppearancePage(
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.PALETTE, "Blur",
                 "Not supported on this device", false, false) { }
+        }
+        SectionLabel("Keyboard style")
+        SettingsGroup {
+            ChoiceRow("Material", keyboardStyle == KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL) {
+                keyboardStyle = KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL
+                KaruikeyPreferences.setKeyboardStyle(context, keyboardStyle)
+            }
+            GroupDivider()
+            ChoiceRow("Glass", keyboardStyle == KaruikeyPreferences.KEYBOARD_STYLE_GLASS) {
+                keyboardStyle = KaruikeyPreferences.KEYBOARD_STYLE_GLASS
+                KaruikeyPreferences.setKeyboardStyle(context, keyboardStyle)
+            }
         }
         SettingsGroup {
             Text("Keyboard height ${height.toInt()}%",
@@ -316,6 +331,12 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
     var autoCapitalization by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.autoCapitalizationEnabled(context))
     }
+    var nextWordSuggestions by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.nextWordSuggestionsEnabled(context))
+    }
+    var personalizedSuggestions by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.personalizedSuggestionsEnabled(context))
+    }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Typing assistance")
         SettingsGroup {
@@ -323,6 +344,25 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
                 "Show locally available word suggestions", suggestions) {
                 suggestions = it
                 KaruikeyPreferences.setSuggestionsEnabled(context, it)
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Next-word suggestions",
+                "Suggest words after a completed word", nextWordSuggestions, suggestions) {
+                nextWordSuggestions = it
+                KaruikeyPreferences.setNextWordSuggestionsEnabled(context, it)
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Personalized suggestions",
+                "Learn from typing on this device", personalizedSuggestions, suggestions) {
+                personalizedSuggestions = it
+                KaruikeyPreferences.setPersonalizedSuggestionsEnabled(context, it)
+            }
+            if (personalizedSuggestions) {
+                GroupDivider()
+                Button(onClick = { PredictionHistory.clear(context) },
+                    modifier = Modifier.fillMaxWidth()) {
+                    Text("Clear learned suggestions")
+                }
             }
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Auto-capitalization",

@@ -64,4 +64,36 @@
         <item name="keyboardPopupColor">@color/keyboard_dark_popup</item>
         <item name="keyboardPopupSelectedColor">@color/keyboard_dark_pressed</item>
     </style>
+
+    <style name="Theme.Karuikey.Keyboard.Glass.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="keyboardKeyColor">@color/keyboard_glass_light_key</item>
+        <item name="keyboardFunctionalColor">@color/keyboard_glass_light_functional</item>
+        <item name="keyboardActionColor">@color/keyboard_glass_light_action</item>
+        <item name="keyboardActionTextColor">@color/keyboard_glass_light_action_text</item>
+        <item name="keyboardPressedColor">@color/keyboard_glass_light_pressed</item>
+        <item name="keyboardShiftLockedColor">@color/keyboard_glass_light_shift_locked</item>
+        <item name="keyboardTextColor">@color/keyboard_glass_light_text</item>
+        <item name="keyboardSecondaryTextColor">@color/keyboard_glass_light_secondary_text</item>
+        <item name="keyboardFunctionalTextColor">@color/keyboard_glass_light_functional_text</item>
+        <item name="keyboardDisabledTextColor">@color/keyboard_glass_light_disabled_text</item>
+        <item name="keyboardPreviewColor">@color/keyboard_glass_light_popup</item>
+        <item name="keyboardPopupColor">@color/keyboard_glass_light_popup</item>
+        <item name="keyboardPopupSelectedColor">@color/keyboard_glass_light_pressed</item>
+    </style>
+
+    <style name="Theme.Karuikey.Keyboard.Glass.Dark" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="keyboardKeyColor">@color/keyboard_glass_dark_key</item>
+        <item name="keyboardFunctionalColor">@color/keyboard_glass_dark_functional</item>
+        <item name="keyboardActionColor">@color/keyboard_glass_dark_action</item>
+        <item name="keyboardActionTextColor">@color/keyboard_glass_dark_action_text</item>
+        <item name="keyboardPressedColor">@color/keyboard_glass_dark_pressed</item>
+        <item name="keyboardShiftLockedColor">@color/keyboard_glass_dark_shift_locked</item>
+        <item name="keyboardTextColor">@color/keyboard_glass_dark_text</item>
+        <item name="keyboardSecondaryTextColor">@color/keyboard_glass_dark_secondary_text</item>
+        <item name="keyboardFunctionalTextColor">@color/keyboard_glass_dark_functional_text</item>
+        <item name="keyboardDisabledTextColor">@color/keyboard_glass_dark_disabled_text</item>
+        <item name="keyboardPreviewColor">@color/keyboard_glass_dark_popup</item>
+        <item name="keyboardPopupColor">@color/keyboard_glass_dark_popup</item>
+        <item name="keyboardPopupSelectedColor">@color/keyboard_glass_dark_pressed</item>
+    </style>
 </resources>

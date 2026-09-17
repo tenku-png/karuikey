@@ -25,4 +25,31 @@
     <color name="keyboard_dark_functional_text">#FFE5E1E6</color>
     <color name="keyboard_dark_disabled_text">#FF9A98A4</color>
     <color name="keyboard_dark_popup">#FF30323B</color>
+
+    <!-- Glass keeps the root surface translucent while keycaps remain readable. -->
+    <color name="keyboard_glass_light_surface">#DEF7F9FF</color>
+    <color name="keyboard_glass_light_key">#F4FFFFFF</color>
+    <color name="keyboard_glass_light_functional">#ECE8ECF5</color>
+    <color name="keyboard_glass_light_action">#F44F5D95</color>
+    <color name="keyboard_glass_light_action_text">#FFFFFFFF</color>
+    <color name="keyboard_glass_light_pressed">#F8DCE4FF</color>
+    <color name="keyboard_glass_light_shift_locked">#F8C8D4FF</color>
+    <color name="keyboard_glass_light_text">#FF1A1B20</color>
+    <color name="keyboard_glass_light_secondary_text">#FF45464F</color>
+    <color name="keyboard_glass_light_functional_text">#FF1A1B20</color>
+    <color name="keyboard_glass_light_disabled_text">#FF777780</color>
+    <color name="keyboard_glass_light_popup">#FAF1F3FA</color>
+
+    <color name="keyboard_glass_dark_surface">#E0181A20</color>
+    <color name="keyboard_glass_dark_key">#F62C2E36</color>
+    <color name="keyboard_glass_dark_functional">#EE383B44</color>
+    <color name="keyboard_glass_dark_action">#F4BCC6F0</color>
+    <color name="keyboard_glass_dark_action_text">#FF252D4F</color>
+    <color name="keyboard_glass_dark_pressed">#F8454A5A</color>
+    <color name="keyboard_glass_dark_shift_locked">#F85A6074</color>
+    <color name="keyboard_glass_dark_text">#FFE5E1E6</color>
+    <color name="keyboard_glass_dark_secondary_text">#FFC7C6D0</color>
+    <color name="keyboard_glass_dark_functional_text">#FFE5E1E6</color>
+    <color name="keyboard_glass_dark_disabled_text">#FF9A98A4</color>
+    <color name="keyboard_glass_dark_popup">#FA30323B</color>
 </resources>
