@@ -77,6 +77,14 @@ object KaruikeyPreferences {
     private const val TRANSPARENCY = "transparency"
     private const val TRANSPARENCY_AMOUNT = "transparency_amount"
     private const val BLUR = "blur"
+    private const val BLUR_RADIUS = "blur_radius"
+    const val MIN_BLUR_RADIUS = 4
+    const val MAX_BLUR_RADIUS = 48
+    private const val DEFAULT_BLUR_RADIUS = 20
+    private const val MAX_TRANSPARENCY = 35
+    // Blur keeps the content behind illegible, so the surface may be clearer than without it.
+    const val MAX_BLUR_TRANSPARENCY = 60
+    private const val DEFAULT_BLUR_TRANSPARENCY = 30
     private const val SUGGESTIONS = "suggestions"
     private const val NEXT_WORD_SUGGESTIONS = "next_word_suggestions"
     private const val PERSONALIZED_SUGGESTIONS = "personalized_suggestions"
@@ -253,14 +261,22 @@ object KaruikeyPreferences {
 
     /** 0 is opaque; the upper bound keeps key contrast usable over arbitrary app content. */
     fun transparencyAmount(context: Context) =
-        prefs(context).getInt(TRANSPARENCY_AMOUNT, 0).coerceIn(0, 35)
+        prefs(context).getInt(TRANSPARENCY_AMOUNT, 0).coerceIn(0, maxTransparency(context))
 
     fun setTransparencyAmount(context: Context, amount: Int) {
-        prefs(context).edit().putInt(TRANSPARENCY_AMOUNT, amount.coerceIn(0, 35)).apply()
+        prefs(context).edit()
+            .putInt(TRANSPARENCY_AMOUNT, amount.coerceIn(0, MAX_BLUR_TRANSPARENCY)).apply()
     }
 
-    fun keyboardSurfaceAlpha(context: Context) =
-        if (transparencyEnabled(context)) 1f - transparencyAmount(context) / 100f else 1f
+    fun maxTransparency(context: Context) =
+        if (blurActive(context)) MAX_BLUR_TRANSPARENCY else MAX_TRANSPARENCY
+
+    fun keyboardSurfaceAlpha(context: Context) = when {
+        transparencyEnabled(context) -> 1f - transparencyAmount(context) / 100f
+        // Blur alone still needs a translucent surface to show anything through it.
+        blurActive(context) -> 1f - DEFAULT_BLUR_TRANSPARENCY / 100f
+        else -> 1f
+    }
 
     internal fun minimumGlassSurfaceAlpha() = 0.78f
 
@@ -278,8 +294,26 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(BLUR, enabled).apply()
     }
 
-    /** Cross-window blur cannot currently be bounded to this IME's keyboard surface. */
-    fun blurSupported() = false
+    /** Blur radius in dp applied behind the keyboard window. */
+    fun blurRadius(context: Context) =
+        prefs(context).getInt(BLUR_RADIUS, DEFAULT_BLUR_RADIUS).coerceIn(MIN_BLUR_RADIUS, MAX_BLUR_RADIUS)
+
+    fun setBlurRadius(context: Context, radius: Int) {
+        prefs(context).edit()
+            .putInt(BLUR_RADIUS, radius.coerceIn(MIN_BLUR_RADIUS, MAX_BLUR_RADIUS)).apply()
+    }
+
+    /**
+     * Cross-window blur needs Android 12 and can be turned off by the system at any time
+     * (battery saver, disabled animations, unsupported GPU).
+     */
+    fun blurSupported(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < 31) return false
+        val windowManager = context.getSystemService(android.view.WindowManager::class.java)
+        return windowManager?.isCrossWindowBlurEnabled == true
+    }
+
+    fun blurActive(context: Context) = blurEnabled(context) && blurSupported(context)
 
     fun suggestionsEnabled(context: Context) = prefs(context).getBoolean(SUGGESTIONS, true)
 

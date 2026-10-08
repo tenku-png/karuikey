@@ -68,6 +68,13 @@ fun AppearancePage(
     var height by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.heightPercent(context).toFloat())
     }
+    val blurSupported = remember(refreshVersion) { KaruikeyPreferences.blurSupported(context) }
+    var blur by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.blurEnabled(context) && blurSupported)
+    }
+    var blurRadius by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.blurRadius(context).toFloat())
+    }
     var toolbar by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.toolbarEnabled(context))
     }
@@ -123,13 +130,47 @@ fun AppearancePage(
                     transparencyAmount = it
                     KaruikeyPreferences.setTransparencyAmount(context, it.toInt())
                 },
-                valueRange = 0f..35f,
+                valueRange = 0f..(if (blur) KaruikeyPreferences.MAX_BLUR_TRANSPARENCY else 35).toFloat(),
                 enabled = transparency,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.PALETTE, "Blur",
-                "Not supported on this device", false, false) { }
+                when {
+                    Build.VERSION.SDK_INT < 31 -> "Requires Android 12 or newer"
+                    !blurSupported -> "Turned off by the system or not supported"
+                    else -> "Blur the app behind the keyboard"
+                },
+                blur, blurSupported) {
+                blur = it
+                KaruikeyPreferences.setBlurEnabled(context, it)
+                if (!it) {
+                    // Without blur the surface returns to the tighter transparency limit.
+                    transparencyAmount = transparencyAmount.coerceAtMost(35f)
+                }
+            }
+            AnimatedVisibility(
+                visible = blur,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    GroupDivider()
+                    Text("Blur strength ${blurRadius.toInt()} dp",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    Slider(
+                        value = blurRadius,
+                        onValueChange = { blurRadius = it },
+                        onValueChangeFinished = {
+                            KaruikeyPreferences.setBlurRadius(context, blurRadius.toInt())
+                        },
+                        valueRange = KaruikeyPreferences.MIN_BLUR_RADIUS.toFloat()..
+                            KaruikeyPreferences.MAX_BLUR_RADIUS.toFloat(),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
         }
         SectionLabel("Keyboard style")
         ChoiceButtonGroup(

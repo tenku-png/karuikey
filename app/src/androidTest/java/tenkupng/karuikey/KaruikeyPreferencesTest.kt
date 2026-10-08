@@ -184,7 +184,7 @@ class KaruikeyPreferencesTest {
         assertFalse(KaruikeyPreferences.transparencyEnabled(context))
         assertEquals(0, KaruikeyPreferences.transparencyAmount(context))
         assertFalse(KaruikeyPreferences.blurEnabled(context))
-        assertFalse(KaruikeyPreferences.blurSupported())
+        assertFalse(KaruikeyPreferences.blurActive(context))
         assertTrue(KaruikeyPreferences.suggestionsEnabled(context))
         assertTrue(KaruikeyPreferences.autoCapitalizationEnabled(context))
 
@@ -192,6 +192,11 @@ class KaruikeyPreferencesTest {
         KaruikeyPreferences.setTransparencyAmount(context, 100)
         assertEquals(35, KaruikeyPreferences.transparencyAmount(context))
         assertTrue(KaruikeyPreferences.keyboardSurfaceAlpha(context) >= 0.65f)
+
+        KaruikeyPreferences.setBlurRadius(context, 1000)
+        assertEquals(KaruikeyPreferences.MAX_BLUR_RADIUS, KaruikeyPreferences.blurRadius(context))
+        KaruikeyPreferences.setBlurRadius(context, 0)
+        assertEquals(KaruikeyPreferences.MIN_BLUR_RADIUS, KaruikeyPreferences.blurRadius(context))
     }
 
     @Test

@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -56,6 +57,7 @@ class KaruikeyService : InputMethodService() {
     private val suggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 475) }
     private val primarySuggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 650) }
     private var inputView: KaruikeyInputView? = null
+    private var blurListener: java.util.function.Consumer<Boolean>? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
     private var currentSubtype: InputMethodSubtype? = null
@@ -92,6 +94,14 @@ class KaruikeyService : InputMethodService() {
             inputView?.post { refreshInputViewForPreferences() }
         }
         preferences.registerOnSharedPreferenceChangeListener(preferencesListener)
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            val listener = java.util.function.Consumer<Boolean> {
+                inputView?.post { refreshInputViewForPreferences() }
+            }
+            getSystemService(WindowManager::class.java)
+                ?.addCrossWindowBlurEnabledListener(mainExecutor, listener)
+            blurListener = listener
+        }
         getSharedPreferences("karuikey_clipboard_history", MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(preferencesListener)
         ClipboardHistory.purge(this)
@@ -442,6 +452,12 @@ class KaruikeyService : InputMethodService() {
                 .unregisterOnSharedPreferenceChangeListener(it)
         }
         preferencesListener = null
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            blurListener?.let {
+                getSystemService(WindowManager::class.java)?.removeCrossWindowBlurEnabledListener(it)
+            }
+        }
+        blurListener = null
         editorInfo = null
         SuggestionEngine.endSession()
         super.onDestroy()
@@ -932,6 +948,24 @@ class KaruikeyService : InputMethodService() {
         return Event.createSoftwareKeypressEvent(codePoint, keyCode, x, y, isKeyRepeat)
     }
 
+    /**
+     * Window blur covers the whole window surface, and the IME window normally fills the
+     * screen. While blur is on, the window wraps the keyboard so only the area behind it blurs.
+     */
+    private fun applyWindowBlur(imeWindow: android.view.Window) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return
+        val blur = KaruikeyPreferences.blurActive(this)
+        val height = if (blur) WindowManager.LayoutParams.WRAP_CONTENT
+            else WindowManager.LayoutParams.MATCH_PARENT
+        if (imeWindow.attributes.height != height) {
+            imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, height)
+        }
+        val radius = if (blur) {
+            (KaruikeyPreferences.blurRadius(this) * resources.displayMetrics.density).toInt()
+        } else 0
+        imeWindow.setBackgroundBlurRadius(radius)
+    }
+
     private fun configureImeWindow() {
         val imeWindow = window?.window ?: return
         val view = inputView ?: return
@@ -939,8 +973,7 @@ class KaruikeyService : InputMethodService() {
         val surfaceColor = view.surfaceBackgroundColor()
         imeWindow.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         view.applySurfaceBackground(surfaceColor)
-        // The IME window is full-width. A window-level blur would include application content
-        // outside the keyboard, so blur remains disabled until it can be bounded safely.
+        applyWindowBlur(imeWindow)
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(
             imeWindow,
             view
