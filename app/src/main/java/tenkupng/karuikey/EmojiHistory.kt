@@ -42,6 +42,9 @@ internal object EmojiHistory {
             .putString(ITEMS, array.toString()).apply()
     }
 
+    @Synchronized
+    fun counts(context: Context): Map<String, Int> = read(context).associate { it.emoji to it.count }
+
     /** Skin tone or other variant last chosen for each base emoji. */
     fun preferredVariants(context: Context): Map<String, String> =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all.mapNotNull { (key, value) ->

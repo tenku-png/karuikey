@@ -8,7 +8,8 @@ internal data class EmojiEntry(
     val emoji: String,
     val name: String,
     val keywords: List<String> = emptyList(),
-    val variants: List<String> = emptyList()
+    val variants: List<String> = emptyList(),
+    val localName: String = ""
 )
 
 internal enum class EmojiCategory(val title: String, val tab: String) {
@@ -57,13 +58,9 @@ internal object EmojiCatalog {
             val emoji = columns[1]
             if (!supports(emoji)) continue
             val variants = columns[2].split(' ').filter { it.isNotEmpty() && supports(it) }
-            val keywords = buildList {
-                add(columns[5])
-                addAll(columns[4].split('|'))
-                addAll(columns[6].split('|'))
-            }.filter { it.isNotEmpty() }
+            val keywords = (columns[4].split('|') + columns[6].split('|')).filter { it.isNotEmpty() }
             result.getOrPut(category) { ArrayList() }
-                .add(EmojiEntry(emoji, columns[3], keywords, variants))
+                .add(EmojiEntry(emoji, columns[3], keywords, variants, columns[5]))
         }
         return result
     }
@@ -80,16 +77,49 @@ internal object EmojiCatalog {
         return load(context)[category].orEmpty()
     }
 
-    fun search(query: String, context: Context): List<EmojiEntry> {
+    fun search(query: String, context: Context): List<EmojiEntry> =
+        rank(allEntries(context), query, EmojiHistory.counts(context))
+
+    /**
+     * Ranks matches for a query in English or Russian: exact name, a whole name word, a name
+     * word prefix, a whole keyword, a keyword prefix, then any substring. Ties prefer emoji
+     * the user picks more often, then shorter names, then Unicode order.
+     */
+    fun rank(entries: List<EmojiEntry>, query: String, usage: Map<String, Int>,
+            limit: Int = Int.MAX_VALUE): List<EmojiEntry> {
         val wanted = query.trim().lowercase(Locale.ROOT)
         if (wanted.isEmpty()) return emptyList()
-        return allEntries(context).filter { entry ->
-            entry.name.lowercase(Locale.ROOT).contains(wanted) ||
-                entry.keywords.any { keyword ->
-                    keyword.lowercase(Locale.ROOT).split(' ').any { it.startsWith(wanted) }
-                }
+        val scored = ArrayList<Pair<EmojiEntry, Int>>()
+        for (entry in entries) {
+            val tier = tierOf(entry, wanted)
+            if (tier < NO_MATCH) scored.add(entry to tier)
         }
+        return scored.sortedWith(compareBy<Pair<EmojiEntry, Int>> { it.second }
+            .thenByDescending { (entry, _) ->
+                (usage[entry.emoji] ?: 0) + entry.variants.sumOf { usage[it] ?: 0 }
+            }
+            .thenBy { (entry, _) -> words(entry.name).size })
+            .take(limit)
+            .map { it.first }
     }
+
+    private const val NO_MATCH = 6
+
+    private fun tierOf(entry: EmojiEntry, wanted: String): Int {
+        val names = listOf(entry.name, entry.localName).map { it.lowercase(Locale.ROOT) }
+        if (names.any { it == wanted }) return 0
+        val nameWords = names.flatMap(::words)
+        if (nameWords.any { it == wanted }) return 1
+        if (nameWords.any { it.startsWith(wanted) }) return 2
+        val keywords = entry.keywords.map { it.lowercase(Locale.ROOT) }
+        val keywordWords = keywords.flatMap(::words)
+        if (keywordWords.any { it == wanted }) return 3
+        if (keywordWords.any { it.startsWith(wanted) }) return 4
+        if (names.any { it.contains(wanted) } || keywords.any { it.contains(wanted) }) return 5
+        return NO_MATCH
+    }
+
+    private fun words(text: String) = text.split(' ', ':', ',', '-').filter { it.isNotEmpty() }
 
     fun allEntries(context: Context): List<EmojiEntry> = load(context).values.flatten()
 }
