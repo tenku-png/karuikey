@@ -26,6 +26,7 @@ import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.animation.OvershootInterpolator;
 import android.view.ViewGroup;
 
 import com.android.inputmethod.accessibility.AccessibilityUtils;
@@ -121,6 +122,9 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         }
     }
 
+    private static final float PANEL_ENTER_SCALE = 0.9f;
+    private static final long PANEL_ENTER_DURATION = 150;
+
     @Override
     public void showMoreKeysPanel(final View parentView, final Controller controller,
             final int pointX, final int pointY, final KeyboardActionListener listener) {
@@ -146,6 +150,9 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         final int panelY = panelLocalY + CoordinateUtils.y(mCoordinates);
         container.setX(panelX);
         container.setY(panelY);
+        // Grow the panel out of the pressed key; touch mapping uses mOriginX/Y, not the transform.
+        container.setPivotX(pointX - panelLocalX);
+        container.setPivotY(container.getMeasuredHeight());
 
         mOriginX = panelLocalX + container.getPaddingLeft();
         mOriginY = panelLocalY + container.getPaddingTop();
@@ -310,12 +317,27 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
     @Override
     public void showInParent(final ViewGroup parentView) {
         removeFromParent();
-        parentView.addView(getContainerView());
+        final View container = getContainerView();
+        parentView.addView(container);
+        container.setAlpha(0f);
+        container.setScaleX(PANEL_ENTER_SCALE);
+        container.setScaleY(PANEL_ENTER_SCALE);
+        container.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(PANEL_ENTER_DURATION)
+                .setInterpolator(new OvershootInterpolator(1.5f))
+                .start();
     }
 
     @Override
     public void removeFromParent() {
         final View containerView = getContainerView();
+        containerView.animate().cancel();
+        containerView.setAlpha(1f);
+        containerView.setScaleX(1f);
+        containerView.setScaleY(1f);
         final ViewGroup currentParent = (ViewGroup)containerView.getParent();
         if (currentParent != null) {
             currentParent.removeView(containerView);
