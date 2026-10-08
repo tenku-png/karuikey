@@ -22,17 +22,18 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private fun robotoFlex(context: Context) = FontFamily(
+private fun robotoFlex(context: Context, opticalSize: TextUnit) = FontFamily(
     Font(
         "roboto_flex.ttf",
         context.assets,
         weight = FontWeight.Normal,
         variationSettings = FontVariation.Settings(
             FontVariation.weight(400), FontVariation.width(KaruikeyTypeface.WIDTH),
-            FontVariation.opticalSizing(16.sp)
+            FontVariation.opticalSizing(opticalSize)
         )
     ),
     Font(
@@ -41,7 +42,7 @@ private fun robotoFlex(context: Context) = FontFamily(
         weight = FontWeight(500),
         variationSettings = FontVariation.Settings(
             FontVariation.weight(500), FontVariation.width(KaruikeyTypeface.WIDTH),
-            FontVariation.opticalSizing(16.sp)
+            FontVariation.opticalSizing(opticalSize)
         )
     ),
     Font(
@@ -50,7 +51,7 @@ private fun robotoFlex(context: Context) = FontFamily(
         weight = FontWeight(600),
         variationSettings = FontVariation.Settings(
             FontVariation.weight(600), FontVariation.width(KaruikeyTypeface.WIDTH),
-            FontVariation.opticalSizing(16.sp)
+            FontVariation.opticalSizing(opticalSize)
         )
     )
 )
@@ -61,23 +62,27 @@ private fun TextStyle.withRobotoFlex(fontFamily: FontFamily, weight: FontWeight?
 )
 
 private fun karuikeyTypography(context: Context) = Typography().let { base ->
-    val fontFamily = robotoFlex(context)
+    // Optical size per Material 3 role group so large and small text use the matching Flex master.
+    val display = robotoFlex(context, 28.sp)
+    val title = robotoFlex(context, 20.sp)
+    val body = robotoFlex(context, 16.sp)
+    val label = robotoFlex(context, 12.sp)
     base.copy(
-        displayLarge = base.displayLarge.withRobotoFlex(fontFamily, FontWeight(600)),
-        displayMedium = base.displayMedium.withRobotoFlex(fontFamily, FontWeight(600)),
-        displaySmall = base.displaySmall.withRobotoFlex(fontFamily, FontWeight(600)),
-        headlineLarge = base.headlineLarge.withRobotoFlex(fontFamily, FontWeight(600)),
-        headlineMedium = base.headlineMedium.withRobotoFlex(fontFamily, FontWeight(600)),
-        headlineSmall = base.headlineSmall.withRobotoFlex(fontFamily, FontWeight(600)),
-        titleLarge = base.titleLarge.withRobotoFlex(fontFamily, FontWeight(600)),
-        titleMedium = base.titleMedium.withRobotoFlex(fontFamily, FontWeight(500)),
-        titleSmall = base.titleSmall.withRobotoFlex(fontFamily, FontWeight(500)),
-        bodyLarge = base.bodyLarge.withRobotoFlex(fontFamily, FontWeight.Normal),
-        bodyMedium = base.bodyMedium.withRobotoFlex(fontFamily, FontWeight.Normal),
-        bodySmall = base.bodySmall.withRobotoFlex(fontFamily, FontWeight.Normal),
-        labelLarge = base.labelLarge.withRobotoFlex(fontFamily, FontWeight(500)),
-        labelMedium = base.labelMedium.withRobotoFlex(fontFamily, FontWeight(500)),
-        labelSmall = base.labelSmall.withRobotoFlex(fontFamily, FontWeight(500))
+        displayLarge = base.displayLarge.withRobotoFlex(display, FontWeight(600)),
+        displayMedium = base.displayMedium.withRobotoFlex(display, FontWeight(600)),
+        displaySmall = base.displaySmall.withRobotoFlex(display, FontWeight(600)),
+        headlineLarge = base.headlineLarge.withRobotoFlex(display, FontWeight(600)),
+        headlineMedium = base.headlineMedium.withRobotoFlex(display, FontWeight(600)),
+        headlineSmall = base.headlineSmall.withRobotoFlex(display, FontWeight(600)),
+        titleLarge = base.titleLarge.withRobotoFlex(title, FontWeight(600)),
+        titleMedium = base.titleMedium.withRobotoFlex(title, FontWeight(500)),
+        titleSmall = base.titleSmall.withRobotoFlex(title, FontWeight(500)),
+        bodyLarge = base.bodyLarge.withRobotoFlex(body, FontWeight.Normal),
+        bodyMedium = base.bodyMedium.withRobotoFlex(body, FontWeight.Normal),
+        bodySmall = base.bodySmall.withRobotoFlex(body, FontWeight.Normal),
+        labelLarge = base.labelLarge.withRobotoFlex(label, FontWeight(500)),
+        labelMedium = base.labelMedium.withRobotoFlex(label, FontWeight(500)),
+        labelSmall = base.labelSmall.withRobotoFlex(label, FontWeight(500))
     )
 }
 
