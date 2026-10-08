@@ -246,9 +246,10 @@ fun SettingsSwitchRow(
 fun SectionLabel(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+        // Expressive list headers are small, muted labels aligned with row text.
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, top = 8.dp)
     )
 }
 
