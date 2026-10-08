@@ -18,6 +18,9 @@ package com.android.inputmethod.keyboard;
 // Karuikey adaptation: imported from AOSP LatinIME; standalone Gradle build.
 
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
@@ -29,10 +32,13 @@ import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.NinePatchDrawable;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 import com.android.inputmethod.keyboard.internal.KeyDrawParams;
 import com.android.inputmethod.keyboard.internal.KeyVisualAttributes;
@@ -41,6 +47,7 @@ import tenkupng.karuikey.R;
 import com.android.inputmethod.latin.common.Constants;
 import com.android.inputmethod.latin.utils.TypefaceUtils;
 
+import java.util.HashMap;
 import java.util.HashSet;
 
 import androidx.annotation.NonNull;
@@ -97,6 +104,14 @@ public class KeyboardView extends View {
     private final Drawable mActionKeyBackground;
     private final int mActionKeyTextColor;
     private final Drawable mSpacebarBackground;
+
+    // Expressive key press: corners round out while pressed, the pressed tone fades on release.
+    private static final long KEY_PRESS_DURATION = 110;
+    private static final long KEY_RELEASE_DURATION = 200;
+    private final float mKeyPressedExtraRadius;
+    private final HashMap<Key, ValueAnimator> mKeyPressAnimators = new HashMap<>();
+    private final HashMap<Key, Float> mKeyPressProgress = new HashMap<>();
+    private final HashSet<Key> mReleasingKeys = new HashSet<>();
     private final float mSpacebarIconWidthRatio;
     private final Rect mKeyBackgroundPadding = new Rect();
     private static final float KET_TEXT_SHADOW_RADIUS_DISABLED = -1.0f;
@@ -138,6 +153,7 @@ public class KeyboardView extends View {
                 R.styleable.KeyboardView, defStyle, R.style.KeyboardView);
         mKeyBackground = keyboardViewAttr.getDrawable(R.styleable.KeyboardView_keyBackground);
         mKeyBackground.getPadding(mKeyBackgroundPadding);
+        mKeyPressedExtraRadius = 7f * context.getResources().getDisplayMetrics().density;
         final Drawable functionalKeyBackground = keyboardViewAttr.getDrawable(
                 R.styleable.KeyboardView_functionalKeyBackground);
         mFunctionalKeyBackground = (functionalKeyBackground != null) ? functionalKeyBackground
@@ -203,6 +219,7 @@ public class KeyboardView extends View {
      * @param keyboard the keyboard to display in this view
      */
     public void setKeyboard(@NonNull final Keyboard keyboard) {
+        cancelKeyPressAnimations();
         mKeyboard = keyboard;
         final int keyHeight = keyboard.mMostCommonKeyHeight - keyboard.mVerticalGap;
         mKeyDrawParams.updateParams(keyHeight, mKeyVisualAttributes);
@@ -392,8 +409,91 @@ public class KeyboardView extends View {
             background.setBounds(0, 0, bgWidth, bgHeight);
         }
         canvas.translate(bgX, bgY);
-        background.draw(canvas);
+        final Float progress = mKeyPressProgress.get(key);
+        if (progress == null) {
+            background.draw(canvas);
+        } else {
+            drawWithPressRadius(background, canvas, progress, 1f);
+            if (mReleasingKeys.contains(key) && progress > 0f) {
+                // Cross-fade the pressed tone out over the released background.
+                final int[] released = background.getState();
+                final int[] pressed = new int[released.length + 1];
+                System.arraycopy(released, 0, pressed, 0, released.length);
+                pressed[released.length] = android.R.attr.state_pressed;
+                background.setState(pressed);
+                drawWithPressRadius(background, canvas, progress, progress);
+                background.setState(released);
+            }
+        }
         canvas.translate(-bgX, -bgY);
+    }
+
+    private void drawWithPressRadius(@NonNull final Drawable background,
+            @NonNull final Canvas canvas, final float progress, final float alpha) {
+        final Drawable current = background.getCurrent();
+        if (!(current instanceof GradientDrawable)) {
+            background.setAlpha(Math.round(255 * alpha));
+            background.draw(canvas);
+            background.setAlpha(255);
+            return;
+        }
+        final GradientDrawable shape = (GradientDrawable) current;
+        final float baseRadius = shape.getCornerRadius();
+        shape.setCornerRadius(baseRadius + mKeyPressedExtraRadius * progress);
+        background.setAlpha(Math.round(255 * alpha));
+        background.draw(canvas);
+        background.setAlpha(255);
+        shape.setCornerRadius(baseRadius);
+    }
+
+    /** Starts the press or release shape animation for a key. */
+    public void animateKeyPress(@NonNull final Key key, final boolean pressed) {
+        final ValueAnimator running = mKeyPressAnimators.remove(key);
+        final Float current = mKeyPressProgress.get(key);
+        final float from = current != null ? current : (pressed ? 0f : 1f);
+        if (running != null) {
+            running.cancel();
+        }
+        if (pressed) {
+            mReleasingKeys.remove(key);
+        } else {
+            mReleasingKeys.add(key);
+        }
+        final ValueAnimator animator = ValueAnimator.ofFloat(from, pressed ? 1f : 0f);
+        animator.setDuration(pressed ? KEY_PRESS_DURATION : KEY_RELEASE_DURATION);
+        animator.setInterpolator(pressed
+                ? new OvershootInterpolator(2.5f) : new DecelerateInterpolator());
+        animator.addUpdateListener(animation -> {
+            mKeyPressProgress.put(key, (Float) animation.getAnimatedValue());
+            invalidateKey(key);
+        });
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(final Animator animation) {
+                if (mKeyPressAnimators.get(key) != animation) {
+                    return;
+                }
+                mKeyPressAnimators.remove(key);
+                if (!pressed) {
+                    mKeyPressProgress.remove(key);
+                    mReleasingKeys.remove(key);
+                }
+                invalidateKey(key);
+            }
+        });
+        mKeyPressAnimators.put(key, animator);
+        mKeyPressProgress.put(key, from);
+        animator.start();
+    }
+
+    private void cancelKeyPressAnimations() {
+        final ValueAnimator[] running = mKeyPressAnimators.values().toArray(new ValueAnimator[0]);
+        mKeyPressAnimators.clear();
+        for (final ValueAnimator animator : running) {
+            animator.cancel();
+        }
+        mKeyPressProgress.clear();
+        mReleasingKeys.clear();
     }
 
     // Draw key top visuals.
@@ -599,6 +699,7 @@ public class KeyboardView extends View {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
+        cancelKeyPressAnimations();
         freeOffscreenBuffer();
     }
 

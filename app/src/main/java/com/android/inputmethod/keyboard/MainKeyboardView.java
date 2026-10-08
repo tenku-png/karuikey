@@ -468,6 +468,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     @Override
     public void onKeyPressed(@NonNull final Key key, final boolean withPreview) {
         key.onPressed();
+        animateKeyPress(key, true);
         invalidateKey(key);
         if (withPreview && !key.noKeyPreview()) {
             showKeyPreview(key);
@@ -505,6 +506,7 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
     @Override
     public void onKeyReleased(@NonNull final Key key, final boolean withAnimation) {
         key.onReleased();
+        animateKeyPress(key, false);
         invalidateKey(key);
         if (!key.noKeyPreview()) {
             if (withAnimation) {
