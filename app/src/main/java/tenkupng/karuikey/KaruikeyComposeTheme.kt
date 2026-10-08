@@ -30,34 +30,27 @@ import androidx.compose.ui.unit.sp
 private const val SETTINGS_WIDTH = 85f
 private const val SETTINGS_YTLC = 540f
 
-private fun robotoFlex(context: Context, opticalSize: TextUnit) = FontFamily(
-    Font(
-        "roboto_flex.ttf",
-        context.assets,
-        weight = FontWeight.Normal,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(400), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
-            FontVariation.opticalSizing(opticalSize)
+// Display and headline text uses a condensed, heavier cut for the Expressive look.
+private const val DISPLAY_WIDTH = 78f
+
+private fun robotoFlex(
+    context: Context,
+    opticalSize: TextUnit,
+    width: Float = SETTINGS_WIDTH,
+    weights: List<Int> = listOf(400, 500, 600)
+) = FontFamily(
+    weights.map { weight ->
+        Font(
+            "roboto_flex.ttf",
+            context.assets,
+            weight = FontWeight(weight),
+            variationSettings = FontVariation.Settings(
+                FontVariation.weight(weight), FontVariation.width(width),
+                FontVariation.Setting("YTLC", SETTINGS_YTLC),
+                FontVariation.opticalSizing(opticalSize)
+            )
         )
-    ),
-    Font(
-        "roboto_flex.ttf",
-        context.assets,
-        weight = FontWeight(500),
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(500), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
-            FontVariation.opticalSizing(opticalSize)
-        )
-    ),
-    Font(
-        "roboto_flex.ttf",
-        context.assets,
-        weight = FontWeight(600),
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(600), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
-            FontVariation.opticalSizing(opticalSize)
-        )
-    )
+    }
 )
 
 private fun TextStyle.withRobotoFlex(fontFamily: FontFamily, weight: FontWeight? = null) = copy(
@@ -67,17 +60,17 @@ private fun TextStyle.withRobotoFlex(fontFamily: FontFamily, weight: FontWeight?
 
 private fun karuikeyTypography(context: Context) = Typography().let { base ->
     // Optical size per Material 3 role group so large and small text use the matching Flex master.
-    val display = robotoFlex(context, 28.sp)
+    val display = robotoFlex(context, 36.sp, DISPLAY_WIDTH, listOf(600, 700))
     val title = robotoFlex(context, 20.sp)
     val body = robotoFlex(context, 16.sp)
     val label = robotoFlex(context, 12.sp)
     base.copy(
-        displayLarge = base.displayLarge.withRobotoFlex(display, FontWeight(600)),
-        displayMedium = base.displayMedium.withRobotoFlex(display, FontWeight(600)),
-        displaySmall = base.displaySmall.withRobotoFlex(display, FontWeight(600)),
-        headlineLarge = base.headlineLarge.withRobotoFlex(display, FontWeight(600)),
-        headlineMedium = base.headlineMedium.withRobotoFlex(display, FontWeight(600)),
-        headlineSmall = base.headlineSmall.withRobotoFlex(display, FontWeight(600)),
+        displayLarge = base.displayLarge.withRobotoFlex(display, FontWeight(700)),
+        displayMedium = base.displayMedium.withRobotoFlex(display, FontWeight(700)),
+        displaySmall = base.displaySmall.withRobotoFlex(display, FontWeight(700)),
+        headlineLarge = base.headlineLarge.withRobotoFlex(display, FontWeight(700)),
+        headlineMedium = base.headlineMedium.withRobotoFlex(display, FontWeight(700)),
+        headlineSmall = base.headlineSmall.withRobotoFlex(display, FontWeight(700)),
         titleLarge = base.titleLarge.withRobotoFlex(title, FontWeight(600)),
         titleMedium = base.titleMedium.withRobotoFlex(title, FontWeight(500)),
         titleSmall = base.titleSmall.withRobotoFlex(title, FontWeight(500)),
