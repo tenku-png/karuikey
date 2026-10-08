@@ -31,7 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,7 +80,7 @@ fun karuikeySettingsSurfacePalette(): SettingsSurfacePalette {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScaffold(
     title: String,
@@ -89,34 +90,30 @@ fun SettingsScaffold(
 ) {
     if (!isHome) BackHandler(onBack = onBack)
     val surfaces = karuikeySettingsSurfacePalette()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            if (isHome) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            "Karuikey Keyboard",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = surfaces.pageBackground
+            LargeFlexibleTopAppBar(
+                title = {
+                    Text(
+                        if (isHome) "Karuikey Keyboard" else title,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-                    navigationIcon = {
+                },
+                navigationIcon = {
+                    if (!isHome) {
                         IconButton(onClick = onBack) {
                             MaterialSymbolIcon(KaruikeySymbol.ARROW_BACK, "Back", size = 24.sp)
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = surfaces.pageBackground
-                    )
-                )
-            }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = surfaces.pageBackground,
+                    scrolledContainerColor = surfaces.pageBackground
+                ),
+                scrollBehavior = scrollBehavior
+            )
         },
         containerColor = surfaces.pageBackground
     ) { padding -> content(Modifier.padding(padding)) }
