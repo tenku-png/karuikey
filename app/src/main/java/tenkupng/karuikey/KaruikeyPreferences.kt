@@ -44,7 +44,11 @@ data class KeyboardAppearance(
     val popupText: Int,
     val pressedSurface: Int,
     val shiftLockedSurface: Int,
-    val style: String = KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL
+    val style: String = KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL,
+    // Extra M3 roles for panels; defaults map them onto the roles above.
+    val secondaryContainer: Int = pressedSurface,
+    val onSecondaryContainer: Int = primaryText,
+    val surfaceContainerHigh: Int = functionalKeySurface,
 )
 
 object KaruikeyPreferences {
@@ -437,10 +441,13 @@ object KaruikeyPreferences {
             else android.R.color.system_accent3_100)
         val disabled = color(if (isDark) android.R.color.system_neutral2_300
             else android.R.color.system_neutral2_500)
+        val onPressed = color(if (isDark) android.R.color.system_accent2_100
+            else android.R.color.system_accent2_900)
         return KeyboardAppearance(
             isDark, true, neutralSurface, keySurface, functionalSurface, actionSurface,
             primaryText, secondaryText, primaryText, actionText, disabled,
-            keySurface, primaryText, pressed, locked
+            keySurface, primaryText, pressed, locked,
+            onSecondaryContainer = onPressed
         )
     }
 
@@ -459,6 +466,8 @@ object KaruikeyPreferences {
             pressedSurface = translucent(base.pressedSurface, 248),
             shiftLockedSurface = translucent(base.shiftLockedSurface, 248),
             popupSurface = translucent(base.popupSurface, 250),
+            secondaryContainer = translucent(base.secondaryContainer, 248),
+            surfaceContainerHigh = translucent(base.surfaceContainerHigh, 236),
             style = KEYBOARD_STYLE_GLASS
         )
     }

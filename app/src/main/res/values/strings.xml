@@ -114,4 +114,18 @@ Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open So
     <string name="blur_unavailable">Not supported on this device</string>
     <string name="search_languages_hint">Search languages</string>
     <string name="no_languages_found">No matching languages</string>
+    <string name="emoji_search_hint">Search emoji</string>
+    <string name="emoji_no_results">No matching emoji</string>
+    <string name="emoji_back_to_keyboard">Back to keyboard</string>
+    <string name="emoji_clear_search">Clear search</string>
+    <string name="emoji_category_recent">Frequently used</string>
+    <string name="emoji_category_faces">Smileys &amp; emotion</string>
+    <string name="emoji_category_people">People</string>
+    <string name="emoji_category_animals">Animals &amp; nature</string>
+    <string name="emoji_category_food">Food &amp; drink</string>
+    <string name="emoji_category_travel">Travel &amp; places</string>
+    <string name="emoji_category_activities">Activities</string>
+    <string name="emoji_category_objects">Objects</string>
+    <string name="emoji_category_symbols">Symbols</string>
+    <string name="emoji_category_flags">Flags</string>
 </resources>

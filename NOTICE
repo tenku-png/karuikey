@@ -64,6 +64,8 @@ Material Symbols Rounded font
 Copyright Google LLC. Source: Google Material Design Icons repository,
 variablefont/MaterialSymbolsRounded[FILL,GRAD,opsz,wght].ttf. Karuikey bundles a deterministic
 subset containing only the settings glyphs it uses. Licensed under the Apache License, Version 2.0.
+The emoji panel icons (res/drawable/ic_emoji_*.xml) are vector conversions of the same
+project's Material Symbols Rounded SVGs, under the same license.
 Source repository and license: https://github.com/google/material-design-icons
 
 Roboto Flex font

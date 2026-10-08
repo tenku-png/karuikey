@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="emoji_search_hint">Поиск эмодзи</string>
+    <string name="emoji_no_results">Ничего не найдено</string>
+    <string name="emoji_back_to_keyboard">Назад к клавиатуре</string>
+    <string name="emoji_clear_search">Очистить поиск</string>
+    <string name="emoji_category_recent">Часто используемые</string>
+    <string name="emoji_category_faces">Смайлики и эмоции</string>
+    <string name="emoji_category_people">Люди</string>
+    <string name="emoji_category_animals">Животные и природа</string>
+    <string name="emoji_category_food">Еда и напитки</string>
+    <string name="emoji_category_travel">Путешествия</string>
+    <string name="emoji_category_activities">Активности</string>
+    <string name="emoji_category_objects">Предметы</string>
+    <string name="emoji_category_symbols">Символы</string>
+    <string name="emoji_category_flags">Флаги</string>
+</resources>
