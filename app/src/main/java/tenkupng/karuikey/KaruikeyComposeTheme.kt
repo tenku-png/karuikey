@@ -26,13 +26,17 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+// Settings text is longer than key labels, so it gets a narrower width and taller lowercase.
+private const val SETTINGS_WIDTH = 85f
+private const val SETTINGS_YTLC = 540f
+
 private fun robotoFlex(context: Context, opticalSize: TextUnit) = FontFamily(
     Font(
         "roboto_flex.ttf",
         context.assets,
         weight = FontWeight.Normal,
         variationSettings = FontVariation.Settings(
-            FontVariation.weight(400), FontVariation.width(KaruikeyTypeface.WIDTH),
+            FontVariation.weight(400), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
             FontVariation.opticalSizing(opticalSize)
         )
     ),
@@ -41,7 +45,7 @@ private fun robotoFlex(context: Context, opticalSize: TextUnit) = FontFamily(
         context.assets,
         weight = FontWeight(500),
         variationSettings = FontVariation.Settings(
-            FontVariation.weight(500), FontVariation.width(KaruikeyTypeface.WIDTH),
+            FontVariation.weight(500), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
             FontVariation.opticalSizing(opticalSize)
         )
     ),
@@ -50,7 +54,7 @@ private fun robotoFlex(context: Context, opticalSize: TextUnit) = FontFamily(
         context.assets,
         weight = FontWeight(600),
         variationSettings = FontVariation.Settings(
-            FontVariation.weight(600), FontVariation.width(KaruikeyTypeface.WIDTH),
+            FontVariation.weight(600), FontVariation.width(SETTINGS_WIDTH), FontVariation.Setting("YTLC", SETTINGS_YTLC),
             FontVariation.opticalSizing(opticalSize)
         )
     )
