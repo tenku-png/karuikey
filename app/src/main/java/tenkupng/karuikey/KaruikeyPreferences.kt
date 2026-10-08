@@ -450,7 +450,9 @@ object KaruikeyPreferences {
         )
         val dark = base.isDark
         return base.copy(
-            keyboardBackground = translucent(base.keyboardBackground, if (dark) 224 else 222),
+            // pressedSurface is the secondaryContainer role in both palettes; plain surface
+            // is nearly achromatic and the Material You tint vanishes once it is translucent.
+            keyboardBackground = translucent(base.pressedSurface, if (dark) 224 else 222),
             keySurface = translucent(base.keySurface, if (dark) 246 else 244),
             functionalKeySurface = translucent(base.functionalKeySurface, if (dark) 238 else 236),
             actionSurface = translucent(base.actionSurface, 244),
