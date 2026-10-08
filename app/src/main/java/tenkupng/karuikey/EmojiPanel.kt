@@ -27,6 +27,8 @@ internal class EmojiPanel(
     private val variantScroll = HorizontalScrollView(serviceContext)
     private val variantRow = LinearLayout(serviceContext)
     private val searchButton = TextView(serviceContext)
+    // Only text labels use Roboto Flex; emoji glyphs stay on the system emoji font.
+    private val labelTypeface = KaruikeyTypeface.create(serviceContext, 400)
     private val grid = android.widget.GridLayout(serviceContext)
     private val gridScroll = ScrollView(serviceContext)
     private var category = EmojiCategory.FACES
@@ -58,6 +60,7 @@ internal class EmojiPanel(
         searchButton.apply {
             text = "Search emoji"
             textSize = 15f
+            typeface = labelTypeface
             gravity = Gravity.CENTER_VERTICAL
             setTextColor(appearance.secondaryText)
             setPadding(dp(12), 0, dp(12), 0)
@@ -180,6 +183,7 @@ internal class EmojiPanel(
         if (entries.isEmpty()) {
             grid.addView(TextView(serviceContext).apply {
                 text = if (searchMode) "No matching emoji" else "No recent emoji"
+                typeface = labelTypeface
                 gravity = Gravity.CENTER
                 setTextColor(appearance.secondaryText)
             }, android.widget.GridLayout.LayoutParams().apply {
