@@ -534,8 +534,9 @@ class KaruikeyService : InputMethodService() {
             Constants.CODE_SHIFT,
             Constants.CODE_CAPSLOCK,
             Constants.CODE_SWITCH_ALPHA_SYMBOL,
-            Constants.CODE_LANGUAGE_SWITCH,
             Constants.CODE_EMOJI -> Unit
+            // Search names exist in English and Russian, so the search keyboard can switch too.
+            Constants.CODE_LANGUAGE_SWITCH -> if (!emojiBottomRow) cycleLanguage()
             else -> if (primaryCode > 0) inputView?.appendEmojiSearchCodePoint(primaryCode)
         }
     }

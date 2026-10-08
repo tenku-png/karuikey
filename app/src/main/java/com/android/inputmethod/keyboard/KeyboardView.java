@@ -105,6 +105,8 @@ public class KeyboardView extends View {
     private final int mActionKeyTextColor;
     private final Drawable mSpacebarBackground;
 
+    private static final float MAX_ICON_HEIGHT_RATIO = 0.7f;
+
     // Expressive key press: corners round out while pressed, the pressed tone fades on release.
     private static final long KEY_PRESS_DURATION = 110;
     private static final long KEY_RELEASE_DURATION = 200;
@@ -605,12 +607,18 @@ public class KeyboardView extends View {
         // Draw key icon.
         if (label == null && icon != null) {
             final int iconWidth;
+            final int iconHeight;
             if (key.getCode() == Constants.CODE_SPACE && icon instanceof NinePatchDrawable) {
                 iconWidth = (int)(keyWidth * mSpacebarIconWidthRatio);
+                iconHeight = icon.getIntrinsicHeight();
             } else {
-                iconWidth = Math.min(icon.getIntrinsicWidth(), keyWidth);
+                // Shrink proportionally to fit short keys, e.g. the compact emoji search keyboard.
+                final float scale = Math.min(1f, Math.min(
+                        keyWidth / (float)icon.getIntrinsicWidth(),
+                        keyHeight * MAX_ICON_HEIGHT_RATIO / icon.getIntrinsicHeight()));
+                iconWidth = Math.round(icon.getIntrinsicWidth() * scale);
+                iconHeight = Math.round(icon.getIntrinsicHeight() * scale);
             }
-            final int iconHeight = icon.getIntrinsicHeight();
             final int iconY;
             if (key.isAlignIconToBottom()) {
                 iconY = keyHeight - iconHeight;
