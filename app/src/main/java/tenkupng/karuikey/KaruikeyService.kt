@@ -677,8 +677,8 @@ class KaruikeyService : InputMethodService() {
             clearCurrentWord()
             return
         }
-        if (suggestionSession.prefix.isEmpty() &&
-            !KaruikeyPreferences.nextWordSuggestionsEnabled(this)
+        if (suggestionSession.prefix.isEmpty() && (suggestionSession.previousWord == null ||
+            !KaruikeyPreferences.nextWordSuggestionsEnabled(this))
         ) {
             clearSuggestionsView()
             return
@@ -1126,7 +1126,7 @@ class KaruikeyService : InputMethodService() {
                 isFocusable = true
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
                 setTextColor(appearance.primaryText)
-                layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT)
+                layoutParams = LinearLayout.LayoutParams(toolbarHeight, LayoutParams.MATCH_PARENT)
             }
         }
         private val candidateQueries = arrayOfNulls<String>(3)
@@ -1592,7 +1592,6 @@ class KaruikeyService : InputMethodService() {
             for (index in candidateViews.indices) {
                 candidateRequestIds[index] = requestId - 1
                 candidateQueries[index] = query
-                candidateViews[index].isEnabled = false
             }
         }
 
@@ -1625,23 +1624,15 @@ class KaruikeyService : InputMethodService() {
 
         fun setSuggestions(suggestions: List<String>, requestId: Long, query: String) {
             candidateViews.forEachIndexed { index, candidate ->
-                if (index < suggestions.size) {
-                    val text = suggestions[index]
+                // Slots stay VISIBLE with fixed geometry; only changed text is touched.
+                val text = suggestions.getOrNull(index)
+                if (candidate.tag != text) {
                     candidate.text = text
                     candidate.tag = text
-                    candidate.visibility = View.VISIBLE
-                    candidate.isEnabled = true
-                    candidateQueries[index] = query
-                    candidateRequestIds[index] = requestId
-                } else {
-                    candidate.text = null
-                    candidate.tag = null
-                    // Keep empty slots reserved so one suggestion never becomes a giant button.
-                    candidate.visibility = View.INVISIBLE
-                    candidate.isEnabled = false
-                    candidateQueries[index] = null
-                    candidateRequestIds[index] = requestId
+                    candidate.isEnabled = text != null
                 }
+                candidateQueries[index] = if (text != null) query else null
+                candidateRequestIds[index] = requestId
             }
         }
 
@@ -1655,10 +1646,18 @@ class KaruikeyService : InputMethodService() {
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
                 setPadding(dp(12), 0, dp(12), 0)
                 setOnClickListener { action() }
-                layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+                layoutParams = fixedToolbarButtonParams()
             }
 
         private fun fixedToolbarButtonParams() = LinearLayout.LayoutParams(toolbarHeight, toolbarHeight)
+
+        private fun View.setWidthIfChanged(width: Int) {
+            val params = layoutParams
+            if (params.width != width) {
+                params.width = width
+                layoutParams = params
+            }
+        }
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
@@ -1676,24 +1675,16 @@ class KaruikeyService : InputMethodService() {
             setMeasuredDimension(width, height)
             val utilityWidth = SuggestionStripGeometry.utilityWidth(width, toolbarHeight)
             val candidateWidth = SuggestionStripGeometry.candidateRegionWidth(width, toolbarHeight)
-            (candidateRegion.layoutParams as LinearLayout.LayoutParams).apply {
-                this.width = candidateWidth
-            }.also { candidateRegion.layoutParams = it }
-            (utilityToolbar.layoutParams as LinearLayout.LayoutParams).apply {
-                this.width = utilityWidth
-            }.also { utilityToolbar.layoutParams = it }
+            candidateRegion.setWidthIfChanged(candidateWidth)
+            utilityToolbar.setWidthIfChanged(utilityWidth)
             candidateViews.forEachIndexed { index, candidate ->
-                (candidate.layoutParams as LinearLayout.LayoutParams).apply {
-                    this.width = SuggestionStripGeometry.candidateSlotWidth(candidateWidth, index)
-                }.also { candidate.layoutParams = it }
+                candidate.setWidthIfChanged(
+                    SuggestionStripGeometry.candidateSlotWidth(candidateWidth, index)
+                )
             }
             val utilityButtonWidth = utilityWidth / SuggestionStripGeometry.UTILITY_COUNT
             for (index in 0 until utilityToolbar.childCount) {
-                val child = utilityToolbar.getChildAt(index)
-                (child.layoutParams as LinearLayout.LayoutParams).apply {
-                    this.width = utilityButtonWidth
-                    this.weight = 0f
-                }.also { child.layoutParams = it }
+                utilityToolbar.getChildAt(index).setWidthIfChanged(utilityButtonWidth)
             }
             val contentHeight = keyboardHeight
             val emojiHeight = contentHeight * 58 / 100

@@ -425,7 +425,8 @@ object SuggestionEngine {
                 out
             )
             removeBlocked(appContext, request.locale, request.prefix, out)
-            if (out.size < 3) {
+            // Without a prefix the context-free fallback is just the most frequent words.
+            if (out.size < 3 && request.prefix.isNotEmpty()) {
                 fallbackResults.clear()
                 binary.getSuggestions(request.prefix, request.keyboard, null, null, null,
                     fallbackResults)
