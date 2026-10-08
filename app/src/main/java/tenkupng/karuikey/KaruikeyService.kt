@@ -44,6 +44,9 @@ import com.android.inputmethod.latin.common.StringUtils
 import com.android.inputmethod.latin.utils.RecapitalizeStatus
 import com.android.inputmethod.latin.utils.SubtypeLocaleUtils
 
+// Enough text before the cursor for one word plus three context words.
+private const val RESUME_CONTEXT_LENGTH = 64
+
 class KaruikeyService : InputMethodService() {
     private val keyboardTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 400) }
     private val suggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 475) }
@@ -750,15 +753,19 @@ class KaruikeyService : InputMethodService() {
             val start = composingStart
             val removed = suggestionSession.deleteLastCodePoint()
             if (suggestionSession.prefix.isEmpty()) {
+                // Clear the composed text itself; finishing alone would leave the last letter.
+                duringEditorUpdate { connection?.setComposingText("", 1) }
                 finishEditorComposition(connection)
                 expectedCursorPosition = start
                 expectedSelectionEnd = start
+                resumeWordBeforeCursor(connection)
+                return
             } else {
                 expectedCursorPosition = start + suggestionSession.prefix.length
                 expectedSelectionEnd = expectedCursorPosition
                 duringEditorUpdate { connection?.setComposingText(suggestionSession.prefix, 1) }
             }
-            if (removed > 0) clearSuggestions()
+            if (removed > 0) refreshSuggestions()
             return
         }
         if (suggestionSession.hasAutomaticSpace) {
@@ -768,7 +775,7 @@ class KaruikeyService : InputMethodService() {
                 expectedCursorPosition--
                 expectedSelectionEnd = expectedCursorPosition
             }
-            clearSuggestions()
+            resumeWordBeforeCursor(connection)
             return
         }
         duringEditorUpdate { connection?.deleteSurroundingText(1, 0) }
@@ -778,7 +785,27 @@ class KaruikeyService : InputMethodService() {
             expectedCursorPosition--
             expectedSelectionEnd = expectedCursorPosition
         }
-        clearSuggestions()
+        resumeWordBeforeCursor(connection)
+    }
+
+    /** After Backspace, picks the word at the cursor back up so its suggestions return. */
+    private fun resumeWordBeforeCursor(connection: InputConnection?) {
+        val cursor = expectedCursorPosition
+        val before = if (connection != null && suggestionsAllowed && cursor >= 0 &&
+            expectedSelectionEnd == cursor
+        ) connection.getTextBeforeCursor(RESUME_CONTEXT_LENGTH, 0) else null
+        if (before == null) {
+            clearSuggestions()
+            return
+        }
+        val context = SuggestionSession.parseBeforeCursor(before)
+        suggestionSession.restore(context.word, context.previousWords)
+        if (context.word.isNotEmpty() && cursor >= context.word.length) {
+            val start = cursor - context.word.length
+            duringEditorUpdate { connection?.setComposingRegion(start, cursor) }
+            composingStart = start
+        }
+        refreshSuggestions()
     }
 
     private fun commitSeparator(connection: InputConnection?, separator: String) {
