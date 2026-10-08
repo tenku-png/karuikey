@@ -78,6 +78,8 @@ object KaruikeyPreferences {
     private const val TRANSPARENCY_AMOUNT = "transparency_amount"
     private const val BLUR = "blur"
     private const val BLUR_RADIUS = "blur_radius"
+    private const val KEY_TRANSPARENCY = "key_transparency"
+    const val MAX_KEY_TRANSPARENCY = 70
     const val MIN_BLUR_RADIUS = 4
     const val MAX_BLUR_RADIUS = 48
     private const val DEFAULT_BLUR_RADIUS = 20
@@ -267,6 +269,18 @@ object KaruikeyPreferences {
         prefs(context).edit()
             .putInt(TRANSPARENCY_AMOUNT, amount.coerceIn(0, MAX_BLUR_TRANSPARENCY)).apply()
     }
+
+    /** Transparency of key backgrounds; applies only while surface transparency is on. */
+    fun keyTransparency(context: Context) =
+        prefs(context).getInt(KEY_TRANSPARENCY, 0).coerceIn(0, MAX_KEY_TRANSPARENCY)
+
+    fun setKeyTransparency(context: Context, amount: Int) {
+        prefs(context).edit()
+            .putInt(KEY_TRANSPARENCY, amount.coerceIn(0, MAX_KEY_TRANSPARENCY)).apply()
+    }
+
+    fun keyBackgroundAlpha(context: Context): Int =
+        if (transparencyEnabled(context)) 255 * (100 - keyTransparency(context)) / 100 else 255
 
     fun maxTransparency(context: Context) =
         if (blurActive(context)) MAX_BLUR_TRANSPARENCY else MAX_TRANSPARENCY

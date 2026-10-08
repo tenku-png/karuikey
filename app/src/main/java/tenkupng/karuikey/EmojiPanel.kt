@@ -70,10 +70,11 @@ internal class EmojiPanel(
     init {
         orientation = VERTICAL
         setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        buildSearchBar()
-        addView(searchBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(SEARCH_BAR_DP)))
+        // While searching, results sit on top and the query pill sits right above the keyboard.
         buildResults()
         addView(resultsScroll, LayoutParams(LayoutParams.MATCH_PARENT, dp(RESULTS_DP)))
+        buildSearchBar()
+        addView(searchBar, LayoutParams(LayoutParams.MATCH_PARENT, dp(SEARCH_BAR_DP)))
 
         grid.displayFor = { entry -> preferredVariants[entry.emoji] ?: entry.emoji }
         grid.onEmojiClick = { _, emoji -> select(emoji) }
@@ -160,7 +161,7 @@ internal class EmojiPanel(
     private fun buildSearchBar() {
         searchBar.orientation = HORIZONTAL
         searchBar.gravity = Gravity.CENTER_VERTICAL
-        searchBar.setPadding(dp(8), dp(6), dp(8), dp(2))
+        searchBar.setPadding(dp(8), dp(4), dp(8), dp(4))
         val pill = LinearLayout(serviceContext).apply {
             orientation = HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -390,7 +391,11 @@ internal class EmojiPanel(
         resultsRow.removeAllViews()
         resultsScroll.scrollTo(0, 0)
         val results = if (query.isEmpty()) {
-            EmojiCatalog.entries(EmojiCategory.RECENT, serviceContext)
+            // Recent emoji first, topped up with common faces so the strip is never empty.
+            (EmojiCatalog.entries(EmojiCategory.RECENT, serviceContext) +
+                EmojiCatalog.entries(EmojiCategory.FACES, serviceContext))
+                .distinctBy { it.emoji }
+                .take(MAX_RESULTS)
         } else {
             EmojiCatalog.rank(EmojiCatalog.allEntries(serviceContext), query,
                 EmojiHistory.counts(serviceContext), MAX_RESULTS)

@@ -58,6 +58,8 @@ class KaruikeyService : InputMethodService() {
     private val primarySuggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 650) }
     private var inputView: KaruikeyInputView? = null
     private var blurListener: java.util.function.Consumer<Boolean>? = null
+    // The IME window height chosen by the system, restored when blur is turned off.
+    private var savedWindowHeight: Int? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
     private var currentSubtype: InputMethodSubtype? = null
@@ -949,16 +951,26 @@ class KaruikeyService : InputMethodService() {
     }
 
     /**
-     * Window blur covers the whole window surface, and the IME window normally fills the
-     * screen. While blur is on, the window wraps the keyboard so only the area behind it blurs.
+     * Window blur covers the whole window surface. While blur is on, the window wraps the
+     * keyboard so only the area behind it blurs; otherwise the system layout is left as is.
      */
     private fun applyWindowBlur(imeWindow: android.view.Window) {
         if (android.os.Build.VERSION.SDK_INT < 31) return
         val blur = KaruikeyPreferences.blurActive(this)
-        val height = if (blur) WindowManager.LayoutParams.WRAP_CONTENT
-            else WindowManager.LayoutParams.MATCH_PARENT
-        if (imeWindow.attributes.height != height) {
-            imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, height)
+        if (blur) {
+            if (savedWindowHeight == null) savedWindowHeight = imeWindow.attributes.height
+            if (imeWindow.attributes.height != WindowManager.LayoutParams.WRAP_CONTENT) {
+                imeWindow.setLayout(
+                    WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT
+                )
+            }
+        } else {
+            savedWindowHeight?.let { height ->
+                if (imeWindow.attributes.height != height) {
+                    imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, height)
+                }
+            }
+            savedWindowHeight = null
         }
         val radius = if (blur) {
             (KaruikeyPreferences.blurRadius(this) * resources.displayMetrics.density).toInt()
@@ -1485,6 +1497,9 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applyPreferences() {
+            keyboardView.setKeyBackgroundAlpha(
+                KaruikeyPreferences.keyBackgroundAlpha(this@KaruikeyService)
+            )
             // Panels own the toolbar slot; a preference write (e.g. a language swipe) must not
             // bring the toolbar back over them.
             if (clipboardPanel.visibility != View.VISIBLE && emojiPanel.visibility != View.VISIBLE) {

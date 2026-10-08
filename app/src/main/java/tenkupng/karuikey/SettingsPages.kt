@@ -68,6 +68,9 @@ fun AppearancePage(
     var height by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.heightPercent(context).toFloat())
     }
+    var keyTransparency by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyTransparency(context).toFloat())
+    }
     val blurSupported = remember(refreshVersion) { KaruikeyPreferences.blurSupported(context) }
     var blur by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.blurEnabled(context) && blurSupported)
@@ -134,6 +137,27 @@ fun AppearancePage(
                 enabled = transparency,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
+            AnimatedVisibility(
+                visible = transparency,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    GroupDivider()
+                    Text("Key transparency ${keyTransparency.toInt()}%",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    Slider(
+                        value = keyTransparency,
+                        onValueChange = {
+                            keyTransparency = it
+                            KaruikeyPreferences.setKeyTransparency(context, it.toInt())
+                        },
+                        valueRange = 0f..KaruikeyPreferences.MAX_KEY_TRANSPARENCY.toFloat(),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.PALETTE, "Blur",
                 when {

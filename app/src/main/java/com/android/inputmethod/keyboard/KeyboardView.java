@@ -100,6 +100,7 @@ public class KeyboardView extends View {
     private final float mKeyTextShadowRadius;
     private final float mVerticalCorrection;
     private final Drawable mKeyBackground;
+    private int mKeyBackgroundAlpha = 255;
     private final Drawable mFunctionalKeyBackground;
     private final Drawable mActionKeyBackground;
     private final int mActionKeyTextColor;
@@ -382,6 +383,14 @@ public class KeyboardView extends View {
         canvas.translate(-keyDrawX, -keyDrawY);
     }
 
+    /** Opacity of key backgrounds (0-255); labels and icons stay fully opaque. */
+    public void setKeyBackgroundAlpha(final int alpha) {
+        final int clamped = Math.max(0, Math.min(255, alpha));
+        if (clamped == mKeyBackgroundAlpha) return;
+        mKeyBackgroundAlpha = clamped;
+        invalidateAllKeys();
+    }
+
     // Draw key background.
     protected void onDrawKeyBackground(@NonNull final Key key, @NonNull final Canvas canvas,
             @NonNull final Drawable background) {
@@ -413,7 +422,9 @@ public class KeyboardView extends View {
         canvas.translate(bgX, bgY);
         final Float progress = mKeyPressProgress.get(key);
         if (progress == null) {
+            background.setAlpha(mKeyBackgroundAlpha);
             background.draw(canvas);
+            background.setAlpha(255);
         } else {
             drawWithPressRadius(background, canvas, progress, 1f);
             if (mReleasingKeys.contains(key) && progress > 0f) {
@@ -434,7 +445,7 @@ public class KeyboardView extends View {
             @NonNull final Canvas canvas, final float progress, final float alpha) {
         final Drawable current = background.getCurrent();
         if (!(current instanceof GradientDrawable)) {
-            background.setAlpha(Math.round(255 * alpha));
+            background.setAlpha(Math.round(mKeyBackgroundAlpha * alpha));
             background.draw(canvas);
             background.setAlpha(255);
             return;
@@ -442,7 +453,7 @@ public class KeyboardView extends View {
         final GradientDrawable shape = (GradientDrawable) current;
         final float baseRadius = shape.getCornerRadius();
         shape.setCornerRadius(baseRadius + mKeyPressedExtraRadius * progress);
-        background.setAlpha(Math.round(255 * alpha));
+        background.setAlpha(Math.round(mKeyBackgroundAlpha * alpha));
         background.draw(canvas);
         background.setAlpha(255);
         shape.setCornerRadius(baseRadius);
