@@ -57,6 +57,7 @@ public final class BinaryDictionary {
     private final int[] mOutputScores = new int[MAX_RESULTS];
     private final int[] mOutputIndices = new int[MAX_RESULTS];
     private final int[] mOutputTypes = new int[MAX_RESULTS];
+    private final int[] mOrder = new int[MAX_RESULTS];
     private final int[] mOutputCount = new int[1];
     private final int[] mOutputConfidence = new int[1];
     private final float[] mWeight = new float[] {-1.0f};
@@ -124,8 +125,20 @@ public final class BinaryDictionary {
                 mOutputCodePoints, mOutputScores, mOutputIndices, mOutputTypes,
                 mOutputConfidence, mWeight);
         final String lowerPrefix = prefix.toString().toLowerCase(Locale.ROOT);
-        for (int i = 0; i < Math.min(mOutputCount[0], MAX_RESULTS); i++) {
-            final int start = i * MAX_WORD_LENGTH;
+        // The native queue pops its lowest score first; AOSP re-sorted results on the Java side.
+        final int count = Math.min(mOutputCount[0], MAX_RESULTS);
+        for (int i = 0; i < count; i++) mOrder[i] = i;
+        for (int i = 1; i < count; i++) {
+            final int index = mOrder[i];
+            int j = i - 1;
+            while (j >= 0 && mOutputScores[mOrder[j]] < mOutputScores[index]) {
+                mOrder[j + 1] = mOrder[j];
+                j--;
+            }
+            mOrder[j + 1] = index;
+        }
+        for (int rank = 0; rank < count; rank++) {
+            final int start = mOrder[rank] * MAX_WORD_LENGTH;
             int length = 0;
             while (length < MAX_WORD_LENGTH && mOutputCodePoints[start + length] != 0) length++;
             if (length == 0) continue;
