@@ -1682,7 +1682,10 @@ class KaruikeyService : InputMethodService() {
                 isClickable = true
                 isFocusable = true
                 setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-                setPadding(dp(12), 0, dp(12), 0)
+                // Material 3 icon buttons keep a 24dp glyph inside the larger touch target.
+                val inset = ((toolbarHeight - dp(24)) / 2).coerceAtLeast(0)
+                setPadding(inset, inset, inset, inset)
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
                 setOnClickListener { action() }
                 layoutParams = fixedToolbarButtonParams()
             }

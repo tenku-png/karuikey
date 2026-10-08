@@ -23,8 +23,8 @@
         <item name="iconSendKey">@drawable/ic_keyboard_send</item>
         <item name="iconNextKey">@drawable/ic_keyboard_next</item>
         <item name="iconDoneKey">@drawable/ic_keyboard_done</item>
-        <item name="iconPreviousKey">@drawable/ic_keyboard_enter</item>
-        <item name="iconTabKey">@drawable/ic_keyboard_enter</item>
+        <item name="iconPreviousKey">@drawable/ic_keyboard_previous</item>
+        <item name="iconTabKey">@drawable/ic_keyboard_tab</item>
         <item name="iconShortcutKey">@drawable/ic_keyboard_symbol</item>
         <item name="iconShortcutKeyDisabled">@drawable/ic_keyboard_symbol</item>
         <item name="iconLanguageSwitchKey">@drawable/ic_keyboard_language</item>

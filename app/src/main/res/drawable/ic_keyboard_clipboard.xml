@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded "content_paste", Apache License 2.0. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateY="960">
     <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="?attr/keyboardFunctionalTextColor"
-        android:strokeWidth="1.7" android:strokeLineJoin="round"
-        android:pathData="M9,4H6.5A1.5,1.5 0,0 0,5 5.5v14A1.5,1.5 0,0 0,6.5 21h11A1.5,1.5 0,0 0,19 19.5v-14A1.5,1.5 0,0 0,17.5 4H15M9,4a2,2 0,0 1,6 0M9,4h6M8,10h8M8,14h8M8,18h5" />
+        android:fillColor="?attr/keyboardFunctionalTextColor"
+        android:pathData="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h167q11-35 43-57.5t70-22.5q40 0 71.5 22.5T594-840h166q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560h-80v80q0 17-11.5 28.5T640-640H320q-17 0-28.5-11.5T280-680v-80h-80v560Zm280-560q17 0 28.5-11.5T520-800q0-17-11.5-28.5T480-840q-17 0-28.5 11.5T440-800q0 17 11.5 28.5T480-760Z" />
+    </group>
 </vector>
