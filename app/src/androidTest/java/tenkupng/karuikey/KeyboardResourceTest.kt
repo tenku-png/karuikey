@@ -213,9 +213,9 @@ class KeyboardResourceTest {
     @Test
     fun emojiCatalogProvidesCategoriesSearchAndVariants() {
         assertTrue(EmojiCatalog.entries(EmojiCategory.FACES, context).isNotEmpty())
-        assertTrue(EmojiCatalog.search("smile").any { it.emoji == "😀" })
-        assertTrue(EmojiCatalog.search("cat").any { it.emoji == "🐱" })
-        val heartResults = EmojiCatalog.search("heart")
+        assertTrue(EmojiCatalog.search("smile", context).any { it.emoji == "😀" })
+        assertTrue(EmojiCatalog.search("cat", context).any { it.emoji == "🐱" })
+        val heartResults = EmojiCatalog.search("heart", context)
         assertTrue(heartResults.any { it.emoji == "❤️" })
         assertEquals(heartResults.size, heartResults.map { it.emoji }.distinct().size)
         assertTrue(EmojiCatalog.entries(EmojiCategory.PEOPLE, context)
@@ -496,7 +496,8 @@ class KeyboardResourceTest {
             for (prefix in arrayOf("hel", "tha", "bec", "thank", "good")) {
                 SuggestionEngine.fill("en_US", null, null, null, prefix, suggestions, englishKeyboard)
                 assertTrue("No candidate for $prefix", suggestions.isNotEmpty())
-                assertTrue(suggestions.all { it.startsWith(prefix, ignoreCase = true) })
+                // The first slot may hold a single typo correction instead of a completion.
+                assertTrue(suggestions.drop(1).all { it.startsWith(prefix, ignoreCase = true) })
             }
 
             SuggestionEngine.fill("en_US", "the", null, null, "", suggestions)
