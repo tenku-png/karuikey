@@ -40,6 +40,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.foundation.background
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,7 +134,7 @@ fun SettingsGroup(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = shape ?: MaterialTheme.shapes.medium,
+        shape = shape ?: MaterialTheme.shapes.large,
         color = karuikeySettingsSurfacePalette().sectionContainer,
         tonalElevation = 0.dp
     ) {
@@ -203,7 +210,16 @@ fun SettingsSwitchRow(
                         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                         onCheckedChange(it)
                     },
-                    enabled = enabled
+                    enabled = enabled,
+                    thumbContent = if (checked) {
+                        {
+                            Icon(
+                                painterResource(R.drawable.ic_settings_check),
+                                contentDescription = null,
+                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                            )
+                        }
+                    } else null
                 )
             },
             colors = ListItemDefaults.colors(
@@ -242,37 +258,40 @@ fun PageColumn(
 
 @Composable
 fun GroupDivider() {
-    val surfaces = karuikeySettingsSurfacePalette()
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = KaruikeySettingsTokens.pageHorizontal),
-        color = surfaces.divider
+    // Expressive lists separate rows with a thin page-colored gap instead of a hairline.
+    Spacer(
+        Modifier
+            .fillMaxWidth()
+            .height(2.dp)
+            .background(karuikeySettingsSurfacePalette().pageBackground)
     )
 }
 
 @Composable
-fun ChoiceRow(title: String, selected: Boolean, onClick: () -> Unit) {
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+fun <T> ChoiceButtonGroup(options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
     val view = LocalView.current
-    val surfaces = karuikeySettingsSurfacePalette()
-    ExpressivePressSurface(
-        restingColor = if (selected) surfaces.selectedContainer else Color.Transparent,
-        onClick = {
-            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-            onClick()
-        }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = KaruikeySettingsTokens.pageHorizontal, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            if (selected) {
-                Icon(
-                    painterResource(R.drawable.ic_settings_check),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
+        options.forEachIndexed { index, (label, value) ->
+            ToggleButton(
+                checked = value == selected,
+                onCheckedChange = {
+                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                    onSelect(value)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .semantics { role = Role.RadioButton },
+                shapes = when (index) {
+                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                }
+            ) {
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

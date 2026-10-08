@@ -85,19 +85,17 @@ fun AppearancePage(
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Theme")
-        SettingsGroup {
+        ChoiceButtonGroup(
             listOf(
                 "System" to KaruikeyPreferences.THEME_SYSTEM,
                 "Light" to KaruikeyPreferences.THEME_LIGHT,
                 "Dark" to KaruikeyPreferences.THEME_DARK
-            ).forEachIndexed { index, (label, value) ->
-                ChoiceRow(label, theme == value) {
-                    theme = value
-                    KaruikeyPreferences.setTheme(context, value)
-                    onThemeChanged(value)
-                }
-                if (index < 2) GroupDivider()
-            }
+            ),
+            theme
+        ) { value ->
+            theme = value
+            KaruikeyPreferences.setTheme(context, value)
+            onThemeChanged(value)
         }
         SettingsGroup {
             SettingsSwitchRow(KaruikeySymbol.PALETTE, "Dynamic colors",
@@ -134,55 +132,48 @@ fun AppearancePage(
                 "Not supported on this device", false, false) { }
         }
         SectionLabel("Keyboard style")
-        SettingsGroup {
-            ChoiceRow("Material", keyboardStyle == KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL) {
-                keyboardStyle = KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL
-                KaruikeyPreferences.setKeyboardStyle(context, keyboardStyle)
-            }
-            GroupDivider()
-            ChoiceRow("Glass", keyboardStyle == KaruikeyPreferences.KEYBOARD_STYLE_GLASS) {
-                keyboardStyle = KaruikeyPreferences.KEYBOARD_STYLE_GLASS
-                KaruikeyPreferences.setKeyboardStyle(context, keyboardStyle)
-            }
+        ChoiceButtonGroup(
+            listOf(
+                "Material" to KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL,
+                "Glass" to KaruikeyPreferences.KEYBOARD_STYLE_GLASS
+            ),
+            keyboardStyle
+        ) { value ->
+            keyboardStyle = value
+            KaruikeyPreferences.setKeyboardStyle(context, value)
         }
         SectionLabel("Emoji key")
-        SettingsGroup {
-            ChoiceRow("Toolbar", emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR) {
-                emojiPlacement = KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR
-                KaruikeyPreferences.setEmojiKeyPlacement(context, emojiPlacement)
-            }
-            GroupDivider()
-            ChoiceRow("Bottom row", emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM) {
-                emojiPlacement = KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM
-                KaruikeyPreferences.setEmojiKeyPlacement(context, emojiPlacement)
-            }
-            GroupDivider()
-            ChoiceRow("Off", emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_OFF) {
-                emojiPlacement = KaruikeyPreferences.EMOJI_PLACEMENT_OFF
-                KaruikeyPreferences.setEmojiKeyPlacement(context, emojiPlacement)
-            }
-            if (KaruikeyPreferences.enabledLanguages(context).size > 1 &&
-                emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM
-            ) {
-                GroupDivider()
-                Text(
-                    "Language switching stays available in the toolbar; Spacebar swipe can also switch languages.",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(20.dp)
-                )
-            }
+        ChoiceButtonGroup(
+            listOf(
+                "Toolbar" to KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR,
+                "Bottom row" to KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM,
+                "Off" to KaruikeyPreferences.EMOJI_PLACEMENT_OFF
+            ),
+            emojiPlacement
+        ) { value ->
+            emojiPlacement = value
+            KaruikeyPreferences.setEmojiKeyPlacement(context, value)
+        }
+        if (KaruikeyPreferences.enabledLanguages(context).size > 1 &&
+            emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM
+        ) {
+            Text(
+                "Language switching stays available in the toolbar; Spacebar swipe can also switch languages.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
         }
         SectionLabel("Spacebar swipe")
-        SettingsGroup {
-            ChoiceRow("Move cursor", spacebarSwipe == KaruikeyPreferences.SPACEBAR_SWIPE_CURSOR) {
-                spacebarSwipe = KaruikeyPreferences.SPACEBAR_SWIPE_CURSOR
-                KaruikeyPreferences.setSpacebarSwipe(context, spacebarSwipe)
-            }
-            GroupDivider()
-            ChoiceRow("Switch language", spacebarSwipe == KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE) {
-                spacebarSwipe = KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE
-                KaruikeyPreferences.setSpacebarSwipe(context, spacebarSwipe)
-            }
+        ChoiceButtonGroup(
+            listOf(
+                "Move cursor" to KaruikeyPreferences.SPACEBAR_SWIPE_CURSOR,
+                "Switch language" to KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE
+            ),
+            spacebarSwipe
+        ) { value ->
+            spacebarSwipe = value
+            KaruikeyPreferences.setSpacebarSwipe(context, value)
         }
         SettingsGroup {
             Text("Keyboard height ${height.toInt()}%",
