@@ -92,7 +92,7 @@ class KaruikeyService : InputMethodService() {
         ClipboardHistory.purge(this)
     }
 
-    private val keyboardActionListener = object : KeyboardActionListener.Adapter() {
+    private val keyboardActionListener: KeyboardActionListener = object : KeyboardActionListener.Adapter() {
         override fun onPressKey(primaryCode: Int, repeatCount: Int, isSinglePointer: Boolean) {
             keyboardSwitcher?.onPressKey(primaryCode, isSinglePointer, autoCapsMode())
         }
@@ -1052,7 +1052,13 @@ class KaruikeyService : InputMethodService() {
             onEmojiSelected = ::commitEmoji,
             onClose = ::hideEmojiPanel,
             onSearchRequested = ::showEmojiSearchLayout,
-            onSearchClosed = ::showEmojiCategoryLayout
+            onSearchClosed = ::showEmojiCategoryLayout,
+            onKeyCode = { code ->
+                keyboardActionListener.onCodeInput(code, Constants.NOT_A_COORDINATE,
+                    Constants.NOT_A_COORDINATE, false)
+            },
+            onLanguageSwipe = { direction -> cycleLanguage(direction) },
+            languageLabel = { currentLanguage?.displayName.orEmpty() }
         )
         private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
         private var clipboardHistory: List<ClipboardHistoryItem> = emptyList()
@@ -1438,7 +1444,9 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applyPreferences() {
-            if (clipboardPanel.visibility != View.VISIBLE) {
+            // Panels own the toolbar slot; a preference write (e.g. a language swipe) must not
+            // bring the toolbar back over them.
+            if (clipboardPanel.visibility != View.VISIBLE && emojiPanel.visibility != View.VISIBLE) {
                 toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                     View.VISIBLE
                 } else View.GONE
@@ -1695,7 +1703,15 @@ class KaruikeyService : InputMethodService() {
                 R.dimen.config_default_keyboard_height
             ) * KaruikeyPreferences.heightPercent(this@KaruikeyService) / 100
             val visibleToolbarHeight = if (toolbar.visibility == View.VISIBLE) toolbarHeight else 0
-            val desiredHeight = defaultKeyboardHeight + visibleToolbarHeight + navigationBottomInset
+            // Emoji browsing takes the toolbar's place as well; search adds its strip above the
+            // full-size keyboard instead of squeezing the keys.
+            val emojiShown = emojiPanel.visibility == View.VISIBLE
+            val searchStrip = if (emojiShown && emojiPanel.isSearchActive()) {
+                emojiPanel.searchStripHeight
+            } else 0
+            val emojiExtra = if (searchStrip > 0) searchStrip else if (emojiShown) toolbarHeight else 0
+            val desiredHeight = defaultKeyboardHeight + visibleToolbarHeight + emojiExtra +
+                navigationBottomInset
             val height = when (MeasureSpec.getMode(heightMeasureSpec)) {
                 MeasureSpec.EXACTLY -> MeasureSpec.getSize(heightMeasureSpec)
                 MeasureSpec.AT_MOST -> desiredHeight.coerceAtMost(MeasureSpec.getSize(heightMeasureSpec))
@@ -1716,18 +1732,16 @@ class KaruikeyService : InputMethodService() {
             for (index in 0 until utilityToolbar.childCount) {
                 utilityToolbar.getChildAt(index).setWidthIfChanged(utilityButtonWidth)
             }
-            val contentHeight = keyboardHeight
-            val emojiHeight = contentHeight * 58 / 100
-            if (emojiPanel.isSearchActive()) {
+            if (searchStrip > 0) {
                 (emojiPanel.layoutParams as FrameLayout.LayoutParams).apply {
                     this.width = LayoutParams.MATCH_PARENT
-                    this.height = emojiHeight
+                    this.height = searchStrip
                     topMargin = 0
                 }.also { emojiPanel.layoutParams = it }
                 (keyboardView.layoutParams as FrameLayout.LayoutParams).apply {
                     this.width = LayoutParams.MATCH_PARENT
-                    this.height = contentHeight - emojiHeight
-                    topMargin = emojiHeight
+                    this.height = (keyboardHeight - searchStrip).coerceAtLeast(1)
+                    topMargin = searchStrip
                 }.also { keyboardView.layoutParams = it }
             }
             toolbar.measure(
