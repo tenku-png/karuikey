@@ -94,6 +94,10 @@ public final class KeyPreviewChoreographer {
         }
         keyPreviewView.setTag(null);
         keyPreviewView.setVisibility(View.INVISIBLE);
+        // Reset what the fade/scale animators leave behind so a reused view starts clean.
+        keyPreviewView.setAlpha(1f);
+        keyPreviewView.setScaleX(1f);
+        keyPreviewView.setScaleY(1f);
         mFreeKeyPreviewViews.add(keyPreviewView);
     }
 

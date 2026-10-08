@@ -18,15 +18,22 @@
 ** limitations under the License.
 */
 -->
-<set xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- Expressive exit: shrinks toward the key while fading. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/accelerate_interpolator">
     <objectAnimator
         android:propertyName="scaleX"
-        android:duration="53"
+        android:duration="70"
         android:valueFrom="1.00"
-        android:valueTo="0.94" />
+        android:valueTo="0.88" />
     <objectAnimator
         android:propertyName="scaleY"
-        android:duration="53"
+        android:duration="70"
         android:valueFrom="1.00"
-        android:valueTo="0.94" />
+        android:valueTo="0.88" />
+    <objectAnimator
+        android:propertyName="alpha"
+        android:duration="70"
+        android:valueFrom="1.0"
+        android:valueTo="0.0" />
 </set>

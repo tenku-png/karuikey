@@ -18,15 +18,23 @@
 ** limitations under the License.
 */
 -->
-<set xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- Expressive pop: grows from the key with a small overshoot. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/overshoot_interpolator">
     <objectAnimator
         android:propertyName="scaleX"
-        android:duration="17"
-        android:valueFrom="0.98"
+        android:duration="90"
+        android:valueFrom="0.82"
         android:valueTo="1.00" />
     <objectAnimator
         android:propertyName="scaleY"
-        android:duration="17"
-        android:valueFrom="0.98"
+        android:duration="90"
+        android:valueFrom="0.82"
         android:valueTo="1.00" />
+    <objectAnimator
+        android:propertyName="alpha"
+        android:duration="50"
+        android:interpolator="@android:anim/decelerate_interpolator"
+        android:valueFrom="0.0"
+        android:valueTo="1.0" />
 </set>
