@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 
 object KaruikeySettingsTokens {
@@ -95,7 +97,7 @@ fun SettingsScaffold(
                         Text(
                             "Karuikey Keyboard",
                             style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -269,8 +271,11 @@ fun ChoiceRow(title: String, selected: Boolean, onClick: () -> Unit) {
         ) {
             Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             if (selected) {
-                Text("✓", color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    painterResource(R.drawable.ic_settings_check),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
