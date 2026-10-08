@@ -164,7 +164,7 @@ internal class EmojiPanel(
     private fun render() {
         if (searchMode) {
             searchButton.text = if (query.isEmpty()) "Type emoji name" else query
-            renderEntries(EmojiCatalog.search(query))
+            renderEntries(EmojiCatalog.search(query, serviceContext))
         } else {
             searchButton.text = "Search emoji"
             renderEntries(EmojiCatalog.entries(category, serviceContext))

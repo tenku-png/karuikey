@@ -80,6 +80,8 @@ class KaruikeyService : InputMethodService() {
         SubtypeLocaleUtils.init(this)
         super.onCreate()
         SuggestionEngine.initialize(this)
+        // Warm the emoji catalog off the main thread so the first panel open is instant.
+        Thread({ EmojiCatalog.load(this) }, "emoji-catalog").start()
         val preferences = getSharedPreferences("karuikey_settings", MODE_PRIVATE)
         preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
             inputView?.post { refreshInputViewForPreferences() }
