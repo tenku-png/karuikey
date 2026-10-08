@@ -23,7 +23,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.ButtonGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.toShape
 import androidx.compose.material3.MaterialShapes
@@ -117,7 +120,11 @@ fun SettingsScaffold(
                 },
                 navigationIcon = {
                     if (!isHome) {
-                        IconButton(onClick = onBack) {
+                        FilledTonalIconButton(
+                            onClick = onBack,
+                            shapes = IconButtonDefaults.shapes(),
+                            modifier = Modifier.padding(start = 8.dp)
+                        ) {
                             MaterialSymbolIcon(KaruikeySymbol.ARROW_BACK, "Back", size = 24.sp)
                         }
                     }
@@ -133,29 +140,34 @@ fun SettingsScaffold(
     ) { padding -> content(Modifier.padding(padding)) }
 }
 
+// Page content rises into place on first composition, staggered by index.
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun Modifier.riseIn(index: Int): Modifier {
+    val motion = MaterialTheme.motionScheme
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(index * 35L)
+        enter.animateTo(1f, motion.defaultSpatialSpec())
+    }
+    val rise = with(LocalDensity.current) { 24.dp.toPx() }
+    return graphicsLayer {
+        alpha = enter.value.coerceIn(0f, 1f)
+        translationY = (1f - enter.value) * rise
+    }
+}
+
+@Composable
 fun SettingsGroup(
     shape: Shape? = null,
     modifier: Modifier = Modifier,
     enterIndex: Int = 0,
     content: @Composable () -> Unit
 ) {
-    // Groups rise into place on first composition, staggered by enterIndex.
-    val motion = MaterialTheme.motionScheme
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        delay(enterIndex * 35L)
-        enter.animateTo(1f, motion.defaultSpatialSpec())
-    }
-    val rise = with(LocalDensity.current) { 24.dp.toPx() }
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                alpha = enter.value.coerceIn(0f, 1f)
-                translationY = (1f - enter.value) * rise
-            },
+            .riseIn(enterIndex),
         shape = shape ?: MaterialTheme.shapes.large,
         color = karuikeySettingsSurfacePalette().sectionContainer,
         tonalElevation = 0.dp
@@ -243,13 +255,19 @@ fun SettingsSwitchRow(
 }
 
 @Composable
-fun SectionLabel(text: String) {
+fun SectionLabel(text: String, enterIndex: Int = 0) {
+    // Small header in the condensed display cut so it pairs with the page title.
     Text(
         text,
-        // Expressive list headers are small, muted labels aligned with row text.
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.headlineSmall.copy(
+            fontSize = 16.sp,
+            lineHeight = 22.sp,
+            fontWeight = FontWeight(600)
+        ),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 16.dp, top = 8.dp)
+        modifier = Modifier
+            .padding(start = 16.dp, top = 8.dp)
+            .riseIn(enterIndex)
     )
 }
 
@@ -285,28 +303,38 @@ fun GroupDivider() {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun <T> ChoiceButtonGroup(options: List<Pair<String, T>>, selected: T, onSelect: (T) -> Unit) {
     val view = LocalView.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
+    // ButtonGroup widens the pressed button and squeezes its neighbours with a spring.
+    ButtonGroup(
+        overflowIndicator = { },
+        modifier = Modifier.fillMaxWidth().riseIn(0),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
     ) {
         options.forEachIndexed { index, (label, value) ->
-            ToggleButton(
-                checked = value == selected,
-                onCheckedChange = {
-                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                    onSelect(value)
+            customItem(
+                buttonGroupContent = {
+                    val interactionSource = remember { MutableInteractionSource() }
+                    ToggleButton(
+                        checked = value == selected,
+                        onCheckedChange = {
+                            view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                            onSelect(value)
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .animateWidth(interactionSource)
+                            .semantics { role = Role.RadioButton },
+                        interactionSource = interactionSource,
+                        shapes = when (index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        }
+                    ) {
+                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .semantics { role = Role.RadioButton },
-                shapes = when (index) {
-                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                    options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
-                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
-                }
-            ) {
-                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+                menuContent = { }
+            )
         }
     }
 }

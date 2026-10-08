@@ -173,8 +173,8 @@ private fun HomePage(
                 onNavigate(SettingsPage.ABOUT)
             }
         }
-        SectionLabel("System")
-        SettingsGroup(enterIndex = 4) {
+        SectionLabel("System", enterIndex = 5)
+        SettingsGroup(enterIndex = 6) {
             SettingsRow(KaruikeySymbol.SETTINGS, "Keyboard setup", "Open Android keyboard settings") {
                 context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
             }
