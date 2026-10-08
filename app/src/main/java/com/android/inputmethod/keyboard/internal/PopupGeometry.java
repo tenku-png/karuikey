@@ -182,6 +182,16 @@ public final class PopupGeometry {
                 panelWidth, availableWidth);
     }
 
+    /**
+     * Returns the panel top in keyboard coordinates. The panel may rise into roomAbove, the part of
+     * the IME window above the keys (toolbar, suggestions), so top-row popups do not cover the finger.
+     */
+    public static int getPanelTop(final int desiredY, final int panelHeight,
+            final int availableHeight, final int roomAbove) {
+        final int room = Math.max(0, roomAbove);
+        return clampPosition(desiredY + room, panelHeight, availableHeight + room) - room;
+    }
+
     /** Returns a compact preview height derived from the visible keycap height. */
     public static int getPreviewHeight(final int keyHeight, final int maxPreviewHeight) {
         if (keyHeight <= 0 || maxPreviewHeight <= 0) {

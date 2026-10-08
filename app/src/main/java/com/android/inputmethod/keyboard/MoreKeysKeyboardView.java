@@ -144,8 +144,9 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
         final int panelLocalX = PopupGeometry.getPanelLeft(
                 pointX, getDefaultCoordX() + getPaddingLeft(), container.getMeasuredWidth(),
                 parentView.getMeasuredWidth(), container.getPaddingLeft());
-        final int panelLocalY = PopupGeometry.clampPosition(
-                y, container.getMeasuredHeight(), parentView.getMeasuredHeight());
+        final int panelLocalY = PopupGeometry.getPanelTop(
+                y, container.getMeasuredHeight(), parentView.getMeasuredHeight(),
+                getRoomAbove(parentView));
         final int panelX = panelLocalX + CoordinateUtils.x(mCoordinates);
         final int panelY = panelLocalY + CoordinateUtils.y(mCoordinates);
         container.setX(panelX);
@@ -162,6 +163,17 @@ public class MoreKeysKeyboardView extends KeyboardView implements MoreKeysPanel 
                 && AccessibilityUtils.getInstance().isAccessibilityEnabled()) {
             accessibilityDelegate.onShowMoreKeysKeyboard();
         }
+    }
+
+    /** Height of the IME window content above the keys, which the panel is allowed to cover. */
+    private int getRoomAbove(final View parentView) {
+        final View content = parentView.getRootView().findViewById(android.R.id.content);
+        if (content == null) {
+            return 0;
+        }
+        final int[] contentCoords = CoordinateUtils.newInstance();
+        content.getLocationInWindow(contentCoords);
+        return Math.max(0, CoordinateUtils.y(mCoordinates) - CoordinateUtils.y(contentCoords));
     }
 
     /**

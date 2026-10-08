@@ -192,4 +192,15 @@ class PopupGeometryTest {
             PopupGeometry.getPreviewTextSize(80) < PopupGeometry.getPreviewHeight(100, 160)
         )
     }
+
+    @Test
+    fun topRowPanelRisesIntoRoomAboveTheKeys() {
+        // Desired top above the keys: allowed as far as the toolbar area reaches.
+        assertEquals(-80, PopupGeometry.getPanelTop(-80, 120, 600, 150))
+        assertEquals(-150, PopupGeometry.getPanelTop(-400, 120, 600, 150))
+        // Without room above the old clamp to the keyboard top applies.
+        assertEquals(0, PopupGeometry.getPanelTop(-80, 120, 600, 0))
+        // The bottom edge still stays inside the keyboard.
+        assertEquals(480, PopupGeometry.getPanelTop(560, 120, 600, 150))
+    }
 }
