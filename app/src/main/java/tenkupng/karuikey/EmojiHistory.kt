@@ -15,6 +15,7 @@ internal object EmojiHistory {
     private const val PREFS = "karuikey_emoji_history"
     private const val ITEMS = "items"
     private const val MAX_ITEMS = 40
+    private const val VARIANT_PREFIX = "variant:"
 
     @Synchronized
     fun recent(context: Context): List<String> = read(context)
@@ -39,6 +40,19 @@ internal object EmojiHistory {
             }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(ITEMS, array.toString()).apply()
+    }
+
+    /** Skin tone or other variant last chosen for each base emoji. */
+    fun preferredVariants(context: Context): Map<String, String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all.mapNotNull { (key, value) ->
+            if (key.startsWith(VARIANT_PREFIX) && value is String) {
+                key.removePrefix(VARIANT_PREFIX) to value
+            } else null
+        }.toMap()
+
+    fun setPreferredVariant(context: Context, base: String, variant: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(VARIANT_PREFIX + base, variant).apply()
     }
 
     fun clear(context: Context) {

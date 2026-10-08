@@ -6,7 +6,6 @@ import android.view.View
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.view.ViewGroup
 
@@ -29,12 +28,11 @@ internal class EmojiPanel(
     private val searchButton = TextView(serviceContext)
     // Only text labels use Roboto Flex; emoji glyphs stay on the system emoji font.
     private val labelTypeface = KaruikeyTypeface.create(serviceContext, 400)
-    private val grid = android.widget.GridLayout(serviceContext)
-    private val gridScroll = ScrollView(serviceContext)
-    private var category = EmojiCategory.FACES
+    private val grid = EmojiGridView(serviceContext, appearance, labelTypeface)
+    private val tabs = HashMap<EmojiCategory, TextView>()
+    private var preferredVariants: Map<String, String> = emptyMap()
     private var searchMode = false
     private var query = ""
-    private var columns = 0
 
     init {
         orientation = VERTICAL
@@ -93,15 +91,16 @@ internal class EmojiPanel(
         categoryScroll.addView(categoryRow, ViewGroup.LayoutParams.WRAP_CONTENT, dp(44))
         addView(categoryScroll, LinearLayout.LayoutParams.MATCH_PARENT, dp(44))
 
-        grid.columnCount = 8
-        grid.alignmentMode = android.widget.GridLayout.ALIGN_BOUNDS
-        grid.useDefaultMargins = false
-        gridScroll.addView(grid, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        addView(gridScroll, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-        ))
+        grid.displayFor = { entry -> preferredVariants[entry.emoji] ?: entry.emoji }
+        grid.onEmojiClick = { _, emoji ->
+            variantScroll.visibility = GONE
+            select(emoji)
+        }
+        grid.onEmojiLongClick = { entry -> showVariants(entry) }
+        grid.onSectionVisible = { category -> highlightTab(category) }
+        addView(grid, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         buildCategories()
-        render()
+        render(resetScroll = true)
     }
 
     fun isSearchActive(): Boolean = searchMode
@@ -153,80 +152,37 @@ internal class EmojiPanel(
                 setPadding(dp(13), 0, dp(13), 0)
                 setBackgroundResource(tenkupng.karuikey.R.drawable.keyboard_toolbar_button_background)
                 setOnClickListener {
-                    category = item
                     variantScroll.visibility = GONE
-                    render()
+                    grid.scrollToCategory(item)
                 }
-            }, LinearLayout.LayoutParams(dp(54), dp(44)))
+            }.also { tabs[item] = it }, LinearLayout.LayoutParams(dp(54), dp(44)))
         }
     }
 
-    private fun render() {
+    private fun render(resetScroll: Boolean = false) {
+        preferredVariants = EmojiHistory.preferredVariants(serviceContext)
         if (searchMode) {
             searchButton.text = if (query.isEmpty()) "Type emoji name" else query
-            renderEntries(EmojiCatalog.search(query, serviceContext))
+            grid.emptyText = if (query.isEmpty()) "" else "No matching emoji"
+            grid.setSections(listOf(EmojiGridView.Section(null, "",
+                EmojiCatalog.search(query, serviceContext))), resetScroll = true)
         } else {
             searchButton.text = "Search emoji"
-            renderEntries(EmojiCatalog.entries(category, serviceContext))
+            grid.emptyText = "No emoji available"
+            grid.setSections(EmojiCategory.entries.map { category ->
+                EmojiGridView.Section(category, category.title,
+                    EmojiCatalog.entries(category, serviceContext))
+            }, resetScroll)
         }
     }
 
-    private fun renderEntries(entries: List<EmojiEntry>) {
-        if (width > 0) {
-            val newColumns = (width / dp(48).coerceAtLeast(1)).coerceIn(4, 10)
-            if (newColumns != columns) {
-                columns = newColumns
-                grid.columnCount = columns
-            }
-        }
-        grid.removeAllViews()
-        if (entries.isEmpty()) {
-            grid.addView(TextView(serviceContext).apply {
-                text = if (searchMode) "No matching emoji" else "No recent emoji"
-                typeface = labelTypeface
-                gravity = Gravity.CENTER
-                setTextColor(appearance.secondaryText)
-            }, android.widget.GridLayout.LayoutParams().apply {
-                width = ViewGroup.LayoutParams.MATCH_PARENT
-                height = dp(72)
-                columnSpec = android.widget.GridLayout.spec(0, columns.coerceAtLeast(1))
-            })
-            return
-        }
-        entries.forEach { entry ->
-            grid.addView(TextView(serviceContext).apply {
-                text = entry.emoji
-                textSize = 26f
-                gravity = Gravity.CENTER
-                isClickable = true
-                isFocusable = true
-                contentDescription = entry.name
-                setTextColor(appearance.primaryText)
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(12).toFloat()
-                    setColor(appearance.keySurface)
-                }
-                setPadding(dp(2), dp(2), dp(2), dp(2))
-                setOnClickListener { select(entry.emoji) }
-                setOnLongClickListener {
-                    if (entry.variants.isEmpty()) return@setOnLongClickListener false
-                    showVariants(entry.variants)
-                    true
-                }
-            }, android.widget.GridLayout.LayoutParams().apply {
-                width = 0
-                height = dp(48)
-                columnSpec = android.widget.GridLayout.spec(
-                    android.widget.GridLayout.UNDEFINED, 1f
-                )
-                setMargins(dp(2), dp(2), dp(2), dp(2))
-            })
-        }
+    private fun highlightTab(category: EmojiCategory?) {
+        tabs.forEach { (item, tab) -> tab.alpha = if (item == category) 1f else 0.55f }
     }
 
-    private fun showVariants(variants: List<String>) {
+    private fun showVariants(entry: EmojiEntry) {
         variantRow.removeAllViews()
-        variants.forEach { emoji ->
+        (listOf(entry.emoji) + entry.variants).forEach { emoji ->
             variantRow.addView(TextView(serviceContext).apply {
                 text = emoji
                 textSize = 24f
@@ -234,7 +190,12 @@ internal class EmojiPanel(
                 contentDescription = "Emoji variant $emoji"
                 setTextColor(appearance.primaryText)
                 setBackgroundResource(tenkupng.karuikey.R.drawable.keyboard_toolbar_button_background)
-                setOnClickListener { select(emoji) }
+                setOnClickListener {
+                    EmojiHistory.setPreferredVariant(serviceContext, entry.emoji, emoji)
+                    variantScroll.visibility = GONE
+                    select(emoji)
+                    render()
+                }
             }, LinearLayout.LayoutParams(dp(52), dp(48)))
         }
         variantScroll.visibility = VISIBLE
@@ -245,8 +206,4 @@ internal class EmojiPanel(
         onEmojiSelected(emoji)
     }
 
-    override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
-        super.onSizeChanged(width, height, oldWidth, oldHeight)
-        render()
-    }
 }
