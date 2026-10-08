@@ -40,6 +40,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.toShape
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.Role
@@ -127,13 +134,28 @@ fun SettingsScaffold(
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 fun SettingsGroup(
     shape: Shape? = null,
     modifier: Modifier = Modifier,
+    enterIndex: Int = 0,
     content: @Composable () -> Unit
 ) {
+    // Groups rise into place on first composition, staggered by enterIndex.
+    val motion = MaterialTheme.motionScheme
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(enterIndex * 35L)
+        enter.animateTo(1f, motion.defaultSpatialSpec())
+    }
+    val rise = with(LocalDensity.current) { 24.dp.toPx() }
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = enter.value.coerceIn(0f, 1f)
+                translationY = (1f - enter.value) * rise
+            },
         shape = shape ?: MaterialTheme.shapes.large,
         color = karuikeySettingsSurfacePalette().sectionContainer,
         tonalElevation = 0.dp
@@ -150,20 +172,14 @@ fun SettingsRow(
     onClick: () -> Unit
 ) {
     val surfaces = karuikeySettingsSurfacePalette()
-    ExpressivePressSurface(onClick = onClick) {
+    ExpressivePressSurface(onClick = onClick) { pressed ->
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
             supportingContent = {
                 Text(summary, color = surfaces.supportingText, maxLines = 2,
                     overflow = TextOverflow.Ellipsis)
             },
-            leadingContent = {
-                MaterialSymbolIcon(
-                    icon,
-                    tint = surfaces.iconTint,
-                    modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize)
-                )
-            },
+            leadingContent = { RowIcon(icon, pressed) },
             trailingContent = {
                 MaterialSymbolIcon(
                     KaruikeySymbol.CHEVRON_RIGHT,
@@ -192,17 +208,14 @@ fun SettingsSwitchRow(
     ExpressivePressSurface(enabled = enabled, onClick = {
         view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
         onCheckedChange(!checked)
-    }) {
+    }) { pressed ->
         ListItem(
             headlineContent = { Text(title, style = MaterialTheme.typography.titleMedium) },
             supportingContent = {
                 Text(summary, color = surfaces.supportingText,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
             },
-            leadingContent = {
-                MaterialSymbolIcon(icon, tint = surfaces.iconTint,
-                    modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize))
-            },
+            leadingContent = { RowIcon(icon, pressed) },
             trailingContent = {
                 Switch(
                     checked = checked,
@@ -299,11 +312,47 @@ fun <T> ChoiceButtonGroup(options: List<Pair<String, T>>, selected: T, onSelect:
 
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun RowIcon(icon: KaruikeySymbol, pressed: Boolean) {
+    // Cookie-shaped tonal container that spins and swells while its row is pressed.
+    val motion = MaterialTheme.motionScheme
+    val colors = MaterialTheme.colorScheme
+    val shape = MaterialShapes.Cookie9Sided.toShape()
+    val spin by animateFloatAsState(
+        if (pressed) 45f else 0f,
+        animationSpec = motion.defaultSpatialSpec(),
+        label = "row icon spin"
+    )
+    val swell by animateFloatAsState(
+        if (pressed) 1.08f else 1f,
+        animationSpec = motion.fastSpatialSpec(),
+        label = "row icon swell"
+    )
+    Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .graphicsLayer {
+                    rotationZ = spin
+                    scaleX = swell
+                    scaleY = swell
+                }
+                .background(colors.secondaryContainer, shape)
+        )
+        MaterialSymbolIcon(
+            icon,
+            tint = colors.onSecondaryContainer,
+            modifier = Modifier.size(KaruikeySettingsTokens.rowIconSize)
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun ExpressivePressSurface(
     enabled: Boolean = true,
     restingColor: Color = Color.Transparent,
     onClick: () -> Unit,
-    content: @Composable () -> Unit
+    content: @Composable (pressed: Boolean) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -340,7 +389,7 @@ private fun ExpressivePressSurface(
             ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(radius),
         color = color
-    ) { content() }
+    ) { content(pressed) }
 }
 
 @Composable

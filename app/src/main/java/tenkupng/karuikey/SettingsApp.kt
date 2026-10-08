@@ -144,35 +144,37 @@ private fun HomePage(
         "History off"
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
-        SettingsGroup {
+        SettingsGroup(enterIndex = 0) {
             SettingsRow(KaruikeySymbol.LANGUAGE, "Languages",
                 languages.joinToString { it.displayName }) { onNavigate(SettingsPage.LANGUAGES) }
         }
-        SettingsGroup {
+        SettingsGroup(enterIndex = 1) {
             SettingsRow(KaruikeySymbol.PALETTE, "Appearance", "$theme · ${KaruikeyPreferences.heightPercent(context)}% height") {
                 onNavigate(SettingsPage.APPEARANCE)
             }
+            GroupDivider()
             SettingsRow(KaruikeySymbol.KEYBOARD, "Typing",
                 "Suggestions · ${if (KaruikeyPreferences.suggestionsEnabled(context)) "On" else "Off"}") {
                 onNavigate(SettingsPage.TYPING)
             }
         }
-        SettingsGroup {
+        SettingsGroup(enterIndex = 2) {
             SettingsRow(KaruikeySymbol.CONTENT_PASTE, "Clipboard", clipboardSummary) {
                 onNavigate(SettingsPage.CLIPBOARD)
             }
         }
-        SettingsGroup {
+        SettingsGroup(enterIndex = 3) {
             SettingsRow(KaruikeySymbol.KEYBOARD_ALT, "Try Karuikey",
                 "Test text, email, multiline, numeric, and search fields") {
                 onNavigate(SettingsPage.TRY)
             }
+            GroupDivider()
             SettingsRow(KaruikeySymbol.INFO, "About", "Version and open-source notices") {
                 onNavigate(SettingsPage.ABOUT)
             }
         }
         SectionLabel("System")
-        SettingsGroup {
+        SettingsGroup(enterIndex = 4) {
             SettingsRow(KaruikeySymbol.SETTINGS, "Keyboard setup", "Open Android keyboard settings") {
                 context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
             }
