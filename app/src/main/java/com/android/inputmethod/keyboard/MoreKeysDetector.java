@@ -42,10 +42,8 @@ public final class MoreKeysDetector extends KeyDetector {
         }
         final int touchX = getTouchX(x);
         final int touchY = getTouchY(y);
-        if (touchX < 0 || touchY < 0 || touchX >= keyboard.mOccupiedWidth
-                || touchY >= keyboard.mOccupiedHeight) {
-            return null;
-        }
+        // No hard bounds check: the panel sits above the finger, so touches just outside it
+        // must still reach the nearest key within the slide allowance.
 
         Key nearestKey = null;
         int nearestDist = (y < 0) ? mSlideAllowanceSquareTop : mSlideAllowanceSquare;
