@@ -46,10 +46,15 @@ import com.android.inputmethod.latin.utils.SubtypeLocaleUtils
 
 // Enough text before the cursor for one word plus three context words.
 private const val RESUME_CONTEXT_LENGTH = 64
+private const val STRIP_FADE_MS = 120L
+
+// Display order of candidate slots: the best suggestion (index 0) goes in the middle.
+private val CANDIDATE_DISPLAY_ORDER = intArrayOf(1, 0, 2)
 
 class KaruikeyService : InputMethodService() {
     private val keyboardTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 400) }
     private val suggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 475) }
+    private val primarySuggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 650) }
     private var inputView: KaruikeyInputView? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
@@ -1186,8 +1191,11 @@ class KaruikeyService : InputMethodService() {
             candidateRegion.gravity = Gravity.CENTER_VERTICAL
             candidateViews.forEachIndexed { index, candidate ->
                 installCandidateListeners(index, candidate)
-                candidateRegion.addView(candidate)
             }
+            // The best suggestion sits in the middle slot and is set in a heavier weight.
+            candidateViews[0].typeface = primarySuggestionTypeface
+            for (index in CANDIDATE_DISPLAY_ORDER) candidateRegion.addView(candidateViews[index])
+            candidateRegion.visibility = View.GONE
             suggestionToolbar.addView(candidateRegion, LinearLayout.LayoutParams(
                 0, LayoutParams.MATCH_PARENT
             ))
@@ -1626,6 +1634,16 @@ class KaruikeyService : InputMethodService() {
             return true
         }
 
+        private fun showCandidates(show: Boolean) {
+            val shown = candidateRegion.visibility == View.VISIBLE
+            if (show == shown) return
+            val incoming = if (show) candidateRegion else utilityToolbar
+            (if (show) utilityToolbar else candidateRegion).visibility = View.GONE
+            incoming.visibility = View.VISIBLE
+            incoming.alpha = 0f
+            incoming.animate().alpha(1f).setDuration(STRIP_FADE_MS).start()
+        }
+
         fun markSuggestionsPending(requestId: Long, query: String) {
             for (index in candidateViews.indices) {
                 candidateRequestIds[index] = requestId - 1
@@ -1672,6 +1690,8 @@ class KaruikeyService : InputMethodService() {
                 candidateQueries[index] = if (text != null) query else null
                 candidateRequestIds[index] = requestId
             }
+            // Keep the candidates up for the whole word so pending results do not flicker icons.
+            showCandidates(suggestions.isNotEmpty() || query.isNotEmpty())
         }
 
         private fun toolbarButton(icon: Int, description: Int, action: () -> Unit) =
@@ -1722,16 +1742,14 @@ class KaruikeyService : InputMethodService() {
             }
             val keyboardHeight = (height - visibleToolbarHeight - navigationBottomInset).coerceAtLeast(1)
             setMeasuredDimension(width, height)
-            val utilityWidth = SuggestionStripGeometry.utilityWidth(width, toolbarHeight)
-            val candidateWidth = SuggestionStripGeometry.candidateRegionWidth(width, toolbarHeight)
-            candidateRegion.setWidthIfChanged(candidateWidth)
-            utilityToolbar.setWidthIfChanged(utilityWidth)
-            candidateViews.forEachIndexed { index, candidate ->
-                candidate.setWidthIfChanged(
-                    SuggestionStripGeometry.candidateSlotWidth(candidateWidth, index)
+            candidateRegion.setWidthIfChanged(width)
+            utilityToolbar.setWidthIfChanged(width)
+            CANDIDATE_DISPLAY_ORDER.forEachIndexed { slot, index ->
+                candidateViews[index].setWidthIfChanged(
+                    SuggestionStripGeometry.candidateSlotWidth(width, slot)
                 )
             }
-            val utilityButtonWidth = utilityWidth / SuggestionStripGeometry.UTILITY_COUNT
+            val utilityButtonWidth = width / SuggestionStripGeometry.UTILITY_COUNT
             for (index in 0 until utilityToolbar.childCount) {
                 utilityToolbar.getChildAt(index).setWidthIfChanged(utilityButtonWidth)
             }

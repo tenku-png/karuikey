@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Material 3 menu items: no resting container, a tonal pill only on the selected key. -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_pressed="true"><shape><corners android:radius="10dp"/><solid android:color="?attr/keyboardPopupSelectedColor"/></shape></item>
-    <item><shape><corners android:radius="10dp"/><solid android:color="?attr/keyboardPopupColor"/></shape></item>
+    <item android:state_pressed="true"><shape><corners android:radius="999dp"/><solid android:color="?attr/keyboardPopupSelectedColor"/></shape></item>
+    <item><shape><solid android:color="@android:color/transparent"/></shape></item>
 </selector>

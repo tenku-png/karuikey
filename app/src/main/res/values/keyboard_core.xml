@@ -81,6 +81,9 @@
     </style>
     <style name="MoreKeysKeyboardView" parent="KeyboardView">
         <item name="keyBackground">@drawable/keyboard_popup_key_background</item>
+        <item name="functionalKeyBackground">@drawable/keyboard_popup_key_background</item>
+        <item name="spacebarBackground">@drawable/keyboard_popup_key_background</item>
+        <item name="actionKeyBackground">@drawable/keyboard_popup_key_background</item>
     </style>
 
     <dimen name="config_default_keyboard_height">205.6dp</dimen>

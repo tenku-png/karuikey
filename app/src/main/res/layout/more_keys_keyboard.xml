@@ -8,6 +8,7 @@
     android:padding="4dp">
     <com.android.inputmethod.keyboard.MoreKeysKeyboardView
         android:id="@+id/more_keys_keyboard_view"
+        style="@style/MoreKeysKeyboardView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 </FrameLayout>

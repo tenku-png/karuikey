@@ -238,13 +238,10 @@ class KeyboardResourceTest {
     @Test
     fun suggestionStripKeepsRegionsAndSlotsStable() {
         for (width in intArrayOf(240, 411, 1080)) {
-            val utility = SuggestionStripGeometry.utilityWidth(width, 48)
-            val candidates = SuggestionStripGeometry.candidateRegionWidth(width, 48)
             val slots = (0 until SuggestionStripGeometry.CANDIDATE_COUNT).map {
-                SuggestionStripGeometry.candidateSlotWidth(candidates, it)
+                SuggestionStripGeometry.candidateSlotWidth(width, it)
             }
-            assertEquals(width, utility + slots.sum())
-            assertEquals(candidates, slots.sum())
+            assertEquals(width, slots.sum())
             assertTrue(slots.all { it >= 0 })
         }
     }
