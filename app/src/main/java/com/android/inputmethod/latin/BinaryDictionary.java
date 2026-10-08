@@ -25,6 +25,7 @@ import java.util.Locale;
 public final class BinaryDictionary {
     private static final int MAX_WORD_LENGTH = 48;
     private static final int MAX_RESULTS = 18;
+    private static final int MIN_CORRECTION_INPUT = 2;
     private static final int NOT_A_CODE = -1;
 
     static {
@@ -137,6 +138,7 @@ public final class BinaryDictionary {
             }
             mOrder[j + 1] = index;
         }
+        String correction = null;
         for (int rank = 0; rank < count; rank++) {
             final int start = mOrder[rank] * MAX_WORD_LENGTH;
             int length = 0;
@@ -146,8 +148,12 @@ public final class BinaryDictionary {
             if ((inputSize == 0 || candidate.toLowerCase(Locale.ROOT).startsWith(lowerPrefix)) &&
                     !out.contains(candidate)) {
                 out.add(candidate);
+            } else if (inputSize >= MIN_CORRECTION_INPUT && correction == null && out.isEmpty()) {
+                // A typo fix only counts when it outscores every completion of what was typed.
+                correction = candidate;
             }
         }
+        if (correction != null && !out.contains(correction)) out.add(0, correction);
         if (out.isEmpty() && inputSize == 0) {
             final String[] topWords = topWords();
             for (final String word : topWords) {

@@ -506,7 +506,9 @@ object SuggestionEngine {
         if (context == null) return
         for (index in out.lastIndex downTo 0) {
             val candidate = out[index]
-            if (!candidate.startsWith(prefix.toString(), ignoreCase = true) ||
+            // Only the first slot may hold a typo correction that does not extend the prefix.
+            val allowedCorrection = index == 0 && prefix.isNotEmpty()
+            if ((!allowedCorrection && !candidate.startsWith(prefix.toString(), ignoreCase = true)) ||
                 SuggestionBlacklist.contains(context, locale, candidate)
             ) out.removeAt(index)
         }
