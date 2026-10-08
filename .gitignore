@@ -13,3 +13,13 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# AI / Agent Tooling & MCP
+.claude/
+.agents/
+skills-lock.json
+.codebase-memory/
+
+.idea/codeStyles/
+.idea/markdown.xml
+.idea/.name
