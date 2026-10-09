@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
 import java.util.LinkedHashSet
 import java.util.Locale
 
@@ -465,35 +466,43 @@ object KaruikeyPreferences {
         )
     }
 
+    // Panels read the same Material You roles as the key theme so both surfaces always match:
+    // background surfaceContainerLow, letters a raised container, modifiers one step lower.
     private fun dynamicAppearance(context: Context, isDark: Boolean): KeyboardAppearance {
-        val color = context::getColor
-        val neutralSurface = color(if (isDark) android.R.color.system_neutral1_900
-            else android.R.color.system_neutral1_10)
-        val keySurface = color(if (isDark) android.R.color.system_neutral2_800
-            else android.R.color.system_neutral2_50)
-        val functionalSurface = color(if (isDark) android.R.color.system_neutral2_700
-            else android.R.color.system_neutral2_100)
-        val actionSurface = color(if (isDark) android.R.color.system_accent1_200
-            else android.R.color.system_accent1_600)
-        val primaryText = color(if (isDark) android.R.color.system_neutral1_10
-            else android.R.color.system_neutral1_900)
-        val secondaryText = color(if (isDark) android.R.color.system_neutral2_200
-            else android.R.color.system_neutral2_700)
-        val actionText = color(if (isDark) android.R.color.system_accent1_900
-            else android.R.color.system_accent1_10)
-        val pressed = color(if (isDark) android.R.color.system_accent2_700
-            else android.R.color.system_accent2_100)
-        val locked = color(if (isDark) android.R.color.system_accent3_700
-            else android.R.color.system_accent3_100)
-        val disabled = color(if (isDark) android.R.color.system_neutral2_300
-            else android.R.color.system_neutral2_500)
-        val onPressed = color(if (isDark) android.R.color.system_accent2_100
-            else android.R.color.system_accent2_900)
+        val themed = DynamicColors.wrapContextIfAvailable(
+            android.view.ContextThemeWrapper(
+                context,
+                if (isDark) R.style.Theme_Karuikey_Keyboard_Dynamic_Dark
+                else R.style.Theme_Karuikey_Keyboard_Dynamic_Light
+            )
+        )
+        fun role(attr: Int) = MaterialColors.getColor(themed, attr, Color.MAGENTA)
+        val keySurface = role(R.attr.keyboardKeyColor)
+        val primaryText = role(R.attr.keyboardTextColor)
         return KeyboardAppearance(
-            isDark, true, neutralSurface, keySurface, functionalSurface, actionSurface,
-            primaryText, secondaryText, primaryText, actionText, disabled,
-            keySurface, primaryText, pressed, locked,
-            onSecondaryContainer = onPressed
+            isDark, true,
+            keyboardBackground = role(
+                if (isDark) com.google.android.material.R.attr.colorSurfaceContainerLow
+                else com.google.android.material.R.attr.colorSurfaceContainer
+            ),
+            keySurface = keySurface,
+            functionalKeySurface = role(R.attr.keyboardFunctionalColor),
+            actionSurface = role(R.attr.keyboardActionColor),
+            primaryText = primaryText,
+            secondaryText = role(R.attr.keyboardSecondaryTextColor),
+            functionalText = role(R.attr.keyboardFunctionalTextColor),
+            actionText = role(R.attr.keyboardActionTextColor),
+            disabledText = role(R.attr.keyboardDisabledTextColor),
+            popupSurface = role(R.attr.keyboardPopupColor),
+            popupText = primaryText,
+            pressedSurface = role(R.attr.keyboardPressedColor),
+            shiftLockedSurface = role(R.attr.keyboardShiftLockedColor),
+            onSecondaryContainer = role(
+                com.google.android.material.R.attr.colorOnSecondaryContainer
+            ),
+            surfaceContainerHigh = role(
+                com.google.android.material.R.attr.colorSurfaceContainerHigh
+            )
         )
     }
 

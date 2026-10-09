@@ -2,11 +2,11 @@
     <style name="Theme.Karuikey" parent="Theme.Material3.DayNight.NoActionBar" />
 
     <style name="Theme.Karuikey.Keyboard.Dynamic.Light" parent="Theme.Material3.Light.NoActionBar">
-        <item name="keyboardKeyColor">?attr/colorSurfaceVariant</item>
-        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
+        <item name="keyboardKeyColor">?attr/colorSurfaceContainerLowest</item>
+        <item name="keyboardFunctionalColor">?attr/colorSurfaceContainerHighest</item>
         <item name="keyboardActionColor">?attr/colorPrimary</item>
         <item name="keyboardActionTextColor">?attr/colorOnPrimary</item>
-        <item name="keyboardPressedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardPressedColor">?attr/colorSecondaryContainer</item>
         <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
         <item name="keyboardTextColor">?attr/colorOnSurface</item>
         <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
@@ -18,11 +18,11 @@
     </style>
 
     <style name="Theme.Karuikey.Keyboard.Dynamic.Dark" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="keyboardKeyColor">?attr/colorSurfaceVariant</item>
-        <item name="keyboardFunctionalColor">?attr/colorSecondaryContainer</item>
-        <item name="keyboardActionColor">?attr/colorPrimary</item>
-        <item name="keyboardActionTextColor">?attr/colorOnPrimary</item>
-        <item name="keyboardPressedColor">?attr/colorPrimaryContainer</item>
+        <item name="keyboardKeyColor">?attr/colorSurfaceContainerHighest</item>
+        <item name="keyboardFunctionalColor">?attr/colorOutlineVariant</item>
+        <item name="keyboardActionColor">?attr/colorPrimaryFixed</item>
+        <item name="keyboardActionTextColor">?attr/colorOnPrimaryFixed</item>
+        <item name="keyboardPressedColor">?attr/colorSecondaryContainer</item>
         <item name="keyboardShiftLockedColor">?attr/colorPrimaryContainer</item>
         <item name="keyboardTextColor">?attr/colorOnSurface</item>
         <item name="keyboardSecondaryTextColor">?attr/colorOnSurfaceVariant</item>
