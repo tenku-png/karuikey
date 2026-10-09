@@ -40,6 +40,18 @@ public final class DrawingPreviewPlacerView extends RelativeLayout {
         setWillNotDraw(false);
     }
 
+    // Key previews stay parked at their last window position; in a WRAP_CONTENT IME window
+    // they must not stretch the window (e.g. previews left over from a floating keyboard).
+    // The parent re-measures this MATCH_PARENT view exactly once its own height is known.
+    @Override
+    protected void onMeasure(final int widthMeasureSpec, final int heightMeasureSpec) {
+        if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        } else {
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.EXACTLY));
+        }
+    }
+
     public void setHardwareAcceleratedDrawingEnabled(final boolean enabled) {
         if (!enabled) return;
         final Paint layerPaint = new Paint();
