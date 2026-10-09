@@ -1138,12 +1138,24 @@ class KaruikeyService : InputMethodService() {
         imeWindow.setBackgroundBlurRadius(radius)
     }
 
+    // Window blur takes its corner radius from the window background outline, which is empty
+    // until the drawable has bounds, so it starts sized and is set once to keep them.
+    private val roundedWindowBackground by lazy {
+        android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.TRANSPARENT)
+            cornerRadius = dp(12).toFloat()
+            setBounds(0, 0, resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
+        }
+    }
+
     private fun configureImeWindow() {
         val imeWindow = window?.window ?: return
         val view = inputView ?: return
         val surface = view.appearance.keyboardBackground
         val surfaceColor = view.surfaceBackgroundColor()
-        imeWindow.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        if (imeWindow.decorView.background !== roundedWindowBackground) {
+            imeWindow.setBackgroundDrawable(roundedWindowBackground)
+        }
         view.applySurfaceBackground(surfaceColor)
         val floating = floatingModeActive()
         keyboardHost?.floating = floating
