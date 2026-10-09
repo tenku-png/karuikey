@@ -44,6 +44,7 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -151,6 +152,7 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
     private boolean mLeftEdge;
     private boolean mTopEdge;
     private Key mRightEdgeKey = null;
+    private final ArrayList<Key> mSplitRowKeys = new ArrayList<>();
 
     public KeyboardBuilder(final Context context, @NonNull final KP params) {
         mContext = context;
@@ -851,6 +853,16 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
         if (mCurrentRow == null) {
             throw new RuntimeException("orphan end row tag");
         }
+        if (!mSplitRowKeys.isEmpty()) {
+            final ArrayList<Key> keys = splitRow(mSplitRowKeys);
+            mSplitRowKeys.clear();
+            for (final Key key : keys) {
+                mParams.onAddKey(key);
+                if (mTopEdge) key.markAsTopEdge(mParams);
+            }
+            keys.get(0).markAsLeftEdge(mParams);
+            keys.get(keys.size() - 1).markAsRightEdge(mParams);
+        }
         if (mRightEdgeKey != null) {
             mRightEdgeKey.markAsRightEdge(mParams);
             mRightEdgeKey = null;
@@ -862,12 +874,12 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
     }
 
     private void endKey(@NonNull final Key key) {
-        mParams.onAddKey(key);
-        // The spacebar is the one key Gboard repeats on both halves of a split keyboard.
-        if (key.getCode() == Constants.CODE_SPACE) {
-            final Key tail = key.splitTail();
-            if (tail != null) mParams.onAddKey(tail);
+        if (mParams.mSplitGap > 0) {
+            // Split rows are laid out as a whole in endRow once every key's slot is known.
+            mSplitRowKeys.add(key);
+            return;
         }
+        mParams.onAddKey(key);
         if (mLeftEdge) {
             key.markAsLeftEdge(mParams);
             mLeftEdge = false;
@@ -876,6 +888,55 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
             key.markAsTopEdge(mParams);
         }
         mRightEdgeKey = key;
+    }
+
+    // Each half of a split row is scaled independently into its side of the gap. A narrow key on
+    // the center line (g, v on QWERTY) goes whole into both halves, as on Gboard, so that row's
+    // keys get slightly narrower; a wide key there (the spacebar) is cut at the center instead.
+    private ArrayList<Key> splitRow(final ArrayList<Key> row) {
+        final KeyboardParams params = mParams;
+        final float left = params.mLeftPadding;
+        final float right = left + params.mBaseWidth;
+        final float center = left + params.mBaseWidth / 2.0f;
+        final float half = (params.mBaseWidth - params.mSplitGap) / 2.0f;
+        final float wideKey = params.mDefaultKeyWidth * 2.5f;
+        float leftExtent = left;
+        float rightExtent = right;
+        for (final Key key : row) {
+            final float start = key.getSlotLeft();
+            final float end = key.getSlotRight();
+            final boolean straddles = start < center - 1 && end > center + 1;
+            final boolean wide = end - start >= wideKey;
+            if (end <= center + 1 || (straddles && !wide)) leftExtent = Math.max(leftExtent, end);
+            if (start >= center - 1 || (straddles && !wide)) {
+                rightExtent = Math.min(rightExtent, start);
+            }
+            if (straddles && wide) {
+                leftExtent = Math.max(leftExtent, center);
+                rightExtent = Math.min(rightExtent, center);
+            }
+        }
+        final float leftScale = half / Math.max(1.0f, leftExtent - left);
+        final float rightScale = half / Math.max(1.0f, right - rightExtent);
+        final ArrayList<Key> keys = new ArrayList<>(row.size() + 2);
+        for (final Key key : row) {
+            final float start = key.getSlotLeft();
+            final float end = key.getSlotRight();
+            final boolean straddles = start < center - 1 && end > center + 1;
+            final boolean wide = end - start >= wideKey;
+            if (end <= center + 1 || straddles) {
+                keys.add(Key.relocated(key, left + (start - left) * leftScale,
+                        left + (Math.min(end, straddles && wide ? center : end) - left)
+                                * leftScale));
+            }
+            if (start >= center - 1 || straddles) {
+                keys.add(Key.relocated(key,
+                        right - (right - Math.max(start, straddles && wide ? center : start))
+                                * rightScale,
+                        right - (right - end) * rightScale));
+            }
+        }
+        return keys;
     }
 
     private void endKeyboard() {
