@@ -399,6 +399,19 @@ object KaruikeyPreferences {
             .apply()
     }
 
+    // Floating size as fractions of the window; -1 means the default compact size.
+    fun floatingSizeScale(context: Context): Pair<Float, Float> = prefs(context).let {
+        it.getFloat(floatingKey(context, "width_scale"), -1f) to
+            it.getFloat(floatingKey(context, "height_scale"), -1f)
+    }
+
+    fun setFloatingSizeScale(context: Context, width: Float, height: Float) {
+        prefs(context).edit()
+            .putFloat(floatingKey(context, "width_scale"), width)
+            .putFloat(floatingKey(context, "height_scale"), height)
+            .apply()
+    }
+
     fun setKeyboardMode(context: Context, mode: String) {
         prefs(context).edit().putString(
             keyboardModeKey(context),

@@ -1294,6 +1294,17 @@ class KaruikeyService : InputMethodService() {
             }
         private val dragHandle = object : View(keyboardContext) {
             private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = appearance.secondaryText }
+            private val corner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = appearance.secondaryText
+                style = Paint.Style.STROKE
+                strokeWidth = dp(2).toFloat()
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            private val cornerPath = android.graphics.Path()
+            private val resizeZone = dp(32)
+            // 0 moves the keyboard; -1 / 1 resize from the bottom-left / bottom-right corner.
+            private var gesture = 0
             private var lastX = 0f
             private var lastY = 0f
 
@@ -1304,16 +1315,39 @@ class KaruikeyService : InputMethodService() {
                 val top = (height - pillHeight) / 2
                 canvas.drawRoundRect(left, top, left + pillWidth, top + pillHeight,
                     pillHeight / 2, pillHeight / 2, pill)
+                // Corner ticks mark the resize zones.
+                val inset = dp(10).toFloat()
+                val arm = dp(8).toFloat()
+                val bottom = height - dp(8).toFloat()
+                cornerPath.reset()
+                cornerPath.moveTo(inset, bottom - arm)
+                cornerPath.lineTo(inset, bottom)
+                cornerPath.lineTo(inset + arm, bottom)
+                cornerPath.moveTo(width - inset, bottom - arm)
+                cornerPath.lineTo(width - inset, bottom)
+                cornerPath.lineTo(width - inset - arm, bottom)
+                canvas.drawPath(cornerPath, corner)
             }
 
             override fun onTouchEvent(event: MotionEvent): Boolean {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        gesture = when {
+                            event.x < resizeZone -> -1
+                            event.x > width - resizeZone -> 1
+                            else -> 0
+                        }
                         lastX = event.rawX
                         lastY = event.rawY
                     }
                     MotionEvent.ACTION_MOVE -> {
-                        keyboardHost?.moveFloatingBy(event.rawX - lastX, event.rawY - lastY)
+                        val dx = event.rawX - lastX
+                        val dy = event.rawY - lastY
+                        if (gesture == 0) {
+                            keyboardHost?.moveFloatingBy(dx, dy)
+                        } else {
+                            keyboardHost?.resizeFloatingBy(dx, dy, fromLeft = gesture < 0)
+                        }
                         lastX = event.rawX
                         lastY = event.rawY
                     }
@@ -2015,13 +2049,23 @@ class KaruikeyService : InputMethodService() {
     ) : FrameLayout(this@KaruikeyService) {
         private var positionX = 0.5f
         private var positionY = 1f
+        private var widthScale = -1f
+        private var heightScale = -1f
+        // Top-left corner to keep while a resize settles into the new size.
+        private var resizeAnchor: Pair<Float, Float>? = null
         private val location = IntArray(2)
         var floating = false
             set(value) {
                 if (field == value) return
                 field = value
                 keyboard.floating = value
-                if (value) loadFloatingPosition()
+                if (value) {
+                    loadFloatingPosition()
+                } else {
+                    // A docked keyboard must not keep the floating offset.
+                    keyboard.translationX = 0f
+                    keyboard.translationY = 0f
+                }
                 requestLayout()
             }
 
@@ -2033,11 +2077,40 @@ class KaruikeyService : InputMethodService() {
             val (x, y) = KaruikeyPreferences.floatingPosition(this@KaruikeyService)
             positionX = x
             positionY = y
+            val (widthFraction, heightFraction) =
+                KaruikeyPreferences.floatingSizeScale(this@KaruikeyService)
+            widthScale = widthFraction
+            heightScale = heightFraction
             requestLayout()
         }
 
         fun saveFloatingPosition() {
             KaruikeyPreferences.setFloatingPosition(this@KaruikeyService, positionX, positionY)
+            if (widthScale > 0f && heightScale > 0f) {
+                KaruikeyPreferences.setFloatingSizeScale(
+                    this@KaruikeyService, widthScale, heightScale
+                )
+            }
+        }
+
+        // Resize limits: 280dp to 80% of the window wide, 180dp to 65% of it tall.
+        private fun sizeRange(total: Int, minimum: Int, maxFraction: Float): IntRange {
+            val low = minOf(minimum, total)
+            return low..maxOf(low, (total * maxFraction).toInt())
+        }
+
+        fun resizeFloatingBy(dx: Float, dy: Float, fromLeft: Boolean) {
+            if (width <= 0 || height <= 0) return
+            val currentWidth = keyboard.width
+            val newWidth = (currentWidth + if (fromLeft) -dx else dx).toInt()
+                .coerceIn(sizeRange(width, dp(280), 0.8f))
+            val newHeight = (keyboard.height + dy).toInt().coerceIn(sizeRange(height, dp(180), 0.65f))
+            // Dragging the left corner moves the left edge and keeps the right edge in place.
+            val left = keyboard.translationX + if (fromLeft) currentWidth - newWidth else 0
+            resizeAnchor = left to keyboard.translationY
+            widthScale = newWidth.toFloat() / width
+            heightScale = newHeight.toFloat() / height
+            requestLayout()
         }
 
         fun keyboardBoundsInWindow(): Rect {
@@ -2091,17 +2164,28 @@ class KaruikeyService : InputMethodService() {
             val height = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) {
                 resources.displayMetrics.heightPixels
             } else MeasureSpec.getSize(heightMeasureSpec)
-            val keyboardWidth = (width * 0.6f).toInt().coerceAtLeast(dp(320)).coerceAtMost(width)
-            keyboard.measure(
-                MeasureSpec.makeMeasureSpec(keyboardWidth, MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
-            )
+            val keyboardWidth = if (widthScale > 0f) {
+                (width * widthScale).toInt().coerceIn(sizeRange(width, dp(280), 0.8f))
+            } else (width * 0.6f).toInt().coerceAtLeast(dp(320)).coerceAtMost(width)
+            val heightSpec = if (heightScale > 0f) {
+                MeasureSpec.makeMeasureSpec(
+                    (height * heightScale).toInt().coerceIn(sizeRange(height, dp(180), 0.65f)),
+                    MeasureSpec.EXACTLY
+                )
+            } else MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
+            keyboard.measure(MeasureSpec.makeMeasureSpec(keyboardWidth, MeasureSpec.EXACTLY), heightSpec)
             setMeasuredDimension(width, height)
         }
 
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
             keyboard.layout(0, 0, keyboard.measuredWidth, keyboard.measuredHeight)
             if (floating) {
+                resizeAnchor?.let { (x, y) ->
+                    val safe = safeArea()
+                    positionX = fraction(x, safe.left, safe.right)
+                    positionY = fraction(y, safe.top, safe.bottom)
+                    resizeAnchor = null
+                }
                 applyFloatingPosition()
             } else {
                 keyboard.translationX = 0f
