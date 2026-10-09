@@ -97,6 +97,8 @@ class KaruikeyService : InputMethodService() {
     private var composingStart = -1
     private var editorUpdateDepth = 0
     private var pendingEditorSelection = -1
+    // Last cursor the editor reported in agreement with us; own edits run from here to expected.
+    private var confirmedCursorPosition = -1
     private var clipboardListenerRegistered = false
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
         capturePrimaryClipboard()
@@ -264,6 +266,7 @@ class KaruikeyService : InputMethodService() {
                     keyboardSwitcher?.requestUpdatingShiftState(
                         autoCapsMode(), RecapitalizeStatus.NOT_A_RECAPITALIZE_MODE
                     )
+                    refreshSuggestions()
                 }
             }
         }
@@ -336,6 +339,7 @@ class KaruikeyService : InputMethodService() {
         gestureAllowed = gestureEnabledFor(attribute, currentLanguage!!.locale)
         expectedCursorPosition = attribute.initialSelStart
         expectedSelectionEnd = attribute.initialSelEnd
+        confirmedCursorPosition = attribute.initialSelStart
         clearComposingWord()
         composingStart = -1
         emojiBottomRow = false
@@ -385,9 +389,13 @@ class KaruikeyService : InputMethodService() {
                 }
                 pendingEditorSelection = -1
             }
-            if (newSelStart != expectedCursorPosition || newSelEnd != expectedSelectionEnd) {
-                suggestionSession.clearAutomaticSpace()
-            }
+            // Updates arrive asynchronously; while typing fast, the editor still reports our
+            // earlier edits. Those must not end the composition mid-word.
+            if (isBelatedSelectionUpdate(oldSelStart, oldSelEnd, newSelStart, newSelEnd)) return
+            val matchesExpectation =
+                newSelStart == expectedCursorPosition && newSelEnd == expectedSelectionEnd
+            if (!matchesExpectation) suggestionSession.clearAutomaticSpace()
+            var cleared = false
             val compositionStillActive = composingStart >= 0 &&
                 newSelStart == newSelEnd &&
                 newSelStart == expectedCursorPosition &&
@@ -399,11 +407,31 @@ class KaruikeyService : InputMethodService() {
                     composingStart >= 0)
             ) {
                 clearComposingWord()
+                cleared = true
             }
             expectedCursorPosition = newSelStart
             expectedSelectionEnd = newSelEnd
-            refreshSuggestions()
+            confirmedCursorPosition = newSelStart
+            // Our own edits already requested suggestions; a second request would discard them.
+            if (cleared || !matchesExpectation) refreshSuggestions()
         }
+    }
+
+    private fun isBelatedSelectionUpdate(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int
+    ): Boolean {
+        val confirmed = confirmedCursorPosition
+        val expected = expectedCursorPosition
+        if (confirmed < 0 || expected < 0 || expectedSelectionEnd != expected) return false
+        if (oldSelStart != oldSelEnd || newSelStart != newSelEnd || newSelStart == expected) {
+            return false
+        }
+        val low = minOf(confirmed, expected)
+        val high = maxOf(confirmed, expected)
+        return newSelStart in low..high && oldSelStart in low..high
     }
 
     override fun onCurrentInputMethodSubtypeChanged(newSubtype: InputMethodSubtype) {
@@ -458,6 +486,7 @@ class KaruikeyService : InputMethodService() {
         gestureAllowed = false
         expectedCursorPosition = -1
         expectedSelectionEnd = -1
+        confirmedCursorPosition = -1
     }
 
     override fun onWindowHidden() {
@@ -725,8 +754,7 @@ class KaruikeyService : InputMethodService() {
 
     private fun clearSuggestionsView() {
         suggestionResults.clear()
-        inputView?.setSuggestions(suggestionResults, suggestionRequestId,
-            suggestionSession.prefix.toString())
+        inputView?.setSuggestions(suggestionResults, suggestionSession.prefix.toString())
     }
 
     private fun completeCurrentWord() {
@@ -762,7 +790,6 @@ class KaruikeyService : InputMethodService() {
             return
         }
         val locale = currentLanguage?.locale ?: "en"
-        inputView?.markSuggestionsPending(requestId, suggestionSession.prefix.toString())
         SuggestionEngine.requestFill(
             locale,
             suggestionSession.previousWord,
@@ -777,8 +804,7 @@ class KaruikeyService : InputMethodService() {
                 ) return@post
                 suggestionResults.clear()
                 suggestionResults.addAll(results)
-                inputView?.setSuggestions(suggestionResults, requestId,
-                    suggestionSession.prefix.toString())
+                inputView?.setSuggestions(suggestionResults, suggestionSession.prefix.toString())
             }
         }
     }
@@ -1278,7 +1304,6 @@ class KaruikeyService : InputMethodService() {
             }
         }
         private val candidateQueries = arrayOfNulls<String>(3)
-        private val candidateRequestIds = LongArray(3)
         private val emojiToolbarButton = toolbarButton(
             R.drawable.ic_keyboard_emoji, R.string.toolbar_emoji
         ) { showEmojiPanel() }
@@ -1891,8 +1916,7 @@ class KaruikeyService : InputMethodService() {
             toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                 View.VISIBLE
             } else View.GONE
-            setSuggestions(suggestionResults, suggestionRequestId,
-                suggestionSession.prefix.toString())
+            setSuggestions(suggestionResults, suggestionSession.prefix.toString())
             if (!KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) toolbar.visibility = View.GONE
             requestLayout()
             return true
@@ -1908,26 +1932,21 @@ class KaruikeyService : InputMethodService() {
             incoming.animate().alpha(1f).setDuration(STRIP_FADE_MS).start()
         }
 
-        fun markSuggestionsPending(requestId: Long, query: String) {
-            for (index in candidateViews.indices) {
-                candidateRequestIds[index] = requestId - 1
-                candidateQueries[index] = query
-            }
+        /** A slot stays tappable while newer results load if its word still fits the prefix. */
+        private fun candidateMatchesInput(index: Int, word: String): Boolean {
+            val prefix = suggestionSession.prefix.toString()
+            if (candidateQueries[index] == prefix) return true
+            return prefix.isNotEmpty() && word.startsWith(prefix, ignoreCase = true)
         }
 
         private fun installCandidateListeners(index: Int, candidate: TextView) {
             candidate.setOnClickListener {
-                if (candidateRequestIds[index] == suggestionRequestId &&
-                    candidateQueries[index] == suggestionSession.prefix.toString()
-                ) {
-                    (candidate.tag as? String)?.let(::commitSuggestion)
-                }
+                val word = candidate.tag as? String
+                if (word != null && candidateMatchesInput(index, word)) commitSuggestion(word)
             }
             candidate.setOnLongClickListener {
-                if (candidateRequestIds[index] != suggestionRequestId ||
-                    candidateQueries[index] != suggestionSession.prefix.toString()
-                ) return@setOnLongClickListener false
                 val word = candidate.tag as? String ?: return@setOnLongClickListener false
+                if (!candidateMatchesInput(index, word)) return@setOnLongClickListener false
                 val locale = currentLanguage?.locale ?: return@setOnLongClickListener false
                 PopupMenu(this@KaruikeyService, candidate).apply {
                     menu.add(R.string.remove_suggestion)
@@ -1942,7 +1961,7 @@ class KaruikeyService : InputMethodService() {
             }
         }
 
-        fun setSuggestions(suggestions: List<String>, requestId: Long, query: String) {
+        fun setSuggestions(suggestions: List<String>, query: String) {
             candidateViews.forEachIndexed { index, candidate ->
                 // Slots stay VISIBLE with fixed geometry; only changed text is touched.
                 val text = suggestions.getOrNull(index)
@@ -1952,7 +1971,6 @@ class KaruikeyService : InputMethodService() {
                     candidate.isEnabled = text != null
                 }
                 candidateQueries[index] = if (text != null) query else null
-                candidateRequestIds[index] = requestId
             }
             // Keep the candidates up for the whole word so pending results do not flicker icons.
             showCandidates(suggestions.isNotEmpty() || query.isNotEmpty())
