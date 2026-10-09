@@ -6,7 +6,7 @@ package tenkupng.karuikey
  */
 internal object SuggestionStripGeometry {
     const val CANDIDATE_COUNT = 3
-    const val UTILITY_COUNT = 4
+    const val UTILITY_COUNT = 5
 
     fun candidateSlotWidth(regionWidth: Int, index: Int): Int {
         require(index in 0 until CANDIDATE_COUNT)

@@ -63,6 +63,9 @@ object KaruikeyPreferences {
     const val EMOJI_PLACEMENT_TOOLBAR = "toolbar"
     const val EMOJI_PLACEMENT_BOTTOM = "bottom"
     const val EMOJI_PLACEMENT_OFF = "off"
+    const val KEYBOARD_MODE_STANDARD = "standard"
+    const val KEYBOARD_MODE_SPLIT = "split"
+    const val KEYBOARD_MODE_FLOATING = "floating"
     const val SPACEBAR_SWIPE_CURSOR = "cursor"
     const val SPACEBAR_SWIPE_LANGUAGE = "language"
 
@@ -94,6 +97,7 @@ object KaruikeyPreferences {
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
     private const val EMOJI_PLACEMENT = "emoji_placement"
     private const val SPACEBAR_SWIPE = "spacebar_swipe"
+    private const val KEYBOARD_MODE = "keyboard_mode"
     private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
 
     private fun prefs(context: Context) =
@@ -356,6 +360,37 @@ object KaruikeyPreferences {
 
     fun setAutoCapitalizationEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(AUTO_CAPITALIZATION, enabled).apply()
+    }
+
+    // Split only makes sense with room between the thumbs: tablets or a landscape phone.
+    fun splitModeAvailable(context: Context): Boolean {
+        val configuration = context.resources.configuration
+        return configuration.smallestScreenWidthDp >= 600 ||
+            configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    }
+
+    // Each orientation remembers its own mode, like Gboard.
+    private fun keyboardModeKey(context: Context): String = KEYBOARD_MODE + if (
+        context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    ) "_landscape" else "_portrait"
+
+    fun keyboardMode(context: Context): String {
+        val mode = prefs(context).getString(keyboardModeKey(context), KEYBOARD_MODE_STANDARD)
+        return when {
+            mode == KEYBOARD_MODE_SPLIT && splitModeAvailable(context) -> KEYBOARD_MODE_SPLIT
+            mode == KEYBOARD_MODE_FLOATING -> KEYBOARD_MODE_FLOATING
+            else -> KEYBOARD_MODE_STANDARD
+        }
+    }
+
+    fun setKeyboardMode(context: Context, mode: String) {
+        prefs(context).edit().putString(
+            keyboardModeKey(context),
+            when (mode) {
+                KEYBOARD_MODE_SPLIT, KEYBOARD_MODE_FLOATING -> mode
+                else -> KEYBOARD_MODE_STANDARD
+            }
+        ).apply()
     }
 
     fun emojiKeyPlacement(context: Context) = prefs(context)

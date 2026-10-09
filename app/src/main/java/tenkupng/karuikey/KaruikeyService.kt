@@ -1226,6 +1226,10 @@ class KaruikeyService : InputMethodService() {
         private val languageToolbarButton = toolbarButton(
             R.drawable.ic_keyboard_language, R.string.toolbar_language
         ) { cycleLanguage() }
+        private val modeToolbarButton = toolbarButton(
+            modeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService)),
+            R.string.toolbar_keyboard_mode
+        ) { showKeyboardModeMenu() }
         private var navigationBottomInset = 0
 
         init {
@@ -1263,6 +1267,7 @@ class KaruikeyService : InputMethodService() {
                 ) { openSettings() },
                 fixedToolbarButtonParams()
             )
+            utilityToolbar.addView(modeToolbarButton, fixedToolbarButtonParams())
             utilityToolbar.addView(emojiToolbarButton, fixedToolbarButtonParams())
             utilityToolbar.addView(languageToolbarButton, fixedToolbarButtonParams())
             suggestionToolbar.addView(utilityToolbar, LinearLayout.LayoutParams(
@@ -1528,6 +1533,9 @@ class KaruikeyService : InputMethodService() {
                 emojiKeyAllowed() && KaruikeyPreferences.emojiKeyPlacement(this@KaruikeyService) ==
                     KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR
             ) View.VISIBLE else View.INVISIBLE
+            modeToolbarButton.setImageResource(
+                modeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService))
+            )
             languageToolbarButton.visibility = if (
                 KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
             ) View.VISIBLE else View.INVISIBLE
@@ -1757,6 +1765,44 @@ class KaruikeyService : InputMethodService() {
             }
             // Keep the candidates up for the whole word so pending results do not flicker icons.
             showCandidates(suggestions.isNotEmpty() || query.isNotEmpty())
+        }
+
+        private fun modeIcon(mode: String) = when (mode) {
+            KaruikeyPreferences.KEYBOARD_MODE_SPLIT -> R.drawable.ic_keyboard_mode_split
+            KaruikeyPreferences.KEYBOARD_MODE_FLOATING -> R.drawable.ic_keyboard_mode_floating
+            else -> R.drawable.ic_keyboard_mode_standard
+        }
+
+        private fun showKeyboardModeMenu() {
+            val current = KaruikeyPreferences.keyboardMode(this@KaruikeyService)
+            val modes = buildList {
+                add(KaruikeyPreferences.KEYBOARD_MODE_STANDARD to R.string.keyboard_mode_standard)
+                if (KaruikeyPreferences.splitModeAvailable(this@KaruikeyService)) {
+                    add(KaruikeyPreferences.KEYBOARD_MODE_SPLIT to R.string.keyboard_mode_split)
+                }
+                add(KaruikeyPreferences.KEYBOARD_MODE_FLOATING to R.string.keyboard_mode_floating)
+            }
+            PopupMenu(keyboardContext, modeToolbarButton).apply {
+                modes.forEachIndexed { index, (mode, title) ->
+                    menu.add(0, index, index, title).apply {
+                        setIcon(modeIcon(mode))
+                        isCheckable = true
+                        isChecked = mode == current
+                    }
+                }
+                menu.setGroupCheckable(0, true, true)
+                setForceShowIcon(true)
+                setOnMenuItemClickListener { item ->
+                    val mode = modes[item.itemId].first
+                    if (mode != current) {
+                        KaruikeyPreferences.setKeyboardMode(this@KaruikeyService, mode)
+                        modeToolbarButton.setImageResource(modeIcon(mode))
+                        reloadKeyboardAfterLayout()
+                    }
+                    true
+                }
+                show()
+            }
         }
 
         private fun toolbarButton(icon: Int, description: Int, action: () -> Unit) =
