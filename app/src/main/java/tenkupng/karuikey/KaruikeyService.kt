@@ -49,6 +49,7 @@ import com.android.inputmethod.keyboard.KeyboardActionListener
 import com.android.inputmethod.keyboard.Key
 import com.android.inputmethod.keyboard.KeyboardLayoutSet
 import com.android.inputmethod.keyboard.KeyboardSwitcher
+import com.android.inputmethod.keyboard.KeyboardView
 import com.android.inputmethod.keyboard.MainKeyboardView
 import com.android.inputmethod.latin.common.Constants
 import com.android.inputmethod.latin.common.InputPointers
@@ -337,6 +338,8 @@ class KaruikeyService : InputMethodService() {
         lastAutoCorrection = null
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        // Undo and redo can restart input in the same field; editing goes on there.
+        if (!restarting) inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         editorInfo = attribute
@@ -469,6 +472,7 @@ class KaruikeyService : InputMethodService() {
     override fun onFinishInputView(finishingInput: Boolean) {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
@@ -481,6 +485,7 @@ class KaruikeyService : InputMethodService() {
         gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         clearComposingWord()
@@ -504,6 +509,7 @@ class KaruikeyService : InputMethodService() {
         gestureRequestId++
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         super.onWindowHidden()
@@ -515,6 +521,7 @@ class KaruikeyService : InputMethodService() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
@@ -529,6 +536,7 @@ class KaruikeyService : InputMethodService() {
     override fun onDestroy() {
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
+        inputView?.hideTextEditPanel()
         inputView?.hideEmojiPanel()
         stopClipboardMonitoring()
         keyboardSwitcher?.closing()
@@ -605,7 +613,8 @@ class KaruikeyService : InputMethodService() {
             autoCapsMode(),
             multipleLanguages && !showEmojiOnBottomRow,
             showEmojiOnBottomRow,
-            KaruikeyPreferences.keyboardMode(this) == KaruikeyPreferences.KEYBOARD_MODE_SPLIT
+            KaruikeyPreferences.keyboardMode(this) == KaruikeyPreferences.KEYBOARD_MODE_SPLIT,
+            KaruikeyPreferences.numberRowEnabled(this)
         )
         keyboardView.setMainDictionaryAvailability(gestureAllowed)
         // Keep the optional AOSP trail off until its visual parameters are configured for this
@@ -1049,6 +1058,55 @@ class KaruikeyService : InputMethodService() {
         }
     }
 
+    // Backspace swipe: text before the cursor when the swipe began, and the cursor it ends at.
+    private var deleteSwipeText: CharSequence? = null
+    private var deleteSwipeAnchor = -1
+    private var deleteSwipeStart = -1
+
+    private fun beginDeleteSwipe(): Boolean {
+        clearComposingWord()
+        val connection = currentInputConnection ?: return false
+        val anchor = expectedCursorPosition
+        if (anchor <= 0 || expectedSelectionEnd != anchor) return false
+        deleteSwipeText = connection.getTextBeforeCursor(minOf(anchor, 4096), 0) ?: return false
+        deleteSwipeAnchor = anchor
+        deleteSwipeStart = anchor
+        return true
+    }
+
+    /** Selects [words] whole words back from where the swipe began; returns the selected length. */
+    private fun selectWordsForDelete(words: Int): Int {
+        val text = deleteSwipeText ?: return 0
+        val connection = currentInputConnection ?: return 0
+        var index = text.length
+        repeat(words) {
+            while (index > 0 && Character.isWhitespace(text[index - 1])) index--
+            while (index > 0 && !Character.isWhitespace(text[index - 1])) index--
+        }
+        val start = deleteSwipeAnchor - (text.length - index)
+        if (start != deleteSwipeStart) {
+            deleteSwipeStart = start
+            duringEditorUpdate { connection.setSelection(start, deleteSwipeAnchor) }
+            expectedCursorPosition = start
+            expectedSelectionEnd = deleteSwipeAnchor
+        }
+        return deleteSwipeAnchor - start
+    }
+
+    private fun finishDeleteSwipe() {
+        val connection = currentInputConnection
+        if (connection != null && deleteSwipeText != null && deleteSwipeStart < deleteSwipeAnchor) {
+            duringEditorUpdate { connection.commitText("", 1) }
+            expectedCursorPosition = deleteSwipeStart
+            expectedSelectionEnd = deleteSwipeStart
+            suggestionSession.clear()
+            resumeWordBeforeCursor(connection)
+        }
+        deleteSwipeText = null
+        deleteSwipeAnchor = -1
+        deleteSwipeStart = -1
+    }
+
     private fun finishEditorComposition(connection: InputConnection?) {
         if (composingStart < 0) return
         duringEditorUpdate { connection?.finishComposingText() }
@@ -1095,6 +1153,34 @@ class KaruikeyService : InputMethodService() {
         val floating = floatingModeActive()
         keyboardHost?.floating = floating
         windowStyle.apply(imeWindow, view, floating, view.appearance.keyboardBackground, surfaceColor)
+    }
+
+    private fun performTextEdit(action: TextEditAction, selecting: Boolean) {
+        val connection = currentInputConnection ?: return
+        clearComposingWord()
+        suggestionSession.clearAutomaticSpace()
+        fun key(code: Int, meta: Int = 0) {
+            val now = android.os.SystemClock.uptimeMillis()
+            connection.sendKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0, meta))
+            connection.sendKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0, meta))
+        }
+        val shift = if (selecting) KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON else 0
+        val ctrl = KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+        when (action) {
+            TextEditAction.LEFT -> key(KeyEvent.KEYCODE_DPAD_LEFT, shift)
+            TextEditAction.RIGHT -> key(KeyEvent.KEYCODE_DPAD_RIGHT, shift)
+            TextEditAction.UP -> key(KeyEvent.KEYCODE_DPAD_UP, shift)
+            TextEditAction.DOWN -> key(KeyEvent.KEYCODE_DPAD_DOWN, shift)
+            TextEditAction.HOME -> key(KeyEvent.KEYCODE_MOVE_HOME, shift)
+            TextEditAction.END -> key(KeyEvent.KEYCODE_MOVE_END, shift)
+            TextEditAction.SELECT_ALL -> connection.performContextMenuAction(android.R.id.selectAll)
+            TextEditAction.COPY -> connection.performContextMenuAction(android.R.id.copy)
+            TextEditAction.CUT -> connection.performContextMenuAction(android.R.id.cut)
+            TextEditAction.PASTE -> connection.performContextMenuAction(android.R.id.paste)
+            // Editors take Ctrl+Z / Ctrl+Shift+Z as undo and redo.
+            TextEditAction.UNDO -> key(KeyEvent.KEYCODE_Z, ctrl)
+            TextEditAction.REDO -> key(KeyEvent.KEYCODE_Z, ctrl or KeyEvent.META_SHIFT_ON)
+        }
     }
 
     private fun openSettings() {
@@ -1198,8 +1284,17 @@ class KaruikeyService : InputMethodService() {
         private var spaceCursorDownTime = 0L
         private var spaceCursorActive = false
         private var spaceLanguageActive = false
+        private var deleteSwipeKey: Key? = null
+        private var deleteSwipeActive = false
+        private var deleteSwipeWords = 0
         private val spaceCursorTrigger = dp(12)
         private val spaceCursorStep = dp(24)
+        private val deleteSwipeStep = dp(36)
+        private val textEditPanel = TextEditPanel(
+            keyboardContext, appearance, keyboardTypeface, toolbarHeight,
+            onBack = { hideTextEditPanel() },
+            onAction = ::performTextEdit
+        )
         private val clipboardPanel = ClipboardPanel(
             keyboardContext, appearance, keyboardTypeface, toolbarHeight,
             onBack = { hideClipboardPanel() },
@@ -1273,6 +1368,13 @@ class KaruikeyService : InputMethodService() {
             )
             utilityToolbar.addView(
                 toolbarButton(
+                    R.drawable.ic_keyboard_text_edit,
+                    R.string.toolbar_text_edit
+                ) { showTextEditPanel() },
+                fixedToolbarButtonParams()
+            )
+            utilityToolbar.addView(
+                toolbarButton(
                     R.drawable.ic_keyboard_settings,
                     R.string.toolbar_settings
                 ) { openSettings() },
@@ -1289,6 +1391,7 @@ class KaruikeyService : InputMethodService() {
             keyboardContent.addView(keyboardView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             keyboardContent.addView(emojiPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             keyboardContent.addView(clipboardPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            keyboardContent.addView(textEditPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             emojiPanel.visibility = View.GONE
             addView(keyboardContent, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             dragHandle.contentDescription = getString(R.string.keyboard_mode_floating)
@@ -1333,6 +1436,13 @@ class KaruikeyService : InputMethodService() {
                     val key = keyboardView.detectKeyForTouch(
                         event.x.toInt(), event.y.toInt()
                     )
+                    if (key?.code == Constants.CODE_DELETE) {
+                        resetSpaceCursor()
+                        deleteSwipeKey = key
+                        spaceCursorLastX = event.x.toInt()
+                        spaceCursorDistance = 0
+                        return false
+                    }
                     if (key?.code == Constants.CODE_SPACE) {
                         spaceCursorKey = key
                         spaceCursorLastX = event.x.toInt()
@@ -1344,6 +1454,9 @@ class KaruikeyService : InputMethodService() {
                     return false
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
+                    if (deleteSwipeKey != null && event.pointerCount == 1) {
+                        return handleDeleteSwipeMove(event.x.toInt())
+                    }
                     if (spaceCursorKey == null || event.pointerCount != 1) return false
                     val x = event.x.toInt()
                     spaceCursorDistance += x - spaceCursorLastX
@@ -1382,6 +1495,11 @@ class KaruikeyService : InputMethodService() {
                     return false
                 }
                 android.view.MotionEvent.ACTION_UP -> {
+                    if (deleteSwipeActive) {
+                        finishDeleteSwipe()
+                        resetSpaceCursor()
+                        return true
+                    }
                     if (spaceLanguageActive) {
                         resetSpaceCursor()
                         return true
@@ -1394,12 +1512,42 @@ class KaruikeyService : InputMethodService() {
                     return false
                 }
                 android.view.MotionEvent.ACTION_CANCEL -> {
-                    val wasActive = spaceCursorActive || spaceLanguageActive
+                    // A cancelled swipe keeps the text: the selection is just collapsed back.
+                    if (deleteSwipeActive) {
+                        selectWordsForDelete(0)
+                        deleteSwipeText = null
+                    }
+                    val wasActive = spaceCursorActive || spaceLanguageActive || deleteSwipeActive
                     resetSpaceCursor()
                     return wasActive
                 }
             }
             return false
+        }
+
+        // Sliding left from Backspace selects whole words; lifting the finger deletes them.
+        private fun handleDeleteSwipeMove(x: Int): Boolean {
+            spaceCursorDistance += x - spaceCursorLastX
+            spaceCursorLastX = x
+            if (!deleteSwipeActive) {
+                if (spaceCursorDistance > -spaceCursorTrigger) return false
+                keyboardView.cancelAllOngoingEvents()
+                if (!beginDeleteSwipe()) {
+                    deleteSwipeKey = null
+                    return true
+                }
+                deleteSwipeActive = true
+                deleteSwipeWords = 0
+            }
+            // Sliding back toward Backspace gives words back; past the start selects none.
+            val travelled = -spaceCursorDistance - spaceCursorTrigger
+            val words = if (travelled < 0) 0 else travelled / deleteSwipeStep + 1
+            if (words != deleteSwipeWords) {
+                val before = deleteSwipeWords
+                deleteSwipeWords = words
+                if (selectWordsForDelete(words) > 0 || before > 0) keyFeedback.vibrate()
+            }
+            return true
         }
 
         val isEmojiSearchActive: Boolean
@@ -1413,6 +1561,7 @@ class KaruikeyService : InputMethodService() {
 
         fun showEmojiPanel() {
             if (clipboardPanel.visibility == View.VISIBLE) hideClipboardPanel()
+            hideTextEditPanel()
             restoreEmojiLayout()
             emojiPanel.exitSearch()
             keyboardView.visibility = View.GONE
@@ -1428,7 +1577,7 @@ class KaruikeyService : InputMethodService() {
                 hideEmojiPanel()
                 return true
             }
-            return hideClipboardPanel()
+            return hideClipboardPanel() || hideTextEditPanel()
         }
 
         private fun showEmojiSearchLayout() {
@@ -1512,6 +1661,9 @@ class KaruikeyService : InputMethodService() {
             spaceCursorDistance = 0
             spaceCursorActive = false
             spaceLanguageActive = false
+            deleteSwipeKey = null
+            deleteSwipeActive = false
+            deleteSwipeWords = 0
         }
 
         fun applyPreferences() {
@@ -1537,9 +1689,22 @@ class KaruikeyService : InputMethodService() {
             keyboardView.setKeyBackgroundAlpha(
                 KaruikeyPreferences.keyBackgroundAlpha(this@KaruikeyService)
             )
+            val service = this@KaruikeyService
+            keyboardView.setKeyPressStyle(when (KaruikeyPreferences.keyPressStyle(service)) {
+                KaruikeyPreferences.KEY_PRESS_OFF -> KeyboardView.KEY_PRESS_OFF
+                KaruikeyPreferences.KEY_PRESS_BOUNCE -> KeyboardView.KEY_PRESS_BOUNCE
+                else -> KeyboardView.KEY_PRESS_MORPH
+            })
+            keyboardView.setKeyShape(
+                dp(KaruikeyPreferences.keyCornerRadius(service)).toFloat(),
+                dp(KaruikeyPreferences.keyGap(service))
+            )
+            keyboardView.setLabelScale(KaruikeyPreferences.labelScale(service) / 100f)
             // Panels own the toolbar slot; a preference write (e.g. a language swipe) must not
             // bring the toolbar back over them.
-            if (clipboardPanel.visibility != View.VISIBLE && emojiPanel.visibility != View.VISIBLE) {
+            if (clipboardPanel.visibility != View.VISIBLE && emojiPanel.visibility != View.VISIBLE &&
+                textEditPanel.visibility != View.VISIBLE
+            ) {
                 toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                     View.VISIBLE
                 } else View.GONE
@@ -1566,6 +1731,15 @@ class KaruikeyService : InputMethodService() {
         // a dark or light veil, then tiled monochrome noise.
         private fun surfaceDrawable(color: Int): Drawable {
             val service = this@KaruikeyService
+            KeyboardBackground.bitmap(service)?.let { picture ->
+                // A black veil at the chosen strength keeps labels readable over busy pictures.
+                val dim = KaruikeyPreferences.backgroundDim(service) * 255 / 100
+                return LayerDrawable(arrayOf(
+                    ColorDrawable(appearance.keyboardBackground),
+                    CenterCropDrawable(picture),
+                    ColorDrawable(Color.argb(dim, 0, 0, 0))
+                ))
+            }
             if (!KaruikeyPreferences.blurActive(service)) return ColorDrawable(color)
             val contrast = KaruikeyPreferences.blurContrast(service)
             val grain = KaruikeyPreferences.blurGrain(service)
@@ -1611,11 +1785,33 @@ class KaruikeyService : InputMethodService() {
             clipboardPanel.setBackgroundColor(Color.TRANSPARENT)
         }
 
+        fun showTextEditPanel() {
+            hideClipboardPanel()
+            toolbar.visibility = View.GONE
+            keyboardView.visibility = View.GONE
+            textEditPanel.show()
+            KeyboardMotion.panelIn(textEditPanel)
+            requestLayout()
+        }
+
+        fun hideTextEditPanel(): Boolean {
+            if (textEditPanel.visibility != View.VISIBLE) return false
+            textEditPanel.reset()
+            keyboardView.visibility = View.VISIBLE
+            KeyboardMotion.panelIn(keyboardView)
+            toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
+                View.VISIBLE
+            } else View.GONE
+            requestLayout()
+            return true
+        }
+
         fun showClipboard(
             items: List<ClipboardHistoryItem>,
             emptyMessage: Int,
             historyEnabled: Boolean
         ) {
+            hideTextEditPanel()
             toolbar.visibility = View.GONE
             keyboardView.visibility = View.GONE
             clipboardPanel.show(items, emptyMessage, historyEnabled)

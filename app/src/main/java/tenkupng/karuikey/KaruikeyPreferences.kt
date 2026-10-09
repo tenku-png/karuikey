@@ -115,6 +115,22 @@ object KaruikeyPreferences {
     private const val KEY_SOUND = "key_sound"
     private const val SOUND_VOLUME = "sound_volume"
     private const val ANIMATIONS = "animations"
+    private const val KEY_PRESS_STYLE = "key_press_style"
+    private const val KEY_CORNER_RADIUS = "key_corner_radius"
+    private const val KEY_GAP = "key_gap"
+    private const val LABEL_SCALE = "label_scale"
+    private const val NUMBER_ROW = "number_row"
+    private const val BACKGROUND_IMAGE_VERSION = "background_image_version"
+    private const val BACKGROUND_DIM = "background_dim"
+    const val MAX_BACKGROUND_DIM = 80
+    const val KEY_PRESS_OFF = "off"
+    const val KEY_PRESS_MORPH = "morph"
+    const val KEY_PRESS_BOUNCE = "bounce"
+    const val DEFAULT_KEY_CORNER_RADIUS = 9
+    const val MAX_KEY_CORNER_RADIUS = 28
+    const val MAX_KEY_GAP = 6
+    const val MIN_LABEL_SCALE = 80
+    const val MAX_LABEL_SCALE = 130
     const val DEFAULT_VIBRATION_STRENGTH = 40
     const val DEFAULT_SOUND_VOLUME = 50
 
@@ -446,6 +462,58 @@ object KaruikeyPreferences {
 
     fun setAnimationsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(ANIMATIONS, enabled).apply()
+    }
+
+    fun keyPressStyle(context: Context) = when (prefs(context).getString(KEY_PRESS_STYLE, null)) {
+        KEY_PRESS_OFF -> KEY_PRESS_OFF
+        KEY_PRESS_BOUNCE -> KEY_PRESS_BOUNCE
+        else -> KEY_PRESS_MORPH
+    }
+
+    fun setKeyPressStyle(context: Context, style: String) {
+        prefs(context).edit().putString(KEY_PRESS_STYLE, style).apply()
+    }
+
+    /** Key corner radius in dp. */
+    fun keyCornerRadius(context: Context) = prefs(context)
+        .getInt(KEY_CORNER_RADIUS, DEFAULT_KEY_CORNER_RADIUS).coerceIn(0, MAX_KEY_CORNER_RADIUS)
+
+    fun setKeyCornerRadius(context: Context, radius: Int) {
+        prefs(context).edit().putInt(KEY_CORNER_RADIUS, radius.coerceIn(0, MAX_KEY_CORNER_RADIUS)).apply()
+    }
+
+    /** Extra space around each key, in dp; touch areas stay the same. */
+    fun keyGap(context: Context) = prefs(context).getInt(KEY_GAP, 0).coerceIn(0, MAX_KEY_GAP)
+
+    fun setKeyGap(context: Context, gap: Int) {
+        prefs(context).edit().putInt(KEY_GAP, gap.coerceIn(0, MAX_KEY_GAP)).apply()
+    }
+
+    /** Key label size, in percent of the default. */
+    fun labelScale(context: Context) =
+        prefs(context).getInt(LABEL_SCALE, 100).coerceIn(MIN_LABEL_SCALE, MAX_LABEL_SCALE)
+
+    fun setLabelScale(context: Context, percent: Int) {
+        prefs(context).edit().putInt(LABEL_SCALE, percent.coerceIn(MIN_LABEL_SCALE, MAX_LABEL_SCALE)).apply()
+    }
+
+    // Bumped whenever the picture changes so the open keyboard reloads it.
+    internal fun setBackgroundImageVersion(context: Context, version: Long) {
+        prefs(context).edit().putLong(BACKGROUND_IMAGE_VERSION, version).apply()
+    }
+
+    /** Darkening over the background picture, in percent, so labels stay readable. */
+    fun backgroundDim(context: Context) =
+        prefs(context).getInt(BACKGROUND_DIM, 30).coerceIn(0, MAX_BACKGROUND_DIM)
+
+    fun setBackgroundDim(context: Context, dim: Int) {
+        prefs(context).edit().putInt(BACKGROUND_DIM, dim.coerceIn(0, MAX_BACKGROUND_DIM)).apply()
+    }
+
+    fun numberRowEnabled(context: Context) = prefs(context).getBoolean(NUMBER_ROW, false)
+
+    fun setNumberRowEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(NUMBER_ROW, enabled).apply()
     }
 
     fun autoCapitalizationEnabled(context: Context) =

@@ -117,6 +117,16 @@ public class KeyboardView extends View {
     private final HashMap<Key, ValueAnimator> mKeyPressAnimators = new HashMap<>();
     private final HashMap<Key, Float> mKeyPressProgress = new HashMap<>();
     private final HashSet<Key> mReleasingKeys = new HashSet<>();
+    public static final int KEY_PRESS_OFF = 0;
+    public static final int KEY_PRESS_MORPH = 1;
+    public static final int KEY_PRESS_BOUNCE = 2;
+    private int mKeyPressStyle = KEY_PRESS_MORPH;
+    // Bounce: a pressed key shrinks by this fraction and springs back past full size.
+    private static final float KEY_BOUNCE_SHRINK = 0.1f;
+    // User key shape: corner radius (negative keeps the theme's) and extra gap around keys.
+    private float mKeyCornerRadius = -1f;
+    private int mKeyExtraInset;
+    private float mLabelScale = 1f;
     private final float mSpacebarIconWidthRatio;
     private final Rect mKeyBackgroundPadding = new Rect();
     private static final float KET_TEXT_SHADOW_RADIUS_DISABLED = -1.0f;
@@ -372,6 +382,13 @@ public class KeyboardView extends View {
         final KeyDrawParams params = mKeyDrawParams.mayCloneAndUpdateParams(key.getHeight(), attr);
         params.mAnimAlpha = Constants.Color.ALPHA_OPAQUE;
 
+        final Float pressProgress = mKeyPressProgress.get(key);
+        final boolean scaled = mKeyPressStyle == KEY_PRESS_BOUNCE && pressProgress != null;
+        if (scaled) {
+            canvas.save();
+            final float scale = 1f - KEY_BOUNCE_SHRINK * pressProgress;
+            canvas.scale(scale, scale, key.getDrawWidth() * 0.5f, key.getHeight() * 0.5f);
+        }
         if (!key.isSpacer()) {
             Drawable background = key.isActionKey() ? mActionKeyBackground
                     : key.selectBackgroundDrawable(
@@ -385,8 +402,34 @@ public class KeyboardView extends View {
             }
         }
         onDrawKeyTopVisuals(key, canvas, paint, params);
+        if (scaled) {
+            canvas.restore();
+        }
 
         canvas.translate(-keyDrawX, -keyDrawY);
+    }
+
+    /** How a key reacts to a press: {@link #KEY_PRESS_OFF}, MORPH or BOUNCE. */
+    public void setKeyPressStyle(final int style) {
+        if (style == mKeyPressStyle) return;
+        mKeyPressStyle = style;
+        cancelKeyPressAnimations();
+        invalidateAllKeys();
+    }
+
+    /** Key shape: corner radius in px (negative for the theme's) and extra gap in px. */
+    public void setKeyShape(final float cornerRadius, final int extraInset) {
+        if (cornerRadius == mKeyCornerRadius && extraInset == mKeyExtraInset) return;
+        mKeyCornerRadius = cornerRadius;
+        mKeyExtraInset = Math.max(0, extraInset);
+        invalidateAllKeys();
+    }
+
+    /** Multiplies letter and symbol label sizes. */
+    public void setLabelScale(final float scale) {
+        if (scale == mLabelScale) return;
+        mLabelScale = scale;
+        invalidateAllKeys();
     }
 
     /** Opacity of key backgrounds (0-255); labels and icons stay fully opaque. */
@@ -435,16 +478,16 @@ public class KeyboardView extends View {
             bgX = -padding.left;
             bgY = -padding.top;
         }
+        final int inset = Math.min(mKeyExtraInset, Math.min(bgWidth, bgHeight) / 4);
         final Rect bounds = background.getBounds();
-        if (bgWidth != bounds.right || bgHeight != bounds.bottom) {
-            background.setBounds(0, 0, bgWidth, bgHeight);
+        if (bounds.left != inset || bounds.top != inset
+                || bgWidth - inset != bounds.right || bgHeight - inset != bounds.bottom) {
+            background.setBounds(inset, inset, bgWidth - inset, bgHeight - inset);
         }
         canvas.translate(bgX, bgY);
         final Float progress = mKeyPressProgress.get(key);
         if (progress == null) {
-            background.setAlpha(mKeyBackgroundAlpha);
-            background.draw(canvas);
-            background.setAlpha(255);
+            drawWithPressRadius(background, canvas, 0f, 1f);
         } else {
             drawWithPressRadius(background, canvas, progress, 1f);
             if (mReleasingKeys.contains(key) && progress > 0f) {
@@ -472,8 +515,11 @@ public class KeyboardView extends View {
         }
         final GradientDrawable shape = (GradientDrawable) current;
         final float baseRadius = shape.getCornerRadius();
-        shape.setCornerRadius(baseRadius + mKeyPressedExtraRadius * progress);
-        background.setAlpha(Math.round(mKeyBackgroundAlpha * alpha));
+        final float radius = mKeyCornerRadius >= 0f ? mKeyCornerRadius : baseRadius;
+        // A bounce overshoots below zero on release; the shape only ever rounds further.
+        final float morph = mKeyPressStyle == KEY_PRESS_OFF ? 0f : Math.max(0f, progress);
+        shape.setCornerRadius(radius + mKeyPressedExtraRadius * morph);
+        background.setAlpha(Math.round(mKeyBackgroundAlpha * Math.max(0f, Math.min(1f, alpha))));
         background.draw(canvas);
         background.setAlpha(255);
         shape.setCornerRadius(baseRadius);
@@ -481,6 +527,10 @@ public class KeyboardView extends View {
 
     /** Starts the press or release shape animation for a key. */
     public void animateKeyPress(@NonNull final Key key, final boolean pressed) {
+        if (mKeyPressStyle == KEY_PRESS_OFF || !ValueAnimator.areAnimatorsEnabled()) {
+            return;
+        }
+        final boolean bounce = mKeyPressStyle == KEY_PRESS_BOUNCE;
         final ValueAnimator running = mKeyPressAnimators.remove(key);
         final Float current = mKeyPressProgress.get(key);
         final float from = current != null ? current : (pressed ? 0f : 1f);
@@ -493,9 +543,11 @@ public class KeyboardView extends View {
             mReleasingKeys.add(key);
         }
         final ValueAnimator animator = ValueAnimator.ofFloat(from, pressed ? 1f : 0f);
-        animator.setDuration(pressed ? KEY_PRESS_DURATION : KEY_RELEASE_DURATION);
-        animator.setInterpolator(pressed
-                ? new OvershootInterpolator(2.5f) : new DecelerateInterpolator());
+        animator.setDuration(pressed ? KEY_PRESS_DURATION
+                : bounce ? KEY_RELEASE_DURATION * 3 / 2 : KEY_RELEASE_DURATION);
+        // Bounce springs back past full size before settling.
+        animator.setInterpolator(pressed ? new OvershootInterpolator(2.5f)
+                : bounce ? new OvershootInterpolator(3f) : new DecelerateInterpolator());
         animator.addUpdateListener(animation -> {
             mKeyPressProgress.put(key, (Float) animation.getAnimatedValue());
             invalidateKey(key);
@@ -546,7 +598,7 @@ public class KeyboardView extends View {
         final String label = key.getLabel();
         if (label != null) {
             paint.setTypeface(key.selectTypeface(params));
-            paint.setTextSize(key.selectTextSize(params));
+            paint.setTextSize(key.selectTextSize(params) * mLabelScale);
             final float labelCharHeight = TypefaceUtils.getReferenceCharHeight(paint);
             final float labelCharWidth = TypefaceUtils.getReferenceCharWidth(paint);
 

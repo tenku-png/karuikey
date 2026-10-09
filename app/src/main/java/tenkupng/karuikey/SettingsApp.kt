@@ -5,6 +5,9 @@ import android.content.Intent
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -384,6 +387,28 @@ private fun SettingsHubPage(
             "History off"
         }
     }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val saved = runCatching {
+            context.contentResolver.openOutputStream(uri)!!.use { SettingsBackup.export(context, it) }
+        }.isSuccess
+        Toast.makeText(context, if (saved) "Settings exported" else "Could not export settings",
+            Toast.LENGTH_SHORT).show()
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val restored = runCatching {
+            context.contentResolver.openInputStream(uri)!!.use { SettingsBackup.import(context, it) }
+        }.getOrDefault(false)
+        Toast.makeText(context, if (restored) "Settings imported" else "Not a Karuikey settings file",
+            Toast.LENGTH_SHORT).show()
+        // Theme and every page read preferences on creation; start over with the new ones.
+        if (restored) (context as? android.app.Activity)?.recreate()
+    }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Input", enterIndex = 0)
         SettingsGroup(enterIndex = 1) {
@@ -418,6 +443,16 @@ private fun SettingsHubPage(
             GroupDivider()
             SettingsRow(KaruikeySymbol.KEYBOARD, "Input method picker", "Choose the active keyboard") {
                 context.getSystemService(InputMethodManager::class.java).showInputMethodPicker()
+            }
+            GroupDivider()
+            SettingsRow(KaruikeySymbol.ARROW_FORWARD, "Export settings",
+                "Save keyboard settings to a file") {
+                exportLauncher.launch("karuikey-settings.json")
+            }
+            GroupDivider()
+            SettingsRow(KaruikeySymbol.OPEN_IN_NEW, "Import settings",
+                "Restore keyboard settings from a file") {
+                importLauncher.launch(arrayOf("application/json", "text/*"))
             }
             GroupDivider()
             SettingsRow(KaruikeySymbol.INFO, "About", "Version and open-source notices") {

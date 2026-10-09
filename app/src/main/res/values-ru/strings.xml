@@ -14,4 +14,20 @@
     <string name="emoji_category_objects">Предметы</string>
     <string name="emoji_category_symbols">Символы</string>
     <string name="emoji_category_flags">Флаги</string>
+    <string name="toolbar_text_edit">Редактирование текста</string>
+    <string name="edit_select">Выделение</string>
+    <string name="edit_select_all">Выделить всё</string>
+    <string name="edit_copy">Копировать</string>
+    <string name="edit_cut">Вырезать</string>
+    <string name="edit_undo">Отменить</string>
+    <string name="edit_redo">Повторить</string>
+    <string name="edit_home">В начало строки</string>
+    <string name="edit_end">В конец строки</string>
+    <string name="edit_left">Влево</string>
+    <string name="edit_right">Вправо</string>
+    <string name="edit_up">Вверх</string>
+    <string name="edit_down">Вниз</string>
+    <string name="clipboard_pin">Закрепить</string>
+    <string name="clipboard_unpin">Открепить</string>
+    <string name="clipboard_pinned">Закреплено</string>
 </resources>

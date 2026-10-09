@@ -25,6 +25,7 @@ internal class ClipboardPanel(
     private var emptyMessage = R.string.clipboard_history_empty
     private val selected = HashSet<Long>()
     private var editMode = false
+    private var historyEnabled = false
 
     private val headerTitle = TextView(context).apply {
         text = context.getString(R.string.toolbar_clipboard)
@@ -74,10 +75,10 @@ internal class ClipboardPanel(
         setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
         visibility = View.GONE
         setOnClickListener {
-            ClipboardHistory.clear(context)
+            ClipboardHistory.clear(context, keepPinned = true)
             selected.clear()
             editMode = false
-            history = emptyList()
+            history = ClipboardHistory.items(context)
             render()
         }
     }
@@ -120,6 +121,7 @@ internal class ClipboardPanel(
 
     fun show(items: List<ClipboardHistoryItem>, emptyMessage: Int, historyEnabled: Boolean) {
         history = items
+        this.historyEnabled = historyEnabled
         this.emptyMessage = emptyMessage
         selected.clear()
         editMode = false
@@ -198,6 +200,26 @@ internal class ClipboardPanel(
                         onPaste(item.text)
                     }
                 }
+                if (item.pinned) {
+                    val pin = context.getDrawable(R.drawable.ic_clipboard_pin)?.mutate()?.apply {
+                        setTint(appearance.secondaryText)
+                        setBounds(0, 0, context.dp(16), context.dp(16))
+                    }
+                    setCompoundDrawablesRelative(null, null, pin, null)
+                    compoundDrawablePadding = context.dp(8)
+                }
+                // Long press pins or unpins the item; it is then kept past retention and Clear all.
+                if (historyEnabled && item.timestamp > 0) setOnLongClickListener {
+                    if (editMode) return@setOnLongClickListener false
+                    ClipboardHistory.setPinned(context, item.timestamp, !item.pinned)
+                    history = ClipboardHistory.items(context)
+                    performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    render()
+                    true
+                }
+                androidx.core.view.ViewCompat.setStateDescription(
+                    this, if (item.pinned) context.getString(R.string.clipboard_pinned) else null
+                )
             }
             val cardWidth = (available - context.dp(8) * (columns - 1)) / columns
             val params = GridLayout.LayoutParams(

@@ -46,7 +46,8 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
     public void loadKeyboard(@NonNull final EditorInfo editorInfo,
             @NonNull final InputMethodSubtype subtype, final int width, final int height,
             final int autoCapsFlags, final boolean languageSwitchKeyEnabled,
-            final boolean emojiKeyEnabled, final boolean splitLayout) {
+            final boolean emojiKeyEnabled, final boolean splitLayout,
+            final boolean numberRow) {
         final RichInputMethodSubtype richSubtype = new RichInputMethodSubtype(subtype);
         final KeyboardLayoutSet.Builder builder = new KeyboardLayoutSet.Builder(
                 mContext, editorInfo);
@@ -55,7 +56,8 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
                 .setVoiceInputKeyEnabled(false)
                 .setLanguageSwitchKeyEnabled(languageSwitchKeyEnabled)
                 .setEmojiKeyEnabled(emojiKeyEnabled)
-                .setSplitLayoutEnabledByUser(splitLayout);
+                .setSplitLayoutEnabledByUser(splitLayout)
+                .setNumberRowEnabled(numberRow);
         mLanguageSwitchKeyEnabled = languageSwitchKeyEnabled;
         mKeyboardLayoutSet = builder.build();
         mState.onLoadKeyboard(autoCapsFlags,

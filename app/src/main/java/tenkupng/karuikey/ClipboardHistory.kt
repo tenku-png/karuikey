@@ -6,7 +6,9 @@ import org.json.JSONObject
 
 data class ClipboardHistoryItem(
     val text: String,
-    val timestamp: Long
+    val timestamp: Long,
+    // Pinned items never expire, survive Clear all and do not count toward the size limit.
+    val pinned: Boolean = false
 )
 
 internal fun clipboardPanelItems(
@@ -62,9 +64,9 @@ object ClipboardHistory {
 
     fun items(context: Context, now: Long = System.currentTimeMillis()): List<ClipboardHistoryItem> {
         val stored = read(context)
-        val valid = stored.filter { !isExpired(context, it.timestamp, now) }
+        val valid = stored.filter { it.pinned || !isExpired(context, it.timestamp, now) }
         if (valid.size != stored.size) write(context, valid)
-        return valid
+        return valid.sortedByDescending { it.pinned }
     }
 
     fun add(
@@ -76,9 +78,11 @@ object ClipboardHistory {
         if (!enabled(context) || sensitive || text.isBlank() ||
             text.length > MAX_STORED_TEXT_LENGTH
         ) return false
-        val updated = items(context, now).filterNot { it.text == text }.toMutableList()
-        updated.add(0, ClipboardHistoryItem(text, now))
-        write(context, updated.take(maxItems(context)))
+        val current = items(context, now)
+        val pinned = current.any { it.text == text && it.pinned }
+        val updated = current.filterNot { it.text == text }.toMutableList()
+        updated.add(0, ClipboardHistoryItem(text, now, pinned))
+        write(context, updated)
         return true
     }
 
@@ -89,8 +93,16 @@ object ClipboardHistory {
         write(context, updated)
     }
 
-    fun clear(context: Context) {
-        prefs(context).edit().remove(ITEMS).apply()
+    fun setPinned(context: Context, timestamp: Long, pinned: Boolean) {
+        write(context, read(context).map {
+            if (it.timestamp == timestamp) it.copy(pinned = pinned) else it
+        })
+    }
+
+    /** Removes the history; the keyboard's Clear all keeps pinned items. */
+    fun clear(context: Context, keepPinned: Boolean = false) {
+        if (keepPinned) write(context, read(context).filter { it.pinned })
+        else prefs(context).edit().remove(ITEMS).apply()
     }
 
     fun purge(context: Context, now: Long = System.currentTimeMillis()) {
@@ -118,7 +130,7 @@ object ClipboardHistory {
                 val text = item.optString("text", "")
                 val timestamp = item.optLong("timestamp", -1)
                 if (text.isNotBlank() && text.length <= MAX_STORED_TEXT_LENGTH && timestamp >= 0) {
-                    result.add(ClipboardHistoryItem(text, timestamp))
+                    result.add(ClipboardHistoryItem(text, timestamp, item.optBoolean("pinned")))
                 }
             }
         } catch (_: Exception) {
@@ -129,8 +141,11 @@ object ClipboardHistory {
 
     private fun write(context: Context, items: List<ClipboardHistoryItem>) {
         val array = JSONArray()
-        items.take(maxItems(context)).forEach { item ->
-            array.put(JSONObject().put("text", item.text).put("timestamp", item.timestamp))
+        val (pinned, unpinned) = items.partition { it.pinned }
+        (pinned + unpinned.take(maxItems(context))).forEach { item ->
+            val entry = JSONObject().put("text", item.text).put("timestamp", item.timestamp)
+            if (item.pinned) entry.put("pinned", true)
+            array.put(entry)
         }
         prefs(context).edit().putString(ITEMS, array.toString()).apply()
     }

@@ -132,4 +132,20 @@ Karuikey is GPL-3.0 licensed. Its keyboard core includes adapted Android Open So
     <string name="emoji_category_objects">Objects</string>
     <string name="emoji_category_symbols">Symbols</string>
     <string name="emoji_category_flags">Flags</string>
+    <string name="toolbar_text_edit">Text editing</string>
+    <string name="edit_select">Select</string>
+    <string name="edit_select_all">Select all</string>
+    <string name="edit_copy">Copy</string>
+    <string name="edit_cut">Cut</string>
+    <string name="edit_undo">Undo</string>
+    <string name="edit_redo">Redo</string>
+    <string name="edit_home">Line start</string>
+    <string name="edit_end">Line end</string>
+    <string name="edit_left">Move left</string>
+    <string name="edit_right">Move right</string>
+    <string name="edit_up">Move up</string>
+    <string name="edit_down">Move down</string>
+    <string name="clipboard_pin">Pin</string>
+    <string name="clipboard_unpin">Unpin</string>
+    <string name="clipboard_pinned">Pinned</string>
 </resources>

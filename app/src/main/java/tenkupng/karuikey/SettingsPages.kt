@@ -99,6 +99,38 @@ fun AppearancePage(
     var animations by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.animationsEnabled(context))
     }
+    var keyPressStyle by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyPressStyle(context))
+    }
+    var keyRadius by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyCornerRadius(context).toFloat())
+    }
+    var keyGap by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyGap(context).toFloat())
+    }
+    var labelScale by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.labelScale(context).toFloat())
+    }
+    var numberRow by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.numberRowEnabled(context))
+    }
+    var hasBackground by remember(refreshVersion) {
+        mutableStateOf(KeyboardBackground.exists(context))
+    }
+    var backgroundDim by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.backgroundDim(context).toFloat())
+    }
+    val pickBackground = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val saved = runCatching { KeyboardBackground.save(context, uri) }.getOrDefault(false)
+            hasBackground = KeyboardBackground.exists(context)
+            if (!saved) android.widget.Toast.makeText(
+                context, "Could not use this picture", android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
     var suggestionPosition by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.suggestionPosition(context))
     }
@@ -164,6 +196,71 @@ fun AppearancePage(
                 animations = it
                 KaruikeyPreferences.setAnimationsEnabled(context, it)
             }
+        }
+        SectionLabel("Background")
+        SettingsGroup {
+            SettingsRow(KaruikeySymbol.PALETTE,
+                if (hasBackground) "Change picture" else "Background picture",
+                "Show a picture behind the keys") {
+                pickBackground.launch(androidx.activity.result.PickVisualMediaRequest(
+                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                ))
+            }
+            if (hasBackground) {
+                GroupDivider()
+                SettingsSliderRow(KaruikeySymbol.BRIGHTNESS_AUTO, "Dim picture",
+                    "${backgroundDim.toInt()}%", backgroundDim,
+                    0f..KaruikeyPreferences.MAX_BACKGROUND_DIM.toFloat()) {
+                    backgroundDim = it
+                    KaruikeyPreferences.setBackgroundDim(context, it.toInt())
+                }
+                GroupDivider()
+                SettingsRow(KaruikeySymbol.DELETE_SWEEP, "Remove picture",
+                    "Go back to the theme color") {
+                    KeyboardBackground.clear(context)
+                    hasBackground = false
+                }
+            }
+        }
+        SectionLabel("Keys")
+        SettingsGroup {
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Number row",
+                "Show 1–0 above the letters", numberRow) {
+                numberRow = it
+                KaruikeyPreferences.setNumberRowEnabled(context, it)
+            }
+            GroupDivider()
+            SettingsSliderRow(KaruikeySymbol.TUNE, "Corner radius", "${keyRadius.toInt()} dp",
+                keyRadius, 0f..KaruikeyPreferences.MAX_KEY_CORNER_RADIUS.toFloat(),
+                steps = KaruikeyPreferences.MAX_KEY_CORNER_RADIUS - 1) {
+                keyRadius = it
+                KaruikeyPreferences.setKeyCornerRadius(context, it.toInt())
+            }
+            GroupDivider()
+            SettingsSliderRow(KaruikeySymbol.TUNE, "Key spacing", "+${keyGap.toInt()} dp",
+                keyGap, 0f..KaruikeyPreferences.MAX_KEY_GAP.toFloat(),
+                steps = KaruikeyPreferences.MAX_KEY_GAP - 1) {
+                keyGap = it
+                KaruikeyPreferences.setKeyGap(context, it.toInt())
+            }
+            GroupDivider()
+            SettingsSliderRow(KaruikeySymbol.TEXT_FIELDS, "Label size", "${labelScale.toInt()}%",
+                labelScale, KaruikeyPreferences.MIN_LABEL_SCALE.toFloat()..KaruikeyPreferences.MAX_LABEL_SCALE.toFloat()) {
+                labelScale = it
+                KaruikeyPreferences.setLabelScale(context, it.toInt())
+            }
+        }
+        SectionLabel("Key press")
+        ChoiceButtonGroup(
+            listOf(
+                "Off" to KaruikeyPreferences.KEY_PRESS_OFF,
+                "Morph" to KaruikeyPreferences.KEY_PRESS_MORPH,
+                "Bounce" to KaruikeyPreferences.KEY_PRESS_BOUNCE
+            ),
+            keyPressStyle
+        ) { value ->
+            keyPressStyle = value
+            KaruikeyPreferences.setKeyPressStyle(context, value)
         }
         SectionLabel("Suggestion strip")
         ChoiceButtonGroup(

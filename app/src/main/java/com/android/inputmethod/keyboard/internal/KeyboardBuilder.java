@@ -279,6 +279,10 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
             params.mBaseHeight = baseHeight;
             params.mDefaultRowHeight = (int)ResourceUtils.getDimensionOrFraction(keyboardAttr,
                     R.styleable.Keyboard_rowHeight, baseHeight, baseHeight / DEFAULT_KEYBOARD_ROWS);
+            // A number row on letter pages shares the same height with the other four rows.
+            if (params.mId.mNumberRowEnabled && params.mId.isAlphabetKeyboard()) {
+                params.mDefaultRowHeight = baseHeight / (DEFAULT_KEYBOARD_ROWS + 1);
+            }
 
             params.mKeyVisualAttributes = KeyVisualAttributes.newInstance(keyAttr);
 
@@ -688,6 +692,8 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
             final boolean countryCodeMatched = matchCountryCodes(caseAttr, locale);
             final boolean splitLayoutMatched = matchBoolean(caseAttr,
                     R.styleable.Keyboard_Case_isSplitLayout, id.mIsSplitLayout);
+            final boolean numberRowMatched = matchBoolean(caseAttr,
+                    R.styleable.Keyboard_Case_numberRowEnabled, id.mNumberRowEnabled);
             final boolean selected = keyboardLayoutSetMatched && keyboardLayoutSetElementMatched
                     && keyboardThemeMacthed && modeMatched && navigateNextMatched
                     && navigatePreviousMatched && passwordInputMatched && clobberSettingsKeyMatched
@@ -695,7 +701,7 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
                     && emojiKeyEnabledMatched
                     && isMultiLineMatched && imeActionMatched && isIconDefinedMatched
                     && localeCodeMatched && languageCodeMatched && countryCodeMatched
-                    && splitLayoutMatched;
+                    && splitLayoutMatched && numberRowMatched;
 
             if (DEBUG) {
                 startTag("<%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s>%s", TAG_CASE,
