@@ -476,6 +476,7 @@ object SuggestionEngine {
                 request.thirdPreviousWord,
                 out
             )
+            appContext?.let { learnedNextWords(it, request, out) }
             removeBlocked(appContext, request.locale, out)
             fillFromHistory(request, out)
             if (out.size > 3) out.subList(3, out.size).clear()
@@ -509,19 +510,40 @@ object SuggestionEngine {
         binary.getCandidates(codePoints, xs, ys, count, request.keyboard, previous,
             previousCount, request.sentenceStart, candidates)
         val locale = Locale.forLanguageTag(request.locale.replace('_', '-'))
+        val context = appContext
+        val decoded = candidates.map {
+            SuggestionRanker.ScoredWord(it.word, it.score, it.isWhitelisted,
+                it.isAppropriateForAutoCorrection)
+        }
+        val scored = if (context == null) decoded else SuggestionRanker.personalize(
+            decoded,
+            PredictionHistory.matching(context, request.locale, request.prefix)
+        ) { PredictionHistory.nextCount(context, request.locale, request.previousWord, it) }
+        val learnedTyped = context != null && PredictionHistory.count(context, request.locale,
+            request.prefix) >= SuggestionRanker.LEARNED_WORD_MIN_COUNT
         val ranked = SuggestionRanker.rank(
             request.prefix,
-            candidates.map {
-                SuggestionRanker.ScoredWord(it.word, it.score, it.isWhitelisted,
-                    it.isAppropriateForAutoCorrection)
-            },
-            binary.isValidWord(request.prefix),
+            scored,
+            learnedTyped || binary.isValidWord(request.prefix),
             locale,
             // Spare slots so blacklisted words can be dropped without emptying the strip.
             maxResults = 6
         )
         out.addAll(ranked.words)
         rankedCorrection = ranked.autoCorrection
+    }
+
+    /** Next words the user has picked repeatedly after this word lead the prediction strip. */
+    private fun learnedNextWords(context: Context, request: FillRequest, out: MutableList<String>) {
+        val history = ArrayList<String>(3)
+        PredictionHistory.fill(context, request.locale, "", request.previousWord, history)
+        history.filter {
+            PredictionHistory.nextCount(context, request.locale, request.previousWord, it) >=
+                SuggestionRanker.LEARNED_WORD_MIN_COUNT
+        }.take(2).let { learned ->
+            out.removeAll { word -> learned.any { it.equals(word, ignoreCase = true) } }
+            out.addAll(0, learned)
+        }
     }
 
     private fun fillFromHistory(request: FillRequest, out: MutableList<String>) {

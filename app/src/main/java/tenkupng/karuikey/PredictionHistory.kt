@@ -22,6 +22,20 @@ internal object PredictionHistory {
         model(context, locale).fill(prefix, previousWord, out)
     }
 
+    /** Learned words starting with [prefix] with their use counts, most used first. */
+    fun matching(context: Context, locale: String, prefix: CharSequence): List<Pair<String, Int>> {
+        if (!KaruikeyPreferences.personalizedSuggestionsEnabled(context)) return emptyList()
+        return model(context, locale).matching(prefix)
+    }
+
+    fun count(context: Context, locale: String, word: String): Int =
+        if (!KaruikeyPreferences.personalizedSuggestionsEnabled(context)) 0
+        else model(context, locale).count(word)
+
+    fun nextCount(context: Context, locale: String, previousWord: String?, word: String): Int =
+        if (!KaruikeyPreferences.personalizedSuggestionsEnabled(context) || previousWord == null) 0
+        else model(context, locale).nextCount(previousWord, word)
+
     fun clear(context: Context) {
         synchronized(models) { models.clear() }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
@@ -49,9 +63,14 @@ internal object PredictionHistory {
 }
 
 internal class HistoryModel {
+    private companion object {
+        const val MAX_MATCHES = 8
+    }
+
     private val wordCounts = HashMap<String, Int>()
     private val nextCounts = HashMap<String, HashMap<String, Int>>()
 
+    @Synchronized
     fun record(word: String, previousWord: String?) {
         val cleanWord = word.trim().lowercase(Locale.ROOT)
         if (cleanWord.isEmpty()) return
@@ -63,6 +82,7 @@ internal class HistoryModel {
         }
     }
 
+    @Synchronized
     fun fill(prefix: CharSequence, previousWord: String?, out: MutableList<String>) {
         val wanted = prefix.toString().lowercase(Locale.ROOT)
         if (wanted.isEmpty() && !previousWord.isNullOrBlank()) {
@@ -71,6 +91,23 @@ internal class HistoryModel {
         appendSorted(wordCounts, wanted, out)
     }
 
+    @Synchronized
+    fun matching(prefix: CharSequence): List<Pair<String, Int>> {
+        val wanted = prefix.toString().lowercase(Locale.ROOT)
+        return wordCounts.entries.filter { it.key.startsWith(wanted) }
+            .sortedByDescending { it.value }
+            .take(MAX_MATCHES)
+            .map { it.key to it.value }
+    }
+
+    @Synchronized
+    fun count(word: String): Int = wordCounts[word.lowercase(Locale.ROOT)] ?: 0
+
+    @Synchronized
+    fun nextCount(previousWord: String, word: String): Int =
+        nextCounts[previousWord.lowercase(Locale.ROOT)]?.get(word.lowercase(Locale.ROOT)) ?: 0
+
+    @Synchronized
     fun serialize(): Set<String> {
         val entries = HashSet<String>(wordCounts.size + nextCounts.size)
         wordCounts.forEach { (word, count) -> entries.add("w\t$word\t$count") }
@@ -80,6 +117,7 @@ internal class HistoryModel {
         return entries
     }
 
+    @Synchronized
     fun restore(entries: Set<String>) {
         entries.forEach { entry ->
             val fields = entry.split('\t')

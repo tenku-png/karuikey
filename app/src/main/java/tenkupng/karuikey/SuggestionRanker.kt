@@ -24,6 +24,14 @@ internal object SuggestionRanker {
     private const val SUGGEST_INTERFACE_OUTPUT_SCALE = 1_000_000f
     private const val SUPPRESS_SUGGEST_THRESHOLD = -2_000_000_000
 
+    private const val HISTORY_BASE_SCORE = 150_000
+    private const val HISTORY_WORD_BONUS = 60_000
+    private const val HISTORY_COUNT_CAP = 5
+    private const val HISTORY_CONTEXT_BONUS = 150_000
+
+    /** Words used this many times are treated as valid and are never auto-corrected away. */
+    const val LEARNED_WORD_MIN_COUNT = 2
+
     private enum class CapsMode { NONE, FIRST, ALL }
 
     fun rank(
@@ -60,6 +68,39 @@ internal object SuggestionRanker {
             ordered.forEach { if (words.size < maxResults) words.add(it.word) }
         }
         return Ranked(words, autoCorrection)
+    }
+
+    /**
+     * Folds the on-device history into decoder candidates: learned words get a boost that grows
+     * with use, and learned words the decoder missed are added as completions. Added words are
+     * never auto-correction targets, so a prefix is not silently expanded into a long word.
+     */
+    fun personalize(
+        candidates: List<ScoredWord>,
+        learned: List<Pair<String, Int>>,
+        nextCount: (String) -> Int
+    ): List<ScoredWord> {
+        if (learned.isEmpty()) return candidates
+        val uses = learned.toMap()
+        fun bonus(word: String): Int {
+            val key = word.lowercase(Locale.ROOT)
+            val count = uses[key] ?: return 0
+            return HISTORY_WORD_BONUS * count.coerceAtMost(HISTORY_COUNT_CAP) +
+                if (nextCount(key) > 0) HISTORY_CONTEXT_BONUS else 0
+        }
+        val result = ArrayList<ScoredWord>(candidates.size + learned.size)
+        val present = HashSet<String>()
+        candidates.forEach {
+            present.add(it.word.lowercase(Locale.ROOT))
+            result.add(it.copy(score = it.score + bonus(it.word)))
+        }
+        learned.forEach { (word, _) ->
+            if (present.add(word)) {
+                result.add(ScoredWord(word, HISTORY_BASE_SCORE + bonus(word),
+                    appropriateForAutoCorrection = false))
+            }
+        }
+        return result
     }
 
     private fun shouldAutoCorrect(

@@ -999,6 +999,8 @@ class KaruikeyService : InputMethodService() {
             expectedCursorPosition += restored.length - committed.length
             expectedSelectionEnd = expectedCursorPosition
         }
+        // Insisting on the typed word teaches it, so the same word is not corrected again.
+        repeat(SuggestionRanker.LEARNED_WORD_MIN_COUNT) { recordCompletedWord(undo.typed, null) }
         suggestionSession.clearAutomaticSpace()
         suggestionSession.clear()
         clearSuggestions()

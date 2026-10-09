@@ -62,4 +62,26 @@ class SuggestionRankerTest {
         assertEquals(1, SuggestionRanker.editDistance("teh", "the"))
         assertEquals(3, SuggestionRanker.editDistance("", "abc"))
     }
+
+    @Test
+    fun learnedWordsAreBoostedButNeverAutoCorrectionTargets() {
+        val personalized = SuggestionRanker.personalize(
+            listOf(word("прием", 300_000), word("привет", 200_000)),
+            listOf("приветик" to 5, "привет" to 3)
+        ) { if (it == "привет") 1 else 0 }
+
+        val ranked = SuggestionRanker.rank("прив", personalized, false, Locale.ROOT)
+        assertEquals("привет", ranked.words.first())
+        assertNull(SuggestionRanker.rank("пр", SuggestionRanker.personalize(
+            emptyList(), listOf("приветик" to 5)) { 0 }, false, Locale.ROOT).autoCorrection)
+    }
+
+    @Test
+    fun learnedTypedWordIsNotCorrected() {
+        val ranked = SuggestionRanker.rank(
+            "зорошо", listOf(word("хорошо", 900_000)), true, Locale.ROOT
+        )
+        assertNull(ranked.autoCorrection)
+        assertEquals(listOf("хорошо"), ranked.words)
+    }
 }
