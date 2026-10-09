@@ -91,7 +91,7 @@ object KaruikeyPreferences {
     private const val KEY_TRANSPARENCY = "key_transparency"
     const val MAX_KEY_TRANSPARENCY = 70
     const val MIN_BLUR_RADIUS = 4
-    const val MAX_BLUR_RADIUS = 48
+    const val MAX_BLUR_RADIUS = 200
     private const val DEFAULT_BLUR_RADIUS = 20
     private const val MAX_TRANSPARENCY = 35
     // Blur keeps the content behind illegible, so the surface may be clearer than without it.
@@ -343,6 +343,19 @@ object KaruikeyPreferences {
     fun setBlurContrast(context: Context, contrast: Int) {
         prefs(context).edit()
             .putInt(BLUR_CONTRAST, contrast.coerceIn(-MAX_BLUR_CONTRAST, MAX_BLUR_CONTRAST)).apply()
+    }
+
+    /** iOS-like frosted glass: heavy blur under a dense gray veil with translucent keys. */
+    fun applyFrostedPreset(context: Context) {
+        prefs(context).edit()
+            .putBoolean(BLUR, true)
+            .putInt(BLUR_RADIUS, 120)
+            .putInt(BLUR_CONTRAST, 20)
+            .putInt(BLUR_GRAIN, 6)
+            .putBoolean(TRANSPARENCY, true)
+            .putInt(TRANSPARENCY_AMOUNT, MAX_BLUR_TRANSPARENCY)
+            .putInt(KEY_TRANSPARENCY, 40)
+            .apply()
     }
 
     fun accentFunctionKeys(context: Context) = prefs(context).getBoolean(ACCENT_FUNCTION_KEYS, false)

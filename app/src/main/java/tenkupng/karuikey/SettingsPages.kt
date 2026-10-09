@@ -189,6 +189,17 @@ fun AppearancePage(
             ) {
                 Column {
                     GroupDivider()
+                    SettingsRow(KaruikeySymbol.PALETTE, "Frosted preset",
+                        "Heavy matte blur with translucent keys, like iOS") {
+                        KaruikeyPreferences.applyFrostedPreset(context)
+                        transparency = true
+                        transparencyAmount = KaruikeyPreferences.transparencyAmount(context).toFloat()
+                        keyTransparency = KaruikeyPreferences.keyTransparency(context).toFloat()
+                        blurRadius = KaruikeyPreferences.blurRadius(context).toFloat()
+                        blurGrain = KaruikeyPreferences.blurGrain(context).toFloat()
+                        blurContrast = KaruikeyPreferences.blurContrast(context).toFloat()
+                    }
+                    GroupDivider()
                     Text("Blur strength ${blurRadius.toInt()} dp",
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
