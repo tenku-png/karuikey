@@ -36,13 +36,10 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.view.inputmethod.InputMethodSubtype
 import android.widget.FrameLayout
-import android.widget.GridLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupMenu
-import android.widget.ScrollView
 import android.widget.TextView
-import java.util.HashSet
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.android.inputmethod.accessibility.AccessibilityUtils
@@ -61,9 +58,7 @@ import com.android.inputmethod.latin.utils.SubtypeLocaleUtils
 
 // Enough text before the cursor for one word plus three context words.
 private const val RESUME_CONTEXT_LENGTH = 64
-private const val STRIP_FADE_MS = 120L
 private const val SPACE_LANGUAGE_FLICK_MS = 250L
-private const val EMOJI_SEARCH_ENTER_MS = 260L
 private const val SIDE_CANDIDATE_MIN_DP = 96
 
 // Display order of candidate slots: the best suggestion (index 0) goes in the middle.
@@ -75,9 +70,8 @@ class KaruikeyService : InputMethodService() {
     private val primarySuggestionTypeface: Typeface by lazy { KaruikeyTypeface.create(this, 650) }
     private var inputView: KaruikeyInputView? = null
     private var blurListener: java.util.function.Consumer<Boolean>? = null
-    // The IME window height chosen by the system, restored when blur is turned off.
-    private var savedWindowHeight: Int? = null
-    private var dockedWindowHeight: Int? = null
+    private val windowStyle = ImeWindowStyle(this)
+    private val keyFeedback by lazy { KeyFeedback(this) }
     private var keyboardHost: KeyboardHost? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
@@ -137,6 +131,7 @@ class KaruikeyService : InputMethodService() {
 
     private val keyboardActionListener: KeyboardActionListener = object : KeyboardActionListener.Adapter() {
         override fun onPressKey(primaryCode: Int, repeatCount: Int, isSinglePointer: Boolean) {
+            keyFeedback.onKeyPress(primaryCode)
             keyboardSwitcher?.onPressKey(primaryCode, isSinglePointer, autoCapsMode())
         }
 
@@ -307,7 +302,7 @@ class KaruikeyService : InputMethodService() {
         val view = KaruikeyInputView()
         inputView = view
         keyboardSwitcher = view.keyboardSwitcher
-        return KeyboardHost(view).also { keyboardHost = it }
+        return KeyboardHost(this, view) { view.floating = it }.also { keyboardHost = it }
     }
 
     private fun floatingModeActive() =
@@ -661,7 +656,7 @@ class KaruikeyService : InputMethodService() {
     private fun emojiKeyAllowed(): Boolean {
         val info = editorInfo ?: return false
         if ((info.inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
-        return !isSensitiveInput(info)
+        return !InputFieldPolicy.isSensitive(info)
     }
 
     private fun openEmojiPanel() {
@@ -724,32 +719,13 @@ class KaruikeyService : InputMethodService() {
         )
     }
 
-    private fun suggestionsEnabledFor(info: EditorInfo): Boolean {
-        if (!KaruikeyPreferences.suggestionsEnabled(this)) return false
-        if (!SuggestionEngine.hasDictionary(currentLanguage?.locale ?: "")) return false
-        val inputType = info.inputType
-        if ((inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
-        if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return false
-        return when (inputType and InputType.TYPE_MASK_VARIATION) {
-            InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> false
-            else -> true
-        }
-    }
+    private fun suggestionsEnabledFor(info: EditorInfo): Boolean =
+        KaruikeyPreferences.suggestionsEnabled(this) &&
+            SuggestionEngine.hasDictionary(currentLanguage?.locale ?: "") &&
+            InputFieldPolicy.allowsWordInput(info)
 
-    private fun gestureEnabledFor(info: EditorInfo, locale: String): Boolean {
-        if (!SuggestionEngine.hasDictionary(locale)) return false
-        val inputType = info.inputType
-        if ((inputType and InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return false
-        if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return false
-        return when (inputType and InputType.TYPE_MASK_VARIATION) {
-            InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> false
-            else -> true
-        }
-    }
+    private fun gestureEnabledFor(info: EditorInfo, locale: String): Boolean =
+        SuggestionEngine.hasDictionary(locale) && InputFieldPolicy.allowsWordInput(info)
 
     private fun clearComposingWord() {
         finishEditorComposition(currentInputConnection)
@@ -790,7 +766,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun recordCompletedWord(word: String, previousWord: String?) {
-        if (word.isBlank() || editorInfo?.let(::isSensitiveInput) != false) return
+        if (word.isBlank() || editorInfo?.let(InputFieldPolicy::isIncognito) != false) return
         PredictionHistory.record(this, currentLanguage?.locale ?: return, word, previousWord)
     }
 
@@ -1111,81 +1087,14 @@ class KaruikeyService : InputMethodService() {
         return Event.createSoftwareKeypressEvent(codePoint, keyCode, x, y, isKeyRepeat)
     }
 
-    /**
-     * Window blur covers the whole window surface. While blur is on, the window wraps the
-     * keyboard so only the area behind it blurs; otherwise the system layout is left as is.
-     */
-    private fun applyWindowBlur(imeWindow: android.view.Window) {
-        if (android.os.Build.VERSION.SDK_INT < 31) return
-        val blur = KaruikeyPreferences.blurActive(this)
-        if (blur) {
-            if (savedWindowHeight == null) savedWindowHeight = imeWindow.attributes.height
-            if (imeWindow.attributes.height != WindowManager.LayoutParams.WRAP_CONTENT) {
-                imeWindow.setLayout(
-                    WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT
-                )
-            }
-        } else {
-            savedWindowHeight?.let { height ->
-                if (imeWindow.attributes.height != height) {
-                    imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, height)
-                }
-            }
-            savedWindowHeight = null
-        }
-        val radius = if (blur) {
-            (KaruikeyPreferences.blurRadius(this) * resources.displayMetrics.density).toInt()
-        } else 0
-        imeWindow.setBackgroundBlurRadius(radius)
-    }
-
-    // Window blur takes its corner radius from the window background outline, which is empty
-    // until the drawable has bounds, so it starts sized and is set once to keep them.
-    private val roundedWindowBackground by lazy {
-        android.graphics.drawable.GradientDrawable().apply {
-            setColor(Color.TRANSPARENT)
-            cornerRadius = dp(12).toFloat()
-            setBounds(0, 0, resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
-        }
-    }
-
     private fun configureImeWindow() {
         val imeWindow = window?.window ?: return
         val view = inputView ?: return
-        val surface = view.appearance.keyboardBackground
         val surfaceColor = view.surfaceBackgroundColor()
-        if (imeWindow.decorView.background !== roundedWindowBackground) {
-            imeWindow.setBackgroundDrawable(roundedWindowBackground)
-        }
         view.applySurfaceBackground(surfaceColor)
         val floating = floatingModeActive()
         keyboardHost?.floating = floating
-        if (floating) {
-            if (dockedWindowHeight == null) dockedWindowHeight = imeWindow.attributes.height
-            imeWindow.setLayout(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT
-            )
-            if (android.os.Build.VERSION.SDK_INT >= 31) imeWindow.setBackgroundBlurRadius(0)
-        } else {
-            dockedWindowHeight?.let { imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, it) }
-            dockedWindowHeight = null
-            applyWindowBlur(imeWindow)
-        }
-        val insetsController = androidx.core.view.WindowCompat.getInsetsController(
-            imeWindow,
-            view
-        )
-        insetsController.isAppearanceLightNavigationBars = Color.luminance(surface) > 0.5f
-        if (android.os.Build.VERSION.SDK_INT >= 29) {
-            imeWindow.isNavigationBarContrastEnforced = false
-        }
-        imeWindow.navigationBarColor = if (floating) Color.TRANSPARENT else surfaceColor
-        imeWindow.navigationBarDividerColor = Color.TRANSPARENT
-        if (android.os.Build.VERSION.SDK_INT >= 35) {
-            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(imeWindow, false)
-        } else {
-            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(imeWindow, true)
-        }
+        windowStyle.apply(imeWindow, view, floating, view.appearance.keyboardBackground, surfaceColor)
     }
 
     private fun openSettings() {
@@ -1205,7 +1114,7 @@ class KaruikeyService : InputMethodService() {
             item != null && text.isNullOrEmpty() -> R.string.clipboard_empty
             else -> R.string.clipboard_non_text
         }
-        val sensitive = editorInfo?.let(::isSensitiveInput) ?: true
+        val sensitive = editorInfo?.let(InputFieldPolicy::isIncognito) ?: true
         if (!sensitive && text != null) ClipboardHistory.add(this, text)
         val historyEnabled = !sensitive && ClipboardHistory.enabled(this)
         val history = if (historyEnabled) ClipboardHistory.items(this) else emptyList()
@@ -1231,18 +1140,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun clipboardCaptureAllowed() =
-        isInputViewShown && editorInfo?.let { !isSensitiveInput(it) } == true
-
-    private fun isSensitiveInput(info: EditorInfo): Boolean {
-        val inputType = info.inputType
-        if ((inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0) return true
-        return when (inputType and InputType.TYPE_MASK_VARIATION) {
-            InputType.TYPE_TEXT_VARIATION_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
-            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD -> true
-            else -> false
-        }
-    }
+        isInputViewShown && editorInfo?.let { !InputFieldPolicy.isIncognito(it) } == true
 
     private fun updateClipboardMonitoring() {
         stopClipboardMonitoring()
@@ -1265,8 +1163,6 @@ class KaruikeyService : InputMethodService() {
         }
         return super.onKeyDown(keyCode, event)
     }
-
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private inner class KaruikeyInputView : FrameLayout(this@KaruikeyService) {
         val appearance: KeyboardAppearance =
@@ -1296,10 +1192,6 @@ class KaruikeyService : InputMethodService() {
             languageLabel = { currentLanguage?.displayName.orEmpty() }
         )
         private val toolbarHeight = resources.getDimensionPixelSize(R.dimen.keyboard_toolbar_height)
-        private var clipboardHistory: List<ClipboardHistoryItem> = emptyList()
-        private var clipboardEmptyMessage = R.string.clipboard_history_empty
-        private val clipboardSelected = HashSet<Long>()
-        private var clipboardEditMode = false
         private var spaceCursorKey: Key? = null
         private var spaceCursorLastX = 0
         private var spaceCursorDistance = 0
@@ -1308,85 +1200,11 @@ class KaruikeyService : InputMethodService() {
         private var spaceLanguageActive = false
         private val spaceCursorTrigger = dp(12)
         private val spaceCursorStep = dp(24)
-        private val clipboardPanel = LinearLayout(keyboardContext).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(12))
-            setBackgroundColor(appearance.keyboardBackground)
-            visibility = View.GONE
-        }
-        private val clipboardHeaderTitle = TextView(keyboardContext).apply {
-            text = getString(R.string.toolbar_clipboard)
-            textSize = 16f
-            typeface = keyboardTypeface
-            gravity = Gravity.CENTER_VERTICAL
-            setTextColor(appearance.primaryText)
-            setPadding(dp(12), 0, 0, 0)
-        }
-        private val clipboardStatus = TextView(keyboardContext).apply {
-            textSize = 12f
-            typeface = keyboardTypeface
-            gravity = Gravity.CENTER_VERTICAL
-            setTextColor(appearance.secondaryText)
-            setPadding(dp(8), 0, dp(4), 0)
-        }
-        private val clipboardEdit = ImageButton(keyboardContext).apply {
-            contentDescription = getString(R.string.clipboard_edit)
-            setImageResource(R.drawable.ic_settings_edit)
-            imageTintList = ColorStateList.valueOf(appearance.primaryText)
-            setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-            setOnClickListener {
-                clipboardEditMode = !clipboardEditMode
-                clipboardSelected.clear()
-                renderClipboardHistory()
-            }
-        }
-        private val clipboardDeleteSelected = ImageButton(keyboardContext).apply {
-            contentDescription = getString(R.string.clipboard_delete_selected)
-            setImageResource(R.drawable.ic_settings_delete)
-            imageTintList = ColorStateList.valueOf(appearance.primaryText)
-            setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-            visibility = View.GONE
-            setOnClickListener {
-                clipboardSelected.toList().forEach {
-                    ClipboardHistory.remove(this@KaruikeyService, it)
-                }
-                clipboardSelected.clear()
-                clipboardEditMode = false
-                clipboardHistory = ClipboardHistory.items(this@KaruikeyService)
-                renderClipboardHistory()
-            }
-        }
-        private val clipboardItems = GridLayout(keyboardContext).apply {
-            orientation = GridLayout.HORIZONTAL
-            useDefaultMargins = false
-        }
-        private val clipboardHistoryScroll = ScrollView(keyboardContext).apply {
-            addView(clipboardItems, LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
-        }
-        private val clipboardClearAll = TextView(keyboardContext).apply {
-            text = getString(R.string.clipboard_clear_all)
-            textSize = 14f
-            typeface = keyboardTypeface
-            gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-            setTextColor(appearance.primaryText)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-            visibility = View.GONE
-            setOnClickListener {
-                ClipboardHistory.clear(this@KaruikeyService)
-                clipboardSelected.clear()
-                clipboardEditMode = false
-                clipboardHistory = emptyList()
-                renderClipboardHistory()
-            }
-        }
-        private val clipboardManageBar = LinearLayout(keyboardContext).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE
-        }
+        private val clipboardPanel = ClipboardPanel(
+            keyboardContext, appearance, keyboardTypeface, toolbarHeight,
+            onBack = { hideClipboardPanel() },
+            onPaste = ::pasteClipboard
+        )
         private val candidateViews = Array(3) {
             TextView(keyboardContext).apply {
                 gravity = Gravity.CENTER
@@ -1409,7 +1227,7 @@ class KaruikeyService : InputMethodService() {
             R.drawable.ic_keyboard_language, R.string.toolbar_language
         ) { cycleLanguage() }
         private val modeToolbarButton = toolbarButton(
-            modeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService)),
+            keyboardModeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService)),
             R.string.toolbar_keyboard_mode
         ) { showKeyboardModeMenu() }
         private var navigationBottomInset = 0
@@ -1422,71 +1240,7 @@ class KaruikeyService : InputMethodService() {
                 invalidateOutline()
                 requestLayout()
             }
-        private val dragHandle = object : View(keyboardContext) {
-            private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = appearance.secondaryText }
-            private val corner = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = appearance.secondaryText
-                style = Paint.Style.STROKE
-                strokeWidth = dp(2).toFloat()
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            private val cornerPath = android.graphics.Path()
-            private val resizeZone = dp(32)
-            // 0 moves the keyboard; -1 / 1 resize from the bottom-left / bottom-right corner.
-            private var gesture = 0
-            private var lastX = 0f
-            private var lastY = 0f
-
-            override fun onDraw(canvas: Canvas) {
-                val pillWidth = dp(32).toFloat()
-                val pillHeight = dp(4).toFloat()
-                val left = (width - pillWidth) / 2
-                val top = (height - pillHeight) / 2
-                canvas.drawRoundRect(left, top, left + pillWidth, top + pillHeight,
-                    pillHeight / 2, pillHeight / 2, pill)
-                // Corner ticks mark the resize zones.
-                val inset = dp(10).toFloat()
-                val arm = dp(8).toFloat()
-                val bottom = height - dp(8).toFloat()
-                cornerPath.reset()
-                cornerPath.moveTo(inset, bottom - arm)
-                cornerPath.lineTo(inset, bottom)
-                cornerPath.lineTo(inset + arm, bottom)
-                cornerPath.moveTo(width - inset, bottom - arm)
-                cornerPath.lineTo(width - inset, bottom)
-                cornerPath.lineTo(width - inset - arm, bottom)
-                canvas.drawPath(cornerPath, corner)
-            }
-
-            override fun onTouchEvent(event: MotionEvent): Boolean {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        gesture = when {
-                            event.x < resizeZone -> -1
-                            event.x > width - resizeZone -> 1
-                            else -> 0
-                        }
-                        lastX = event.rawX
-                        lastY = event.rawY
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.rawX - lastX
-                        val dy = event.rawY - lastY
-                        if (gesture == 0) {
-                            keyboardHost?.moveFloatingBy(dx, dy)
-                        } else {
-                            keyboardHost?.resizeFloatingBy(dx, dy, fromLeft = gesture < 0)
-                        }
-                        lastX = event.rawX
-                        lastY = event.rawY
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
-                        keyboardHost?.saveFloatingPosition()
-                }
-                return true
-            }
-        }
+        private val dragHandle = FloatingDragHandle(keyboardContext, appearance) { keyboardHost }
         private val bottomInset get() = if (floating) dragHandleHeight else navigationBottomInset
 
         init {
@@ -1531,37 +1285,6 @@ class KaruikeyService : InputMethodService() {
                 0, LayoutParams.MATCH_PARENT
             ))
             toolbar.addView(suggestionToolbar, FrameLayout.LayoutParams.MATCH_PARENT, toolbarHeight)
-            val clipboardHeader = LinearLayout(keyboardContext).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            clipboardHeader.addView(ImageButton(keyboardContext).apply {
-                contentDescription = getString(R.string.clipboard_back)
-                setImageResource(R.drawable.ic_settings_back)
-                imageTintList = ColorStateList.valueOf(appearance.primaryText)
-                isClickable = true
-                isFocusable = true
-                setBackgroundResource(R.drawable.keyboard_toolbar_button_background)
-                setOnClickListener { hideClipboardPanel() }
-            }, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
-            clipboardHeader.addView(clipboardHeaderTitle, LinearLayout.LayoutParams(0, toolbarHeight, 1f))
-            clipboardHeader.addView(clipboardStatus, LinearLayout.LayoutParams(
-                LayoutParams.WRAP_CONTENT, toolbarHeight
-            ))
-            clipboardHeader.addView(clipboardEdit, LinearLayout.LayoutParams(toolbarHeight, toolbarHeight))
-            clipboardPanel.addView(clipboardHeader)
-            clipboardPanel.addView(clipboardHistoryScroll, LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, 0, 1f
-            ))
-            clipboardManageBar.addView(clipboardDeleteSelected, LinearLayout.LayoutParams(
-                toolbarHeight, toolbarHeight
-            ))
-            clipboardManageBar.addView(clipboardClearAll, LinearLayout.LayoutParams(
-                0, LayoutParams.WRAP_CONTENT, 1f
-            ))
-            clipboardPanel.addView(clipboardManageBar, LinearLayout.LayoutParams(
-                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT
-            ))
             addView(toolbar, LayoutParams.MATCH_PARENT, toolbarHeight)
             keyboardContent.addView(keyboardView, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             keyboardContent.addView(emojiPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
@@ -1590,6 +1313,14 @@ class KaruikeyService : InputMethodService() {
                 insets
             }
             keyboardView.setOnTouchListener { _, event -> handleSpaceCursorTouch(event) }
+            keyboardView.setOnKeyboardChangedListener { previous, keyboard ->
+                // Only letters <-> symbols: shift changes and reloads keep the same page.
+                if (previous != null && !isEmojiSearchActive &&
+                    previous.mId.mWidth == keyboard.mId.mWidth &&
+                    previous.mId.mHeight == keyboard.mId.mHeight &&
+                    previous.mId.isAlphabetKeyboard != keyboard.mId.isAlphabetKeyboard
+                ) KeyboardMotion.layoutSwitch(keyboardView)
+            }
         }
 
         private fun handleSpaceCursorTouch(event: android.view.MotionEvent): Boolean {
@@ -1623,9 +1354,7 @@ class KaruikeyService : InputMethodService() {
                     ) {
                         keyboardView.cancelAllOngoingEvents()
                         cycleLanguage(if (spaceCursorDistance > 0) 1 else -1)
-                        keyboardView.performHapticFeedback(
-                            android.view.HapticFeedbackConstants.KEYBOARD_TAP
-                        )
+                        keyFeedback.vibrate()
                         spaceLanguageActive = true
                         spaceCursorDistance = 0
                         return true
@@ -1689,6 +1418,7 @@ class KaruikeyService : InputMethodService() {
             keyboardView.visibility = View.GONE
             emojiPanel.visibility = View.VISIBLE
             toolbar.visibility = View.GONE
+            KeyboardMotion.panelIn(emojiPanel)
             requestLayout()
         }
 
@@ -1705,13 +1435,7 @@ class KaruikeyService : InputMethodService() {
             keyboardView.visibility = View.VISIBLE
             toolbar.visibility = View.GONE
             // The letters rise into place under the search strip instead of popping in.
-            keyboardView.animate().cancel()
-            keyboardView.alpha = 0f
-            keyboardView.translationY = dp(32).toFloat()
-            keyboardView.animate().alpha(1f).translationY(0f)
-                .setDuration(EMOJI_SEARCH_ENTER_MS)
-                .setInterpolator(android.view.animation.DecelerateInterpolator(2f))
-                .start()
+            KeyboardMotion.panelIn(keyboardView)
             requestLayout()
             reloadKeyboardAfterLayout()
         }
@@ -1752,6 +1476,8 @@ class KaruikeyService : InputMethodService() {
             toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                 View.VISIBLE
             } else View.GONE
+            KeyboardMotion.panelIn(keyboardView)
+            KeyboardMotion.fadeIn(toolbar)
             requestLayout()
             reloadKeyboardAfterLayout()
             return true
@@ -1823,7 +1549,7 @@ class KaruikeyService : InputMethodService() {
                     KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR
             ) View.VISIBLE else View.GONE
             modeToolbarButton.setImageResource(
-                modeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService))
+                keyboardModeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService))
             )
             languageToolbarButton.visibility = if (
                 KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
@@ -1890,109 +1616,11 @@ class KaruikeyService : InputMethodService() {
             emptyMessage: Int,
             historyEnabled: Boolean
         ) {
-            clipboardHistory = items
-            clipboardEmptyMessage = emptyMessage
-            clipboardSelected.clear()
-            clipboardEditMode = false
-            clipboardStatus.text = if (historyEnabled) {
-                getString(R.string.clipboard_history_status, items.size)
-            } else {
-                getString(R.string.clipboard_history_off)
-            }
-            clipboardEdit.visibility = if (historyEnabled && items.isNotEmpty()) View.VISIBLE else View.GONE
             toolbar.visibility = View.GONE
             keyboardView.visibility = View.GONE
-            clipboardPanel.visibility = View.VISIBLE
-            renderClipboardHistory()
+            clipboardPanel.show(items, emptyMessage, historyEnabled)
+            KeyboardMotion.panelIn(clipboardPanel)
             requestLayout()
-        }
-
-        private fun renderClipboardHistory() {
-            val columns = if (availableClipboardWidth() >= dp(360)) 2 else 1
-            clipboardItems.columnCount = columns
-            clipboardItems.removeAllViews()
-            if (clipboardHistory.isEmpty()) {
-                val emptyState = TextView(keyboardContext).apply {
-                    text = getString(
-                        clipboardEmptyMessage
-                    )
-                    textSize = 14f
-                    typeface = keyboardTypeface
-                    gravity = Gravity.CENTER
-                    setTextColor(appearance.secondaryText)
-                    setPadding(dp(16), dp(20), dp(16), dp(20))
-                }
-                val emptyParams = GridLayout.LayoutParams(
-                    GridLayout.spec(0), GridLayout.spec(0, columns)
-                ).apply {
-                    width = availableClipboardWidth()
-                    height = dp(96)
-                }
-                clipboardItems.addView(emptyState, emptyParams)
-            }
-            clipboardHistory.forEachIndexed { index, item ->
-                val selected = clipboardSelected.contains(item.timestamp)
-                val card = TextView(keyboardContext).apply {
-                    text = item.text
-                    textSize = 15f
-                    typeface = keyboardTypeface
-                    maxLines = 4
-                    ellipsize = TextUtils.TruncateAt.END
-                    gravity = Gravity.CENTER_VERTICAL
-                    isClickable = true
-                    isFocusable = true
-                    isActivated = selected
-                    alpha = if (selected) 0.58f else 1f
-                    setTextColor(appearance.primaryText)
-                    setPadding(dp(12), dp(12), dp(12), dp(12))
-                    setBackgroundResource(R.drawable.keyboard_clipboard_item_background)
-                    background.mutate().alpha =
-                        KaruikeyPreferences.keyBackgroundAlpha(this@KaruikeyService)
-                    contentDescription = if (clipboardEditMode) {
-                        getString(R.string.clipboard_select_item)
-                    } else {
-                        getString(R.string.clipboard_paste)
-                    }
-                    setOnClickListener {
-                        if (clipboardEditMode) {
-                            if (!clipboardSelected.add(item.timestamp)) {
-                                clipboardSelected.remove(item.timestamp)
-                            }
-                            renderClipboardHistory()
-                        } else {
-                            pasteClipboard(item.text)
-                        }
-                    }
-                }
-                val cardWidth = (availableClipboardWidth() - dp(8) * (columns - 1)) / columns
-                val params = GridLayout.LayoutParams(
-                    GridLayout.spec(index / columns),
-                    GridLayout.spec(index % columns)
-                ).apply {
-                    width = cardWidth.coerceAtLeast(1)
-                    height = dp(72)
-                    setMargins(0, 0, if (index % columns == columns - 1) 0 else dp(8), dp(8))
-                }
-                clipboardItems.addView(card, params)
-            }
-            val empty = clipboardHistory.isEmpty()
-            clipboardClearAll.visibility = if (!empty && clipboardEditMode) View.VISIBLE else View.GONE
-            clipboardDeleteSelected.visibility = if (clipboardEditMode) View.VISIBLE else View.GONE
-            clipboardManageBar.visibility = if (clipboardEditMode && !empty) View.VISIBLE else View.GONE
-            clipboardHeaderTitle.text = if (clipboardEditMode) {
-                getString(R.string.clipboard_select_title)
-            } else {
-                getString(R.string.toolbar_clipboard)
-            }
-        }
-
-        private fun availableClipboardWidth(): Int {
-            val measured = clipboardItems.width
-            return if (measured > 0) {
-                measured
-            } else {
-                (width - clipboardPanel.paddingLeft - clipboardPanel.paddingRight).coerceAtLeast(1)
-            }
         }
 
         private fun pasteClipboard(text: String) {
@@ -2003,17 +1631,9 @@ class KaruikeyService : InputMethodService() {
 
         fun hideClipboardPanel(): Boolean {
             if (clipboardPanel.visibility != View.VISIBLE) return false
-            clipboardItems.removeAllViews()
-            clipboardHistory = emptyList()
-            clipboardEmptyMessage = R.string.clipboard_history_empty
-            clipboardSelected.clear()
-            clipboardEditMode = false
-            clipboardEdit.visibility = View.GONE
-            clipboardDeleteSelected.visibility = View.GONE
-            clipboardManageBar.visibility = View.GONE
-            clipboardClearAll.visibility = View.GONE
-            clipboardPanel.visibility = View.GONE
+            clipboardPanel.reset()
             keyboardView.visibility = View.VISIBLE
+            KeyboardMotion.panelIn(keyboardView)
             toolbar.visibility = if (KaruikeyPreferences.toolbarEnabled(this@KaruikeyService)) {
                 View.VISIBLE
             } else View.GONE
@@ -2054,17 +1674,13 @@ class KaruikeyService : InputMethodService() {
             if (suggestionPosition != KaruikeyPreferences.SUGGESTION_POSITION_FULL) {
                 // Side mode: the icons stay packed on their side; only the candidates fade.
                 candidateRegion.visibility = if (show) View.VISIBLE else View.INVISIBLE
-                if (show) {
-                    candidateRegion.alpha = 0f
-                    candidateRegion.animate().alpha(1f).setDuration(STRIP_FADE_MS).start()
-                }
+                if (show) KeyboardMotion.fadeIn(candidateRegion)
                 return
             }
             val incoming = if (show) candidateRegion else utilityToolbar
             (if (show) utilityToolbar else candidateRegion).visibility = View.GONE
             incoming.visibility = View.VISIBLE
-            incoming.alpha = 0f
-            incoming.animate().alpha(1f).setDuration(STRIP_FADE_MS).start()
+            KeyboardMotion.fadeIn(incoming)
         }
 
         /** A slot stays tappable while newer results load if its word still fits the prefix. */
@@ -2104,6 +1720,9 @@ class KaruikeyService : InputMethodService() {
                     candidate.text = text
                     candidate.tag = text
                     candidate.isEnabled = text != null
+                    if (text != null && candidateRegion.visibility == View.VISIBLE) {
+                        KeyboardMotion.candidateChanged(candidate)
+                    }
                 }
                 candidateQueries[index] = if (text != null) query else null
             }
@@ -2111,91 +1730,14 @@ class KaruikeyService : InputMethodService() {
             showCandidates(suggestions.isNotEmpty() || query.isNotEmpty())
         }
 
-        private fun modeIcon(mode: String) = when (mode) {
-            KaruikeyPreferences.KEYBOARD_MODE_SPLIT -> R.drawable.ic_keyboard_mode_split
-            KaruikeyPreferences.KEYBOARD_MODE_FLOATING -> R.drawable.ic_keyboard_mode_floating
-            else -> R.drawable.ic_keyboard_mode_standard
-        }
-
         private fun showKeyboardModeMenu() {
-            val current = KaruikeyPreferences.keyboardMode(this@KaruikeyService)
-            val modes = buildList {
-                add(KaruikeyPreferences.KEYBOARD_MODE_STANDARD to R.string.keyboard_mode_standard)
-                if (KaruikeyPreferences.splitModeAvailable(this@KaruikeyService)) {
-                    add(KaruikeyPreferences.KEYBOARD_MODE_SPLIT to R.string.keyboard_mode_split)
-                }
-                add(KaruikeyPreferences.KEYBOARD_MODE_FLOATING to R.string.keyboard_mode_floating)
-            }
-            // M3 Expressive menu: rounded surfaceContainer card, 48dp rows with a leading icon,
-            // the current mode filled with secondaryContainer and a trailing check.
-            val popup = android.widget.PopupWindow(keyboardContext)
-            val list = LinearLayout(keyboardContext).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(4), dp(4), dp(4), dp(4))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
-                    setColor(appearance.popupSurface)
-                }
-                clipToOutline = true
-            }
-            modes.forEach { (mode, title) ->
-                val selected = mode == current
-                val color = if (selected) appearance.onSecondaryContainer else appearance.popupText
-                val row = LinearLayout(keyboardContext).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    setPadding(dp(12), 0, dp(12), 0)
-                    val shape = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        setColor(if (selected) appearance.secondaryContainer else Color.TRANSPARENT)
-                    }
-                    val mask = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        setColor(Color.WHITE)
-                    }
-                    background = android.graphics.drawable.RippleDrawable(
-                        ColorStateList.valueOf(appearance.pressedSurface), shape, mask
-                    )
-                    isSelected = selected
-                    setOnClickListener {
-                        popup.dismiss()
-                        if (mode != current) {
-                            KaruikeyPreferences.setKeyboardMode(this@KaruikeyService, mode)
-                            modeToolbarButton.setImageResource(modeIcon(mode))
-                            reloadKeyboardAfterLayout()
-                        }
-                    }
-                }
-                row.addView(android.widget.ImageView(keyboardContext).apply {
-                    setImageResource(modeIcon(mode))
-                    imageTintList = ColorStateList.valueOf(color)
-                }, LinearLayout.LayoutParams(dp(24), dp(24)))
-                row.addView(TextView(keyboardContext).apply {
-                    text = getString(title)
-                    textSize = 15f
-                    typeface = if (selected) primarySuggestionTypeface else keyboardTypeface
-                    setTextColor(color)
-                    setPadding(dp(12), 0, dp(16), 0)
-                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                row.addView(android.widget.ImageView(keyboardContext).apply {
-                    setImageResource(R.drawable.ic_settings_check)
-                    imageTintList = ColorStateList.valueOf(color)
-                    visibility = if (selected) View.VISIBLE else View.INVISIBLE
-                }, LinearLayout.LayoutParams(dp(20), dp(20)))
-                list.addView(row, LinearLayout.LayoutParams(dp(208), dp(48)).apply {
-                    setMargins(0, dp(1), 0, dp(1))
-                })
-            }
-            popup.apply {
-                contentView = list
-                width = LinearLayout.LayoutParams.WRAP_CONTENT
-                height = LinearLayout.LayoutParams.WRAP_CONTENT
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                isOutsideTouchable = true
-                isFocusable = false
-                elevation = dp(3).toFloat()
-                animationStyle = android.R.style.Animation_Dialog
-                showAsDropDown(modeToolbarButton, 0, dp(4))
+            showKeyboardModeMenu(
+                keyboardContext, modeToolbarButton, appearance,
+                keyboardTypeface, primarySuggestionTypeface
+            ) { mode ->
+                KaruikeyPreferences.setKeyboardMode(this@KaruikeyService, mode)
+                modeToolbarButton.setImageResource(keyboardModeIcon(mode))
+                reloadKeyboardAfterLayout()
             }
         }
 
@@ -2346,161 +1888,6 @@ class KaruikeyService : InputMethodService() {
         override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
             super.onSizeChanged(width, height, oldWidth, oldHeight)
             loadKeyboardIfMeasured()
-            if (clipboardPanel.visibility == View.VISIBLE) {
-                post { renderClipboardHistory() }
-            }
-        }
-    }
-
-    // Hosts the keyboard: wraps it while docked, and spans the window in floating mode so the
-    // compact keyboard can be dragged anywhere inside the system-bar-safe area.
-    private inner class KeyboardHost(
-        private val keyboard: KaruikeyInputView
-    ) : FrameLayout(this@KaruikeyService) {
-        private var positionX = 0.5f
-        private var positionY = 1f
-        private var widthScale = -1f
-        private var heightScale = -1f
-        // Top-left corner to keep while a resize settles into the new size.
-        private var resizeAnchor: Pair<Float, Float>? = null
-        private val location = IntArray(2)
-        var floating = false
-            set(value) {
-                if (field == value) return
-                field = value
-                keyboard.floating = value
-                if (value) {
-                    loadFloatingPosition()
-                } else {
-                    // A docked keyboard must not keep the floating offset.
-                    keyboard.translationX = 0f
-                    keyboard.translationY = 0f
-                }
-                requestLayout()
-            }
-
-        init {
-            addView(keyboard)
-        }
-
-        fun loadFloatingPosition() {
-            val (x, y) = KaruikeyPreferences.floatingPosition(this@KaruikeyService)
-            positionX = x
-            positionY = y
-            val (widthFraction, heightFraction) =
-                KaruikeyPreferences.floatingSizeScale(this@KaruikeyService)
-            widthScale = widthFraction
-            heightScale = heightFraction
-            requestLayout()
-        }
-
-        fun saveFloatingPosition() {
-            KaruikeyPreferences.setFloatingPosition(this@KaruikeyService, positionX, positionY)
-            if (widthScale > 0f && heightScale > 0f) {
-                KaruikeyPreferences.setFloatingSizeScale(
-                    this@KaruikeyService, widthScale, heightScale
-                )
-            }
-        }
-
-        // Resize limits: 280dp to 80% of the window wide, 180dp to 65% of it tall.
-        private fun sizeRange(total: Int, minimum: Int, maxFraction: Float): IntRange {
-            val low = minOf(minimum, total)
-            return low..maxOf(low, (total * maxFraction).toInt())
-        }
-
-        fun resizeFloatingBy(dx: Float, dy: Float, fromLeft: Boolean) {
-            if (width <= 0 || height <= 0) return
-            val currentWidth = keyboard.width
-            val newWidth = (currentWidth + if (fromLeft) -dx else dx).toInt()
-                .coerceIn(sizeRange(width, dp(280), 0.8f))
-            val newHeight = (keyboard.height + dy).toInt().coerceIn(sizeRange(height, dp(180), 0.65f))
-            // Dragging the left corner moves the left edge and keeps the right edge in place.
-            val left = keyboard.translationX + if (fromLeft) currentWidth - newWidth else 0
-            resizeAnchor = left to keyboard.translationY
-            widthScale = newWidth.toFloat() / width
-            heightScale = newHeight.toFloat() / height
-            requestLayout()
-        }
-
-        fun keyboardBoundsInWindow(): Rect {
-            keyboard.getLocationInWindow(location)
-            return Rect(location[0], location[1],
-                location[0] + keyboard.width, location[1] + keyboard.height)
-        }
-
-        fun moveFloatingBy(dx: Float, dy: Float) {
-            val safe = safeArea()
-            positionX = fraction(keyboard.translationX + dx, safe.left, safe.right)
-            positionY = fraction(keyboard.translationY + dy, safe.top, safe.bottom)
-            applyFloatingPosition()
-            // Relayout re-runs onComputeInsets so the touchable region follows the keyboard.
-            requestLayout()
-        }
-
-        private fun fraction(value: Float, min: Int, max: Int): Float =
-            if (max <= min) 0.5f else ((value - min) / (max - min)).coerceIn(0f, 1f)
-
-        // Translation range keeping the keyboard clear of status bar, cutout and navigation bar.
-        private fun safeArea(): Rect {
-            val root = rootView
-            val insets = ViewCompat.getRootWindowInsets(this)?.getInsets(
-                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
-            )
-            getLocationInWindow(location)
-            val margin = dp(8)
-            val left = maxOf(0, (insets?.left ?: 0) - location[0]) + margin
-            val top = maxOf(0, (insets?.top ?: 0) - location[1]) + margin
-            val right = width - maxOf(0, (insets?.right ?: 0) -
-                (root.width - location[0] - width)) - margin - keyboard.width
-            val bottom = height - maxOf(0, (insets?.bottom ?: 0) -
-                (root.height - location[1] - height)) - margin - keyboard.height
-            return Rect(left, top, maxOf(left, right), maxOf(top, bottom))
-        }
-
-        private fun applyFloatingPosition() {
-            val safe = safeArea()
-            keyboard.translationX = safe.left + positionX * (safe.right - safe.left)
-            keyboard.translationY = safe.top + positionY * (safe.bottom - safe.top)
-        }
-
-        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-            if (!floating) {
-                keyboard.measure(widthMeasureSpec, heightMeasureSpec)
-                setMeasuredDimension(keyboard.measuredWidth, keyboard.measuredHeight)
-                return
-            }
-            val width = MeasureSpec.getSize(widthMeasureSpec)
-            val height = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) {
-                resources.displayMetrics.heightPixels
-            } else MeasureSpec.getSize(heightMeasureSpec)
-            val keyboardWidth = if (widthScale > 0f) {
-                (width * widthScale).toInt().coerceIn(sizeRange(width, dp(280), 0.8f))
-            } else (width * 0.6f).toInt().coerceAtLeast(dp(320)).coerceAtMost(width)
-            val heightSpec = if (heightScale > 0f) {
-                MeasureSpec.makeMeasureSpec(
-                    (height * heightScale).toInt().coerceIn(sizeRange(height, dp(180), 0.65f)),
-                    MeasureSpec.EXACTLY
-                )
-            } else MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
-            keyboard.measure(MeasureSpec.makeMeasureSpec(keyboardWidth, MeasureSpec.EXACTLY), heightSpec)
-            setMeasuredDimension(width, height)
-        }
-
-        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-            keyboard.layout(0, 0, keyboard.measuredWidth, keyboard.measuredHeight)
-            if (floating) {
-                resizeAnchor?.let { (x, y) ->
-                    val safe = safeArea()
-                    positionX = fraction(x, safe.left, safe.right)
-                    positionY = fraction(y, safe.top, safe.bottom)
-                    resizeAnchor = null
-                }
-                applyFloatingPosition()
-            } else {
-                keyboard.translationX = 0f
-                keyboard.translationY = 0f
-            }
         }
     }
 }

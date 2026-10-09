@@ -96,6 +96,9 @@ fun AppearancePage(
     var keyPreview by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.keyPreviewEnabled(context))
     }
+    var animations by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.animationsEnabled(context))
+    }
     var suggestionPosition by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.suggestionPosition(context))
     }
@@ -154,6 +157,12 @@ fun AppearancePage(
                 "Tint shift, backspace and punctuation keys", accentFunctionKeys) {
                 accentFunctionKeys = it
                 KaruikeyPreferences.setAccentFunctionKeys(context, it)
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.AUTO_AWESOME, "Animations",
+                "Animate panels, layout switches and suggestions", animations) {
+                animations = it
+                KaruikeyPreferences.setAnimationsEnabled(context, it)
             }
         }
         SectionLabel("Suggestion strip")
@@ -455,6 +464,19 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
     var personalizedSuggestions by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.personalizedSuggestionsEnabled(context))
     }
+    var vibration by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keyVibrationEnabled(context))
+    }
+    var vibrationStrength by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.vibrationStrength(context).toFloat())
+    }
+    var sound by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.keySoundEnabled(context))
+    }
+    var soundVolume by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.soundVolume(context).toFloat())
+    }
+    val feedback = remember { KeyFeedback(context) }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Typing assistance")
         SettingsGroup {
@@ -491,6 +513,38 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
                 "Use normal sentence and word capitalization flags", autoCapitalization) {
                 autoCapitalization = it
                 KaruikeyPreferences.setAutoCapitalizationEnabled(context, it)
+            }
+        }
+        SectionLabel("Key press feedback")
+        SettingsGroup {
+            SettingsSwitchRow(KaruikeySymbol.SWIPE, "Vibration", "Vibrate on every key press",
+                vibration) {
+                vibration = it
+                KaruikeyPreferences.setKeyVibrationEnabled(context, it)
+            }
+            if (vibration) {
+                GroupDivider()
+                SettingsSliderRow(KaruikeySymbol.TUNE, "Vibration strength",
+                    "${vibrationStrength.toInt()}%", vibrationStrength, 1f..100f,
+                    onValueChangeFinished = { feedback.vibrate() }) {
+                    vibrationStrength = it
+                    KaruikeyPreferences.setVibrationStrength(context, it.toInt())
+                }
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Sound", "Click on every key press",
+                sound) {
+                sound = it
+                KaruikeyPreferences.setKeySoundEnabled(context, it)
+            }
+            if (sound) {
+                GroupDivider()
+                SettingsSliderRow(KaruikeySymbol.TUNE, "Sound volume",
+                    "${soundVolume.toInt()}%", soundVolume, 1f..100f,
+                    onValueChangeFinished = { feedback.onKeyPress('a'.code) }) {
+                    soundVolume = it
+                    KaruikeyPreferences.setSoundVolume(context, it.toInt())
+                }
             }
         }
     }

@@ -110,6 +110,13 @@ object KaruikeyPreferences {
     private const val SPACEBAR_SWIPE = "spacebar_swipe"
     private const val KEYBOARD_MODE = "keyboard_mode"
     private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
+    private const val KEY_VIBRATION = "key_vibration"
+    private const val VIBRATION_STRENGTH = "vibration_strength"
+    private const val KEY_SOUND = "key_sound"
+    private const val SOUND_VOLUME = "sound_volume"
+    private const val ANIMATIONS = "animations"
+    const val DEFAULT_VIBRATION_STRENGTH = 40
+    const val DEFAULT_SOUND_VOLUME = 50
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -406,6 +413,39 @@ object KaruikeyPreferences {
     fun setPersonalizedSuggestionsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(PERSONALIZED_SUGGESTIONS, enabled).apply()
         if (!enabled) PredictionHistory.clear(context)
+    }
+
+    fun keyVibrationEnabled(context: Context) = prefs(context).getBoolean(KEY_VIBRATION, true)
+
+    fun setKeyVibrationEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_VIBRATION, enabled).apply()
+    }
+
+    fun vibrationStrength(context: Context) =
+        prefs(context).getInt(VIBRATION_STRENGTH, DEFAULT_VIBRATION_STRENGTH).coerceIn(1, 100)
+
+    fun setVibrationStrength(context: Context, strength: Int) {
+        prefs(context).edit().putInt(VIBRATION_STRENGTH, strength.coerceIn(1, 100)).apply()
+    }
+
+    fun keySoundEnabled(context: Context) = prefs(context).getBoolean(KEY_SOUND, false)
+
+    fun setKeySoundEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SOUND, enabled).apply()
+    }
+
+    fun soundVolume(context: Context) =
+        prefs(context).getInt(SOUND_VOLUME, DEFAULT_SOUND_VOLUME).coerceIn(1, 100)
+
+    fun setSoundVolume(context: Context, volume: Int) {
+        prefs(context).edit().putInt(SOUND_VOLUME, volume.coerceIn(1, 100)).apply()
+    }
+
+    /** Keyboard motion: panel transitions, layout switches and suggestion changes. */
+    fun animationsEnabled(context: Context) = prefs(context).getBoolean(ANIMATIONS, true)
+
+    fun setAnimationsEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(ANIMATIONS, enabled).apply()
     }
 
     fun autoCapitalizationEnabled(context: Context) =

@@ -389,8 +389,21 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
      * @see #getKeyboard()
      * @param keyboard the keyboard to display in this view
      */
+    /** Notified after every keyboard swap, e.g. letters to symbols or a shift change. */
+    public interface OnKeyboardChangedListener {
+        void onKeyboardChanged(@Nullable Keyboard previous, @NonNull Keyboard keyboard);
+    }
+
+    @Nullable
+    private OnKeyboardChangedListener mOnKeyboardChangedListener;
+
+    public void setOnKeyboardChangedListener(@Nullable final OnKeyboardChangedListener listener) {
+        mOnKeyboardChangedListener = listener;
+    }
+
     @Override
     public void setKeyboard(final Keyboard keyboard) {
+        final Keyboard previous = getKeyboard();
         // Remove any pending messages, except dismissing preview and key repeat.
         mTimerHandler.cancelLongPressTimers();
         super.setKeyboard(keyboard);
@@ -410,6 +423,9 @@ public final class MainKeyboardView extends KeyboardView implements DrawingProxy
             mAccessibilityDelegate.setKeyboard(keyboard);
         } else {
             mAccessibilityDelegate = null;
+        }
+        if (mOnKeyboardChangedListener != null) {
+            mOnKeyboardChangedListener.onKeyboardChanged(previous, keyboard);
         }
     }
 
