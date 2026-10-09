@@ -518,7 +518,8 @@ class KaruikeyService : InputMethodService() {
             keyboardView.height,
             autoCapsMode(),
             multipleLanguages && !showEmojiOnBottomRow,
-            showEmojiOnBottomRow
+            showEmojiOnBottomRow,
+            KaruikeyPreferences.keyboardMode(this) == KaruikeyPreferences.KEYBOARD_MODE_SPLIT
         )
         keyboardView.setMainDictionaryAvailability(gestureAllowed)
         // Keep the optional AOSP trail off until its visual parameters are configured for this

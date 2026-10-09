@@ -138,6 +138,7 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
     public static final String TAG_KEY_STYLE = "key-style";
 
     private static final int DEFAULT_KEYBOARD_COLUMNS = 10;
+    private static final float SPLIT_GAP_FRACTION = 0.36f;
     private static final int DEFAULT_KEYBOARD_ROWS = 4;
 
     @NonNull
@@ -262,6 +263,10 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
                     baseWidth, baseWidth, baseWidth / DEFAULT_KEYBOARD_COLUMNS);
             params.mHorizontalGap = (int)ResourceUtils.getDimensionOrFraction(
                     keyboardAttr, R.styleable.Keyboard_horizontalGap, baseWidth, 0);
+            // Letter and symbol pages split for thumb typing; number and phone pads stay whole.
+            params.mSplitGap = params.mId.mIsSplitLayout
+                    && params.mId.mElementId <= KeyboardId.ELEMENT_SYMBOLS_SHIFTED
+                    ? Math.round(baseWidth * SPLIT_GAP_FRACTION) : 0;
             // TODO: Fix keyboard geometry calculation clearer. Historically vertical gap between
             // rows are determined based on the entire keyboard height including top and bottom
             // paddings.
@@ -858,6 +863,11 @@ public class KeyboardBuilder<KP extends KeyboardParams> {
 
     private void endKey(@NonNull final Key key) {
         mParams.onAddKey(key);
+        // The spacebar is the one key Gboard repeats on both halves of a split keyboard.
+        if (key.getCode() == Constants.CODE_SPACE) {
+            final Key tail = key.splitTail();
+            if (tail != null) mParams.onAddKey(tail);
+        }
         if (mLeftEdge) {
             key.markAsLeftEdge(mParams);
             mLeftEdge = false;

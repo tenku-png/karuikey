@@ -57,6 +57,31 @@ public class KeyboardParams {
     public int mDefaultRowHeight;
     public int mDefaultKeyWidth;
     public int mHorizontalGap;
+    /** Empty width between the two halves of a split keyboard; 0 keeps one block. */
+    public int mSplitGap;
+
+    // Split keyboards compress each half by the same factor and push the right half past the
+    // gap, so every layout splits without dedicated XML. Coordinates exactly on the center line
+    // belong to the left half when they end a key and to the right half when they start one.
+    private float splitScale() {
+        return (mBaseWidth - mSplitGap) / (float) mBaseWidth;
+    }
+
+    public float splitCenter() {
+        return mLeftPadding + mBaseWidth / 2.0f;
+    }
+
+    public float splitStartX(final float x) {
+        if (mSplitGap <= 0) return x;
+        final float mapped = mLeftPadding + (x - mLeftPadding) * splitScale();
+        return x >= splitCenter() ? mapped + mSplitGap : mapped;
+    }
+
+    public float splitEndX(final float x) {
+        if (mSplitGap <= 0) return x;
+        final float mapped = mLeftPadding + (x - mLeftPadding) * splitScale();
+        return x > splitCenter() ? mapped + mSplitGap : mapped;
+    }
     public int mVerticalGap;
 
     public int mMoreKeysTemplate;

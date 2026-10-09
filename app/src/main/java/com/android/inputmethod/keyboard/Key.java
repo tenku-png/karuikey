@@ -116,6 +116,9 @@ public class Key implements Comparable<Key> {
     private final int mVerticalGap;
     /** X coordinate of the top-left corner of the key in the keyboard layout, excluding the gap. */
     private final int mX;
+    /** Right-half remainder of a key that crossed a split keyboard's center; width 0 if none. */
+    private final int mSplitTailX;
+    private final int mSplitTailWidth;
     /** Y coordinate of the top-left corner of the key in the keyboard layout, excluding the gap. */
     private final int mY;
     /** Hit bounding box of the key */
@@ -237,6 +240,8 @@ public class Key implements Comparable<Key> {
         mIconId = iconId;
         // Horizontal gap is divided equally to both sides of the key.
         mX = x + mHorizontalGap / 2;
+        mSplitTailX = 0;
+        mSplitTailWidth = 0;
         mY = y;
         mHitBox.set(x, y, x + width + 1, y + height);
         mKeyVisualAttributes = null;
@@ -265,9 +270,24 @@ public class Key implements Comparable<Key> {
         final int rowHeight = row.getRowHeight();
         mHeight = rowHeight - mVerticalGap;
 
-        final float keyXPos = row.getKeyX(keyAttr);
-        final float keyWidth = row.getKeyWidth(keyAttr, keyXPos);
+        final float logicalXPos = row.getKeyX(keyAttr);
+        final float logicalWidth = row.getKeyWidth(keyAttr, logicalXPos);
         final int keyYPos = row.getKeyY();
+        // On a split keyboard a key crossing the center keeps its left part; the builder may
+        // place the remainder on the right half (the spacebar appears on both sides).
+        float keyXPos = params.splitStartX(logicalXPos);
+        float keyRight = params.splitEndX(logicalXPos + logicalWidth);
+        final float center = params.splitCenter();
+        if (params.mSplitGap > 0 && logicalXPos < center && logicalXPos + logicalWidth > center) {
+            final float leftEdge = params.splitEndX(center);
+            mSplitTailX = Math.round(leftEdge + params.mSplitGap);
+            mSplitTailWidth = Math.round(keyRight) - mSplitTailX;
+            keyRight = leftEdge;
+        } else {
+            mSplitTailX = 0;
+            mSplitTailWidth = 0;
+        }
+        final float keyWidth = keyRight - keyXPos;
 
         // Horizontal gap is divided equally to both sides of the key.
         mX = Math.round(keyXPos + horizontalGapFloat / 2);
@@ -278,7 +298,7 @@ public class Key implements Comparable<Key> {
         mHitBox.set(Math.round(keyXPos), keyYPos, hitBoxRight,
                 keyYPos + rowHeight);
         // Update row to have current x coordinate.
-        row.setXPos(keyXPos + keyWidth);
+        row.setXPos(logicalXPos + logicalWidth);
 
         mBackgroundType = style.getInt(keyAttr,
                 R.styleable.Keyboard_Key_backgroundType, row.getDefaultBackgroundType());
@@ -433,6 +453,8 @@ public class Key implements Comparable<Key> {
         mVerticalGap = key.mVerticalGap;
         mX = key.mX;
         mY = key.mY;
+        mSplitTailX = key.mSplitTailX;
+        mSplitTailWidth = key.mSplitTailWidth;
         mHitBox.set(key.mHitBox);
         mMoreKeys = moreKeys;
         mMoreKeysColumnAndFlags = key.mMoreKeysColumnAndFlags;
@@ -444,6 +466,37 @@ public class Key implements Comparable<Key> {
         // Key state.
         mPressed = key.mPressed;
         mEnabled = key.mEnabled;
+    }
+
+    /** Copy of {@code key} moved to its split remainder on the right half. */
+    private Key(@NonNull final Key key, final int x, final int width) {
+        mCode = key.mCode;
+        mLabel = key.mLabel;
+        mHintLabel = key.mHintLabel;
+        mLabelFlags = key.mLabelFlags;
+        mIconId = key.mIconId;
+        mWidth = width - key.mHorizontalGap;
+        mHeight = key.mHeight;
+        mHorizontalGap = key.mHorizontalGap;
+        mVerticalGap = key.mVerticalGap;
+        mX = x + key.mHorizontalGap / 2;
+        mY = key.mY;
+        mSplitTailX = 0;
+        mSplitTailWidth = 0;
+        mHitBox.set(x, key.mHitBox.top, x + width + 1, key.mHitBox.bottom);
+        mMoreKeys = key.mMoreKeys;
+        mMoreKeysColumnAndFlags = key.mMoreKeysColumnAndFlags;
+        mBackgroundType = key.mBackgroundType;
+        mActionFlags = key.mActionFlags;
+        mKeyVisualAttributes = key.mKeyVisualAttributes;
+        mOptionalAttributes = key.mOptionalAttributes;
+        mHashCode = computeHashCode(this);
+        mEnabled = key.mEnabled;
+    }
+
+    @Nullable
+    public Key splitTail() {
+        return mSplitTailWidth > 0 ? new Key(this, mSplitTailX, mSplitTailWidth) : null;
     }
 
     @NonNull

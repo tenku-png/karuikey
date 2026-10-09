@@ -200,8 +200,8 @@ public final class KeyboardLayoutSet {
         // specified as an elementKeyboard attribute in the file.
         // The KeyboardId is an internal key for a Keyboard object.
 
-        mParams.mIsSplitLayoutEnabled = mParams.mIsSplitLayoutEnabledByUser
-                && elementParams.mSupportsSplitLayout;
+        // Splitting is geometric (KeyboardParams.mSplitGap), so every layout supports it.
+        mParams.mIsSplitLayoutEnabled = mParams.mIsSplitLayoutEnabledByUser;
         final KeyboardId id = new KeyboardId(keyboardLayoutSetElementId, mParams);
         try {
             return getKeyboard(elementParams, id);
