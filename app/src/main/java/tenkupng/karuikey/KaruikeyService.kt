@@ -1448,6 +1448,7 @@ class KaruikeyService : InputMethodService() {
             }
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+                    .takeIf { it > 0 } ?: imeNavigationBarHeight()
                 if (navigationBottomInset != bottom) {
                     navigationBottomInset = bottom
                     requestLayout()
@@ -1667,13 +1668,13 @@ class KaruikeyService : InputMethodService() {
             emojiToolbarButton.visibility = if (
                 emojiKeyAllowed() && KaruikeyPreferences.emojiKeyPlacement(this@KaruikeyService) ==
                     KaruikeyPreferences.EMOJI_PLACEMENT_TOOLBAR
-            ) View.VISIBLE else View.INVISIBLE
+            ) View.VISIBLE else View.GONE
             modeToolbarButton.setImageResource(
                 modeIcon(KaruikeyPreferences.keyboardMode(this@KaruikeyService))
             )
             languageToolbarButton.visibility = if (
                 KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
-            ) View.VISIBLE else View.INVISIBLE
+            ) View.VISIBLE else View.GONE
             applySurfaceBackground(surfaceBackgroundColor())
             keyboardView.setKeyPreviewPopupEnabled(
                 KaruikeyPreferences.keyPreviewEnabled(this@KaruikeyService),
@@ -1956,6 +1957,15 @@ class KaruikeyService : InputMethodService() {
                 layoutParams = fixedToolbarButtonParams()
             }
 
+        // The taskbar hands IME windows a zero navigation inset while still drawing its back and
+        // switcher buttons over them, so reserve the system's IME navigation bar height ourselves.
+        private fun imeNavigationBarHeight(): Int {
+            if (android.os.Build.VERSION.SDK_INT < 35) return 0
+            val system = android.content.res.Resources.getSystem()
+            val id = system.getIdentifier("navigation_bar_frame_height", "dimen", "android")
+            return if (id != 0) system.getDimensionPixelSize(id) else 0
+        }
+
         private fun fixedToolbarButtonParams() = LinearLayout.LayoutParams(toolbarHeight, toolbarHeight)
 
         private fun View.setWidthIfChanged(width: Int) {
@@ -1996,9 +2006,22 @@ class KaruikeyService : InputMethodService() {
                     SuggestionStripGeometry.candidateSlotWidth(width, slot)
                 )
             }
-            val utilityButtonWidth = width / SuggestionStripGeometry.UTILITY_COUNT
-            for (index in 0 until utilityToolbar.childCount) {
-                utilityToolbar.getChildAt(index).setWidthIfChanged(utilityButtonWidth)
+            // Square icon buttons spread edge to edge, like Gboard: hidden buttons leave no gap and
+            // the pressed ripple stays a circle instead of a stretched pill.
+            val utilityButtons = (0 until utilityToolbar.childCount).map(utilityToolbar::getChildAt)
+                .filter { it.visibility != View.GONE }
+            val utilityEdge = dp(8)
+            val utilityGap = if (utilityButtons.size > 1) {
+                (width - 2 * utilityEdge - utilityButtons.size * toolbarHeight) / (utilityButtons.size - 1)
+            } else 0
+            utilityButtons.forEachIndexed { index, button ->
+                button.setWidthIfChanged(toolbarHeight)
+                val params = button.layoutParams as LinearLayout.LayoutParams
+                val start = if (index == 0) utilityEdge else utilityGap.coerceAtLeast(0)
+                if (params.leftMargin != start) {
+                    params.leftMargin = start
+                    button.layoutParams = params
+                }
             }
             if (searchStrip > 0) {
                 (emojiPanel.layoutParams as FrameLayout.LayoutParams).apply {
