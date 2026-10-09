@@ -78,6 +78,15 @@ fun AppearancePage(
     var blurRadius by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.blurRadius(context).toFloat())
     }
+    var blurGrain by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.blurGrain(context).toFloat())
+    }
+    var blurContrast by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.blurContrast(context).toFloat())
+    }
+    var accentFunctionKeys by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.accentFunctionKeys(context))
+    }
     var toolbar by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.toolbarEnabled(context))
     }
@@ -193,6 +202,36 @@ fun AppearancePage(
                             KaruikeyPreferences.MAX_BLUR_RADIUS.toFloat(),
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
+                    GroupDivider()
+                    Text("Grain ${blurGrain.toInt()}%",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    Slider(
+                        value = blurGrain,
+                        onValueChange = { blurGrain = it },
+                        onValueChangeFinished = {
+                            KaruikeyPreferences.setBlurGrain(context, blurGrain.toInt())
+                        },
+                        valueRange = 0f..100f,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    GroupDivider()
+                    Text("Contrast ${if (blurContrast > 0) "+" else ""}${blurContrast.toInt()}",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    Text("Darken or lighten what shows through the blur",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 20.dp))
+                    Slider(
+                        value = blurContrast,
+                        onValueChange = { blurContrast = it },
+                        onValueChangeFinished = {
+                            KaruikeyPreferences.setBlurContrast(context, blurContrast.toInt())
+                        },
+                        valueRange = -KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat()..
+                            KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat(),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
             }
         }
@@ -252,10 +291,17 @@ fun AppearancePage(
                     height = it
                     KaruikeyPreferences.setHeightPercent(context, it.toInt())
                 },
-                valueRange = 85f..115f,
-                steps = 29,
+                valueRange = KaruikeyPreferences.MIN_HEIGHT_PERCENT.toFloat()..
+                    KaruikeyPreferences.MAX_HEIGHT_PERCENT.toFloat(),
+                steps = KaruikeyPreferences.MAX_HEIGHT_PERCENT - KaruikeyPreferences.MIN_HEIGHT_PERCENT - 1,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Highlight function keys",
+                "Tint shift, backspace and punctuation keys", accentFunctionKeys) {
+                accentFunctionKeys = it
+                KaruikeyPreferences.setAccentFunctionKeys(context, it)
+            }
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.SETTINGS, "Toolbar", "Show clipboard and settings actions",
                 toolbar) {

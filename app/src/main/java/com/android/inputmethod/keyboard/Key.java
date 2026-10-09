@@ -1024,6 +1024,11 @@ public class Key implements Comparable<Key> {
         };
     }
 
+    public final boolean hasStickyBackground() {
+        return mBackgroundType == BACKGROUND_TYPE_STICKY_OFF
+                || mBackgroundType == BACKGROUND_TYPE_STICKY_ON;
+    }
+
     /**
      * Returns the background drawable for the key, based on the current state and type of the key.
      * @return the background drawable of the key.

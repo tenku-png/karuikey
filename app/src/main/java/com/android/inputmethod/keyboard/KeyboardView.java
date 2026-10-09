@@ -102,6 +102,8 @@ public class KeyboardView extends View {
     private final Drawable mKeyBackground;
     private int mKeyBackgroundAlpha = 255;
     private final Drawable mFunctionalKeyBackground;
+    @Nullable
+    private Drawable mStickyKeyBackground;
     private final Drawable mActionKeyBackground;
     private final int mActionKeyTextColor;
     private final Drawable mSpacebarBackground;
@@ -371,9 +373,13 @@ public class KeyboardView extends View {
         params.mAnimAlpha = Constants.Color.ALPHA_OPAQUE;
 
         if (!key.isSpacer()) {
-            final Drawable background = key.isActionKey() ? mActionKeyBackground
+            Drawable background = key.isActionKey() ? mActionKeyBackground
                     : key.selectBackgroundDrawable(
                             mKeyBackground, mFunctionalKeyBackground, mSpacebarBackground);
+            if (mStickyKeyBackground != null && key.hasStickyBackground()) {
+                mStickyKeyBackground.setState(background.getState());
+                background = mStickyKeyBackground;
+            }
             if (background != null) {
                 onDrawKeyBackground(key, canvas, background);
             }
@@ -388,6 +394,20 @@ public class KeyboardView extends View {
         final int clamped = Math.max(0, Math.min(255, alpha));
         if (clamped == mKeyBackgroundAlpha) return;
         mKeyBackgroundAlpha = clamped;
+        invalidateAllKeys();
+    }
+
+    // Recolors modifier keys (shift, delete, punctuation); null restores the theme color.
+    public void setFunctionalKeyTint(@Nullable final android.content.res.ColorStateList tint) {
+        if (mFunctionalKeyBackground == mKeyBackground) return;
+        mFunctionalKeyBackground.mutate().setTintList(tint);
+        // Shift shares the letter background; tint a private copy so letters keep their color.
+        mStickyKeyBackground = null;
+        final Drawable.ConstantState stickyState = mKeyBackground.getConstantState();
+        if (tint != null && stickyState != null) {
+            mStickyKeyBackground = stickyState.newDrawable(getResources()).mutate();
+            mStickyKeyBackground.setTintList(tint);
+        }
         invalidateAllKeys();
     }
 

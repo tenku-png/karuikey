@@ -8,6 +8,13 @@ import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.Bitmap
+import android.graphics.Shader
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
+import androidx.core.graphics.ColorUtils
+import kotlin.math.abs
 import android.graphics.Typeface
 import android.graphics.Canvas
 import android.graphics.Outline
@@ -1655,6 +1662,24 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applyPreferences() {
+            keyboardView.setFunctionalKeyTint(
+                if (KaruikeyPreferences.accentFunctionKeys(this@KaruikeyService)) {
+                    ColorStateList(
+                        arrayOf(
+                            intArrayOf(android.R.attr.state_pressed),
+                            intArrayOf(android.R.attr.state_checked),
+                            intArrayOf()
+                        ),
+                        intArrayOf(
+                            appearance.pressedSurface,
+                            appearance.shiftLockedSurface,
+                            ColorUtils.blendARGB(
+                                appearance.functionalKeySurface, appearance.shiftLockedSurface, 0.6f
+                            )
+                        )
+                    )
+                } else null
+            )
             keyboardView.setKeyBackgroundAlpha(
                 KaruikeyPreferences.keyBackgroundAlpha(this@KaruikeyService)
             )
@@ -1683,6 +1708,32 @@ class KaruikeyService : InputMethodService() {
             requestLayout()
         }
 
+        // Blur only exposes a radius, so grain and contrast are layered over the surface color:
+        // a dark or light veil, then tiled monochrome noise.
+        private fun surfaceDrawable(color: Int): Drawable {
+            val service = this@KaruikeyService
+            if (!KaruikeyPreferences.blurActive(service)) return ColorDrawable(color)
+            val contrast = KaruikeyPreferences.blurContrast(service)
+            val grain = KaruikeyPreferences.blurGrain(service)
+            val veilAlpha = abs(contrast) * 255 / 100
+            val veil = ColorDrawable(if (contrast > 0) Color.argb(veilAlpha, 0, 0, 0) else Color.argb(veilAlpha, 255, 255, 255))
+            val noise = BitmapDrawable(resources, grainBitmap).apply {
+                setTileModeXY(Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+                alpha = grain * 90 / 100
+            }
+            return LayerDrawable(arrayOf(ColorDrawable(color), veil, noise))
+        }
+
+        private val grainBitmap by lazy {
+            val size = 128
+            val random = java.util.Random(7)
+            val pixels = IntArray(size * size) {
+                val light = random.nextBoolean()
+                Color.argb(random.nextInt(256), if (light) 255 else 0, if (light) 255 else 0, if (light) 255 else 0)
+            }
+            Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
+        }
+
         fun surfaceBackgroundColor(): Int {
             val configuredAlpha = KaruikeyPreferences.keyboardSurfaceAlpha(
                 this@KaruikeyService
@@ -1700,7 +1751,7 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applySurfaceBackground(color: Int) {
-            setBackgroundColor(color)
+            background = surfaceDrawable(color)
             keyboardView.setBackgroundColor(Color.TRANSPARENT)
             toolbar.setBackgroundColor(Color.TRANSPARENT)
             clipboardPanel.setBackgroundColor(Color.TRANSPARENT)

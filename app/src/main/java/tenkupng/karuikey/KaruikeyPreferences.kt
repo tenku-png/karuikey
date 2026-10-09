@@ -82,6 +82,12 @@ object KaruikeyPreferences {
     private const val TRANSPARENCY_AMOUNT = "transparency_amount"
     private const val BLUR = "blur"
     private const val BLUR_RADIUS = "blur_radius"
+    private const val BLUR_GRAIN = "blur_grain"
+    private const val BLUR_CONTRAST = "blur_contrast"
+    private const val ACCENT_FUNCTION_KEYS = "accent_function_keys"
+    const val MIN_HEIGHT_PERCENT = 85
+    const val MAX_HEIGHT_PERCENT = 140
+    const val MAX_BLUR_CONTRAST = 50
     private const val KEY_TRANSPARENCY = "key_transparency"
     const val MAX_KEY_TRANSPARENCY = 70
     const val MIN_BLUR_RADIUS = 4
@@ -254,10 +260,10 @@ object KaruikeyPreferences {
     }
 
     fun heightPercent(context: Context) =
-        prefs(context).getInt(HEIGHT_PERCENT, 100).coerceIn(85, 115)
+        prefs(context).getInt(HEIGHT_PERCENT, 100).coerceIn(MIN_HEIGHT_PERCENT, MAX_HEIGHT_PERCENT)
 
     fun setHeightPercent(context: Context, percent: Int) {
-        prefs(context).edit().putInt(HEIGHT_PERCENT, percent.coerceIn(85, 115)).apply()
+        prefs(context).edit().putInt(HEIGHT_PERCENT, percent.coerceIn(MIN_HEIGHT_PERCENT, MAX_HEIGHT_PERCENT)).apply()
     }
 
     fun transparencyEnabled(context: Context) = prefs(context).getBoolean(TRANSPARENCY, false)
@@ -320,6 +326,28 @@ object KaruikeyPreferences {
     fun setBlurRadius(context: Context, radius: Int) {
         prefs(context).edit()
             .putInt(BLUR_RADIUS, radius.coerceIn(MIN_BLUR_RADIUS, MAX_BLUR_RADIUS)).apply()
+    }
+
+    /** Film grain drawn over the blurred surface, 0..100%. */
+    fun blurGrain(context: Context) = prefs(context).getInt(BLUR_GRAIN, 0).coerceIn(0, 100)
+
+    fun setBlurGrain(context: Context, grain: Int) {
+        prefs(context).edit().putInt(BLUR_GRAIN, grain.coerceIn(0, 100)).apply()
+    }
+
+    /** Veil over the blurred surface: negative lightens, positive darkens. */
+    fun blurContrast(context: Context) =
+        prefs(context).getInt(BLUR_CONTRAST, 0).coerceIn(-MAX_BLUR_CONTRAST, MAX_BLUR_CONTRAST)
+
+    fun setBlurContrast(context: Context, contrast: Int) {
+        prefs(context).edit()
+            .putInt(BLUR_CONTRAST, contrast.coerceIn(-MAX_BLUR_CONTRAST, MAX_BLUR_CONTRAST)).apply()
+    }
+
+    fun accentFunctionKeys(context: Context) = prefs(context).getBoolean(ACCENT_FUNCTION_KEYS, false)
+
+    fun setAccentFunctionKeys(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(ACCENT_FUNCTION_KEYS, enabled).apply()
     }
 
     /**
