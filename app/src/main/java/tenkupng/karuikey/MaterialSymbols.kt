@@ -1,16 +1,22 @@
 package tenkupng.karuikey
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,11 +53,23 @@ fun MaterialSymbolIcon(
     } else {
         modifier.semantics { this.contentDescription = contentDescription }
     }
-    Text(
-        text = symbol.glyph,
-        color = tint,
-        fontFamily = materialSymbolsRounded,
-        fontSize = size,
-        modifier = semanticsModifier
-    )
+    // Symbol glyphs fill an em square; trim the line box to it so the glyph sits on the
+    // container's optical center instead of riding the text baseline.
+    Box(semanticsModifier, contentAlignment = Alignment.Center) {
+        Text(
+            text = symbol.glyph,
+            color = tint,
+            modifier = Modifier.wrapContentSize(unbounded = true),
+            style = TextStyle(
+                fontFamily = materialSymbolsRounded,
+                fontSize = size,
+                lineHeight = size,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both
+                )
+            )
+        )
+    }
 }

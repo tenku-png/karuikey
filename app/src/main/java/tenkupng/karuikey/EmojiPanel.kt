@@ -8,6 +8,11 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.StateListAnimator
+import android.animation.TimeInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
@@ -149,6 +154,16 @@ internal class EmojiPanel(
         tabsBar.visibility = browse
         bottomRow.visibility = browse
         resultsScroll.visibility = if (searchMode) VISIBLE else GONE
+        if (isAttachedToWindow) {
+            if (searchMode) {
+                enter(resultsScroll, -dp(12))
+                enter(searchBar, dp(12))
+            } else {
+                enter(grid, dp(16))
+                enter(tabsBar, dp(16))
+                enter(bottomRow, dp(16))
+            }
+        }
         searchLeading.setImageResource(
             if (searchMode) R.drawable.ic_settings_back else R.drawable.ic_emoji_search
         )
@@ -156,6 +171,33 @@ internal class EmojiPanel(
             if (searchMode) R.string.emoji_back_to_keyboard else R.string.emoji_search_hint
         )
     }
+
+    private fun enter(view: View, fromY: Int) {
+        view.animate().cancel()
+        view.alpha = 0f
+        view.translationY = fromY.toFloat()
+        view.animate().alpha(1f).translationY(0f).setDuration(MODE_ENTER_MS)
+            .setInterpolator(DecelerateInterpolator(2f)).start()
+    }
+
+    // Keys squash on press and spring back with a slight overshoot, like the letter keys.
+    private fun bouncy(view: View) {
+        view.stateListAnimator = StateListAnimator().apply {
+            addState(intArrayOf(android.R.attr.state_pressed), pressAnimator(view, PRESS_SCALE, 90L,
+                DecelerateInterpolator()))
+            addState(intArrayOf(), pressAnimator(view, 1f, 260L, OvershootInterpolator(3f)))
+        }
+    }
+
+    private fun pressAnimator(view: View, scale: Float, duration: Long, interpolator: TimeInterpolator) =
+        AnimatorSet().apply {
+            playTogether(
+                ObjectAnimator.ofFloat(view, View.SCALE_X, scale),
+                ObjectAnimator.ofFloat(view, View.SCALE_Y, scale)
+            )
+            this.duration = duration
+            this.interpolator = interpolator
+        }
 
     // M3 search pill: surfaceContainerHigh, leading icon, Roboto Flex hint, clear button.
     private fun buildSearchBar() {
@@ -287,6 +329,7 @@ internal class EmojiPanel(
             contentDescription = serviceContext.getString(R.string.emoji_back_to_keyboard)
             background = keyBackground(appearance.functionalKeySurface)
             setOnClickListener { onClose() }
+            bouncy(this)
         }
         bottomRow.addView(abc, keyParams(1.4f))
         spaceKey.apply {
@@ -297,6 +340,7 @@ internal class EmojiPanel(
             background = keyBackground(appearance.keySurface)
             setOnTouchListener(SpaceSwipeListener())
             text = languageLabel()
+            bouncy(this)
         }
         bottomRow.addView(spaceKey, keyParams(5f))
         val delete = ImageButton(serviceContext).apply {
@@ -318,6 +362,7 @@ internal class EmojiPanel(
                 }
                 true
             }
+            bouncy(this)
         }
         bottomRow.addView(delete, keyParams(1.4f))
     }
@@ -438,5 +483,7 @@ internal class EmojiPanel(
         const val DELETE_REPEAT_START_MS = 400L
         const val DELETE_REPEAT_MS = 50L
         const val SWIPE_DP = 24
+        const val MODE_ENTER_MS = 240L
+        const val PRESS_SCALE = 0.9f
     }
 }

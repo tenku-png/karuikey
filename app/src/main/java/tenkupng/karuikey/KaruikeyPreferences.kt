@@ -375,16 +375,14 @@ object KaruikeyPreferences {
         ).apply()
     }
 
-    fun spacebarSwipe(context: Context) = prefs(context)
-        .getString(SPACEBAR_SWIPE, SPACEBAR_SWIPE_CURSOR)
-        ?.takeIf { it == SPACEBAR_SWIPE_LANGUAGE || it == SPACEBAR_SWIPE_CURSOR }
-        ?: SPACEBAR_SWIPE_CURSOR
+    // Cursor movement on the spacebar is always on; this only adds quick-flick language switching.
+    fun spacebarLanguageSwipe(context: Context) = prefs(context)
+        .getString(SPACEBAR_SWIPE, SPACEBAR_SWIPE_CURSOR) == SPACEBAR_SWIPE_LANGUAGE
 
-    fun setSpacebarSwipe(context: Context, mode: String) {
+    fun setSpacebarLanguageSwipe(context: Context, enabled: Boolean) {
         prefs(context).edit().putString(
             SPACEBAR_SWIPE,
-            if (mode == SPACEBAR_SWIPE_LANGUAGE) SPACEBAR_SWIPE_LANGUAGE
-            else SPACEBAR_SWIPE_CURSOR
+            if (enabled) SPACEBAR_SWIPE_LANGUAGE else SPACEBAR_SWIPE_CURSOR
         ).apply()
     }
 

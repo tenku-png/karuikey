@@ -48,6 +48,8 @@ import com.android.inputmethod.latin.utils.SubtypeLocaleUtils
 // Enough text before the cursor for one word plus three context words.
 private const val RESUME_CONTEXT_LENGTH = 64
 private const val STRIP_FADE_MS = 120L
+private const val SPACE_LANGUAGE_FLICK_MS = 250L
+private const val EMOJI_SEARCH_ENTER_MS = 260L
 
 // Display order of candidate slots: the best suggestion (index 0) goes in the middle.
 private val CANDIDATE_DISPLAY_ORDER = intArrayOf(1, 0, 2)
@@ -1118,6 +1120,7 @@ class KaruikeyService : InputMethodService() {
         private var spaceCursorKey: Key? = null
         private var spaceCursorLastX = 0
         private var spaceCursorDistance = 0
+        private var spaceCursorDownTime = 0L
         private var spaceCursorActive = false
         private var spaceLanguageActive = false
         private val spaceCursorTrigger = dp(12)
@@ -1327,6 +1330,7 @@ class KaruikeyService : InputMethodService() {
                     if (key?.code == Constants.CODE_SPACE) {
                         spaceCursorKey = key
                         spaceCursorLastX = event.x.toInt()
+                        spaceCursorDownTime = event.downTime
                         spaceCursorDistance = 0
                     } else {
                         resetSpaceCursor()
@@ -1338,7 +1342,7 @@ class KaruikeyService : InputMethodService() {
                     val x = event.x.toInt()
                     spaceCursorDistance += x - spaceCursorLastX
                     spaceCursorLastX = x
-                    if (spacebarLanguageGesture() &&
+                    if (spacebarLanguageGesture(event.eventTime) &&
                         !spaceCursorActive && !spaceLanguageActive &&
                         kotlin.math.abs(spaceCursorDistance) >= spaceCursorTrigger
                     ) {
@@ -1425,11 +1429,22 @@ class KaruikeyService : InputMethodService() {
         private fun showEmojiSearchLayout() {
             keyboardView.visibility = View.VISIBLE
             toolbar.visibility = View.GONE
+            // The letters rise into place under the search strip instead of popping in.
+            keyboardView.animate().cancel()
+            keyboardView.alpha = 0f
+            keyboardView.translationY = dp(32).toFloat()
+            keyboardView.animate().alpha(1f).translationY(0f)
+                .setDuration(EMOJI_SEARCH_ENTER_MS)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(2f))
+                .start()
             requestLayout()
             reloadKeyboardAfterLayout()
         }
 
         private fun showEmojiCategoryLayout() {
+            keyboardView.animate().cancel()
+            keyboardView.alpha = 1f
+            keyboardView.translationY = 0f
             restoreEmojiLayout()
             keyboardView.visibility = View.GONE
             emojiPanel.visibility = View.VISIBLE
@@ -1480,9 +1495,11 @@ class KaruikeyService : InputMethodService() {
             keyboardView.invalidateKey(spaceCursorKey)
         }
 
-        private fun spacebarLanguageGesture(): Boolean =
-            KaruikeyPreferences.spacebarSwipe(this@KaruikeyService) ==
-                KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE &&
+        // A flick that crosses the trigger soon after touch-down switches language; a slower
+        // drag (finger rested first) falls through to cursor movement.
+        private fun spacebarLanguageGesture(eventTime: Long): Boolean =
+            eventTime - spaceCursorDownTime < SPACE_LANGUAGE_FLICK_MS &&
+                KaruikeyPreferences.spacebarLanguageSwipe(this@KaruikeyService) &&
                 KaruikeyPreferences.enabledLanguages(this@KaruikeyService).size > 1
 
         fun resetSpaceCursor() {

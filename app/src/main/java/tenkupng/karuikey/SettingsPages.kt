@@ -90,8 +90,8 @@ fun AppearancePage(
     var emojiPlacement by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.emojiKeyPlacement(context))
     }
-    var spacebarSwipe by remember(refreshVersion) {
-        mutableStateOf(KaruikeyPreferences.spacebarSwipe(context))
+    var spacebarLanguageSwipe by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.spacebarLanguageSwipe(context))
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Theme")
@@ -230,15 +230,17 @@ fun AppearancePage(
             )
         }
         SectionLabel("Spacebar swipe")
-        ChoiceButtonGroup(
-            listOf(
-                "Move cursor" to KaruikeyPreferences.SPACEBAR_SWIPE_CURSOR,
-                "Switch language" to KaruikeyPreferences.SPACEBAR_SWIPE_LANGUAGE
-            ),
-            spacebarSwipe
-        ) { value ->
-            spacebarSwipe = value
-            KaruikeyPreferences.setSpacebarSwipe(context, value)
+        SettingsGroup {
+            SettingsSwitchRow(
+                KaruikeySymbol.LANGUAGE,
+                "Switch language by swipe",
+                if (spacebarLanguageSwipe) "Quick flick switches language, hold and slide moves the cursor"
+                else "Sliding on the spacebar moves the cursor",
+                spacebarLanguageSwipe
+            ) { enabled ->
+                spacebarLanguageSwipe = enabled
+                KaruikeyPreferences.setSpacebarLanguageSwipe(context, enabled)
+            }
         }
         SettingsGroup {
             Text("Keyboard height ${height.toInt()}%",
