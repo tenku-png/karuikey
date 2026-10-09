@@ -99,6 +99,9 @@ class KaruikeyService : InputMethodService() {
     private var pendingEditorSelection = -1
     // Last cursor the editor reported in agreement with us; own edits run from here to expected.
     private var confirmedCursorPosition = -1
+    private var lastAutoCorrection: AutoCorrection? = null
+
+    private data class AutoCorrection(val typed: String, val corrected: String, val separator: String)
     private var clipboardListenerRegistered = false
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
         capturePrimaryClipboard()
@@ -175,6 +178,7 @@ class KaruikeyService : InputMethodService() {
                 return
             }
             val connection = currentInputConnection
+            if (primaryCode != Constants.CODE_DELETE) lastAutoCorrection = null
             when (primaryCode) {
                 Constants.CODE_DELETE -> {
                     handleBackspace(connection)
@@ -206,6 +210,10 @@ class KaruikeyService : InputMethodService() {
                         commitPunctuationAfterAutomaticSpace(connection, text)
                     } else {
                         suggestionSession.clearAutomaticSpace()
+                        if (isAutoSpacePunctuation(primaryCode)) {
+                            lastAutoCorrection = applyAutoCorrection(connection)
+                                ?.copy(separator = text)
+                        }
                         finishEditorComposition(connection)
                         if (expectedCursorPosition >= 0) {
                             expectedCursorPosition += text.length
@@ -330,6 +338,7 @@ class KaruikeyService : InputMethodService() {
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         gestureRequestId++
+        lastAutoCorrection = null
         inputView?.resetSpaceCursor()
         inputView?.hideClipboardPanel()
         inputView?.hideEmojiPanel()
@@ -820,6 +829,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun commitSuggestion(candidate: String) {
+        lastAutoCorrection = null
         val connection = currentInputConnection ?: return
         val prefix = suggestionSession.prefix
         val replacingComposition = composingStart >= 0 && prefix.isNotEmpty()
@@ -865,6 +875,7 @@ class KaruikeyService : InputMethodService() {
     }
 
     private fun handleBackspace(connection: InputConnection?) {
+        if (revertAutoCorrection(connection)) return
         if (composingStart >= 0 && suggestionSession.prefix.isNotEmpty()) {
             val start = composingStart
             val removed = suggestionSession.deleteLastCodePoint()
@@ -931,6 +942,7 @@ class KaruikeyService : InputMethodService() {
             return
         }
         suggestionSession.clearAutomaticSpace()
+        val correction = applyAutoCorrection(connection)
         finishEditorComposition(connection)
         if (expectedCursorPosition >= 0) {
             pendingEditorSelection = expectedCursorPosition
@@ -938,7 +950,59 @@ class KaruikeyService : InputMethodService() {
             expectedSelectionEnd = expectedCursorPosition
         }
         duringEditorUpdate { connection?.commitText(separator, 1) }
+        if (correction != null) lastAutoCorrection = correction.copy(separator = separator)
         completeCurrentWord()
+    }
+
+    /**
+     * Replaces the composed word with the dictionary's confident correction before a separator
+     * commits it. Returns what was replaced so Backspace can revert it.
+     */
+    private fun applyAutoCorrection(connection: InputConnection?): AutoCorrection? {
+        val typed = suggestionSession.prefix.toString()
+        if (connection == null || composingStart < 0 || typed.isEmpty() || !suggestionsAllowed ||
+            !KaruikeyPreferences.autoCorrectionEnabled(this)
+        ) return null
+        val correction = SuggestionEngine.awaitAutoCorrection(
+            currentLanguage?.locale ?: return null,
+            suggestionSession.previousWord,
+            suggestionSession.recentWord(1),
+            suggestionSession.recentWord(2),
+            typed,
+            keyboardSwitcher?.getKeyboard(),
+            suggestionSession.xCoordinates(),
+            suggestionSession.yCoordinates(),
+            suggestionSession.atSentenceStart
+        ) ?: return null
+        if (correction == typed) return null
+        expectedCursorPosition = composingStart + correction.length
+        expectedSelectionEnd = expectedCursorPosition
+        duringEditorUpdate { connection.setComposingText(correction, 1) }
+        suggestionSession.replacePrefix(correction)
+        return AutoCorrection(typed, correction, "")
+    }
+
+    /** Backspace right after an auto-correction restores the word exactly as typed. */
+    private fun revertAutoCorrection(connection: InputConnection?): Boolean {
+        val undo = lastAutoCorrection ?: return false
+        lastAutoCorrection = null
+        if (connection == null || composingStart >= 0) return false
+        val committed = undo.corrected + undo.separator
+        val before = connection.getTextBeforeCursor(committed.length, 0)?.toString()
+        if (before != committed) return false
+        val restored = undo.typed + undo.separator
+        duringEditorUpdate {
+            connection.deleteSurroundingText(committed.length, 0)
+            connection.commitText(restored, 1)
+        }
+        if (expectedCursorPosition >= 0) {
+            expectedCursorPosition += restored.length - committed.length
+            expectedSelectionEnd = expectedCursorPosition
+        }
+        suggestionSession.clearAutomaticSpace()
+        suggestionSession.clear()
+        clearSuggestions()
+        return true
     }
 
     private fun commitAutomaticSpace(connection: InputConnection?) {

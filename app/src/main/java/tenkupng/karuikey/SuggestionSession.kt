@@ -95,6 +95,12 @@ internal class SuggestionSession {
         atSentenceStart = sentenceStart && recentWordCount == 0
     }
 
+    /** Swaps the composed word for a correction; the correction has no touch points. */
+    fun replacePrefix(word: String) {
+        clearPrefix()
+        append(word)
+    }
+
     private fun clearPrefix() {
         prefix.setLength(0)
         coordinateCount = 0

@@ -81,6 +81,17 @@ object SuggestionEngine {
     private var activeDictionary: BinaryDictionary? = null
     private var activeLegacyDictionary: LocalDictionary? = null
     private val candidates = ArrayList<BinaryDictionary.Candidate>(18)
+    private var rankedCorrection: String? = null
+
+    /** The auto-correction computed for one exact typed context, or null when none applies. */
+    private data class CorrectionResult(
+        val locale: String,
+        val previousWord: String?,
+        val prefix: String,
+        val correction: String?
+    )
+
+    @Volatile private var lastCorrection: CorrectionResult? = null
 
     @JvmStatic
     @Synchronized
@@ -163,6 +174,33 @@ object SuggestionEngine {
             pendingGesture = null
             scheduleWorkerLocked()
         }
+    }
+
+    /**
+     * Returns the auto-correction for the typed word, reusing the latest ranking when it matches
+     * and otherwise waiting briefly for a fresh one so fast typists still get corrected.
+     */
+    fun awaitAutoCorrection(
+        locale: String,
+        previousWord: String?,
+        secondPreviousWord: String?,
+        thirdPreviousWord: String?,
+        prefix: String,
+        keyboard: Keyboard?,
+        xCoordinates: IntArray?,
+        yCoordinates: IntArray?,
+        sentenceStart: Boolean,
+        timeoutMillis: Long = AUTO_CORRECTION_WAIT_MILLIS
+    ): String? {
+        fun matching() = lastCorrection?.takeIf {
+            it.locale == locale && it.previousWord == previousWord && it.prefix == prefix
+        }
+        matching()?.let { return it.correction }
+        val ready = CountDownLatch(1)
+        requestFill(locale, previousWord, secondPreviousWord, thirdPreviousWord, prefix, keyboard,
+            xCoordinates, yCoordinates, sentenceStart) { ready.countDown() }
+        if (!ready.await(timeoutMillis, TimeUnit.MILLISECONDS)) return null
+        return matching()?.correction
     }
 
     /** Queues gesture recognition so it cannot block key delivery or race dictionary close. */
@@ -388,9 +426,14 @@ object SuggestionEngine {
 
     private fun runFill(request: FillRequest) {
         val results = ArrayList<String>(3)
+        rankedCorrection = null
         if (isCurrent(request.generation, request.sourceName)) {
             fillActive(request, results)
         }
+        // A correction that the blacklist removed from the strip must not be applied either.
+        val correction = rankedCorrection?.takeIf { it in results }
+        lastCorrection = CorrectionResult(request.locale, request.previousWord, request.prefix,
+            correction)
         request.onResult(results)
     }
 
@@ -478,6 +521,7 @@ object SuggestionEngine {
             maxResults = 6
         )
         out.addAll(ranked.words)
+        rankedCorrection = ranked.autoCorrection
     }
 
     private fun fillFromHistory(request: FillRequest, out: MutableList<String>) {
@@ -498,9 +542,18 @@ object SuggestionEngine {
         val context = checkNotNull(appContext)
         val directory = File(context.filesDir, "dictionaries")
         if (!directory.exists() && !directory.mkdirs()) throw IllegalStateException("dictionary dir")
+        // Bundled assets change with app updates, so the install time is part of the cache key.
+        val installStamp = if (sourceName.startsWith(EXTERNAL_SOURCE_PREFIX)) 0L else try {
+            context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+        } catch (_: Exception) {
+            0L
+        }
         val sourceKey = Integer.toHexString(sourceName.hashCode())
-        val file = File(directory, "${sourceName.replace('/', '_').replace('-', '_').lowercase(Locale.ROOT)}_$sourceKey.dict")
+        val baseName = sourceName.replace('/', '_').replace('-', '_').lowercase(Locale.ROOT)
+        val file = File(directory, "${baseName}_${sourceKey}_${java.lang.Long.toHexString(installStamp)}.dict")
         if (file.length() > 0) return file
+        directory.listFiles { stale -> stale.name.startsWith("${baseName}_$sourceKey") }
+            ?.forEach { it.delete() }
         val temporary = File(directory, "${file.name}.tmp")
         val input = if (sourceName.startsWith(EXTERNAL_SOURCE_PREFIX)) {
             context.contentResolver.openInputStream(Uri.parse(sourceName.removePrefix(EXTERNAL_SOURCE_PREFIX)))
@@ -563,4 +616,5 @@ object SuggestionEngine {
     private const val MAX_DICTIONARY_BYTES = 32L * 1024L * 1024L
     private const val EXTERNAL_SOURCE_PREFIX = "uri:"
     private const val CONTENT_URI_SCHEME = "content"
+    private const val AUTO_CORRECTION_WAIT_MILLIS = 150L
 }

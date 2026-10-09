@@ -483,6 +483,9 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
     var nextWordSuggestions by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.nextWordSuggestionsEnabled(context))
     }
+    var autoCorrection by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.autoCorrectionEnabled(context))
+    }
     var personalizedSuggestions by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.personalizedSuggestionsEnabled(context))
     }
@@ -499,6 +502,12 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
                 "Suggest words after a completed word", nextWordSuggestions, suggestions) {
                 nextWordSuggestions = it
                 KaruikeyPreferences.setNextWordSuggestionsEnabled(context, it)
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Auto-correction",
+                "Fix a mistyped word on space; Backspace undoes it", autoCorrection, suggestions) {
+                autoCorrection = it
+                KaruikeyPreferences.setAutoCorrectionEnabled(context, it)
             }
             GroupDivider()
             SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Personalized suggestions",

@@ -99,6 +99,7 @@ object KaruikeyPreferences {
     private const val DEFAULT_BLUR_TRANSPARENCY = 30
     private const val SUGGESTIONS = "suggestions"
     private const val NEXT_WORD_SUGGESTIONS = "next_word_suggestions"
+    private const val AUTO_CORRECTION = "auto_correction"
     private const val PERSONALIZED_SUGGESTIONS = "personalized_suggestions"
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
     private const val EMOJI_PLACEMENT = "emoji_placement"
@@ -370,6 +371,13 @@ object KaruikeyPreferences {
 
     fun nextWordSuggestionsEnabled(context: Context) =
         prefs(context).getBoolean(NEXT_WORD_SUGGESTIONS, true)
+
+    fun autoCorrectionEnabled(context: Context) =
+        prefs(context).getBoolean(AUTO_CORRECTION, true)
+
+    fun setAutoCorrectionEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(AUTO_CORRECTION, enabled).apply()
+    }
 
     fun setNextWordSuggestionsEnabled(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(NEXT_WORD_SUGGESTIONS, enabled).apply()
