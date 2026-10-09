@@ -39,6 +39,9 @@ object SuggestionEngine {
         val thirdPreviousWord: String?,
         val prefix: String,
         val keyboard: Keyboard?,
+        val xCoordinates: IntArray?,
+        val yCoordinates: IntArray?,
+        val sentenceStart: Boolean,
         val onResult: (List<String>) -> Unit
     )
 
@@ -77,7 +80,7 @@ object SuggestionEngine {
 
     private var activeDictionary: BinaryDictionary? = null
     private var activeLegacyDictionary: LocalDictionary? = null
-    private val fallbackResults = ArrayList<String>(3)
+    private val candidates = ArrayList<BinaryDictionary.Candidate>(18)
 
     @JvmStatic
     @Synchronized
@@ -136,6 +139,9 @@ object SuggestionEngine {
         thirdPreviousWord: String?,
         prefix: CharSequence,
         keyboard: Keyboard?,
+        xCoordinates: IntArray? = null,
+        yCoordinates: IntArray? = null,
+        sentenceStart: Boolean = false,
         onResult: (List<String>) -> Unit
     ) {
         val sourceName = sourceNameForLocale(locale)
@@ -149,6 +155,9 @@ object SuggestionEngine {
                 thirdPreviousWord,
                 prefix.toString(),
                 keyboard,
+                xCoordinates,
+                yCoordinates,
+                sentenceStart,
                 onResult
             )
             pendingGesture = null
@@ -415,7 +424,7 @@ object SuggestionEngine {
         // Never ask a binary dictionary for generic predictions in a fresh empty field.
         if (request.prefix.isEmpty() && request.previousWord == null) return
         val binary = activeDictionary?.takeIf { activeSourceName == request.sourceName }
-        if (binary != null && (request.prefix.isEmpty() || request.keyboard != null)) {
+        if (binary != null && request.prefix.isEmpty()) {
             binary.getSuggestions(
                 request.prefix,
                 request.keyboard,
@@ -424,22 +433,15 @@ object SuggestionEngine {
                 request.thirdPreviousWord,
                 out
             )
-            removeBlocked(appContext, request.locale, request.prefix, out)
-            // Without a prefix the context-free fallback is just the most frequent words.
-            if (out.size < 3 && request.prefix.isNotEmpty()) {
-                fallbackResults.clear()
-                binary.getSuggestions(request.prefix, request.keyboard, null, null, null,
-                    fallbackResults)
-                appendAllowed(request.locale, request.prefix, fallbackResults, out)
-            }
-            if (out.size < 3) {
-                val history = ArrayList<String>(3)
-                appContext?.let {
-                    PredictionHistory.fill(it, request.locale, request.prefix,
-                        request.previousWord, history)
-                }
-                appendAllowed(request.locale, request.prefix, history, out)
-            }
+            removeBlocked(appContext, request.locale, out)
+            fillFromHistory(request, out)
+            if (out.size > 3) out.subList(3, out.size).clear()
+            return
+        }
+        if (binary != null && request.keyboard != null) {
+            rankTyped(binary, request, out)
+            removeBlocked(appContext, request.locale, out)
+            fillFromHistory(request, out)
             if (out.size > 3) out.subList(3, out.size).clear()
             return
         }
@@ -447,16 +449,44 @@ object SuggestionEngine {
             activeLegacyDictionary?.takeIf { activeSourceName == request.sourceName }
                 ?.fill(request.previousWord, request.secondPreviousWord,
                     request.thirdPreviousWord, request.prefix, out)
-            removeBlocked(appContext, request.locale, request.prefix, out)
-            if (out.size < 3) {
-                val history = ArrayList<String>(3)
-                appContext?.let {
-                    PredictionHistory.fill(it, request.locale, request.prefix,
-                        request.previousWord, history)
-                }
-                appendAllowed(request.locale, request.prefix, history, out)
-            }
+            removeBlocked(appContext, request.locale, out)
+            fillFromHistory(request, out)
         }
+    }
+
+    private fun rankTyped(binary: BinaryDictionary, request: FillRequest,
+            out: MutableList<String>) {
+        val codePoints = request.prefix.codePoints().toArray()
+        val count = codePoints.size
+        val xs = request.xCoordinates?.takeIf { it.size == count } ?: IntArray(count) { -1 }
+        val ys = request.yCoordinates?.takeIf { it.size == count } ?: IntArray(count) { -1 }
+        val previous = arrayOf(request.previousWord, request.secondPreviousWord,
+            request.thirdPreviousWord)
+        val previousCount = previous.indexOfFirst { it == null }.let { if (it < 0) 3 else it }
+        binary.getCandidates(codePoints, xs, ys, count, request.keyboard, previous,
+            previousCount, request.sentenceStart, candidates)
+        val locale = Locale.forLanguageTag(request.locale.replace('_', '-'))
+        val ranked = SuggestionRanker.rank(
+            request.prefix,
+            candidates.map {
+                SuggestionRanker.ScoredWord(it.word, it.score, it.isWhitelisted,
+                    it.isAppropriateForAutoCorrection)
+            },
+            binary.isValidWord(request.prefix),
+            locale,
+            // Spare slots so blacklisted words can be dropped without emptying the strip.
+            maxResults = 6
+        )
+        out.addAll(ranked.words)
+    }
+
+    private fun fillFromHistory(request: FillRequest, out: MutableList<String>) {
+        if (out.size >= 3) return
+        val history = ArrayList<String>(3)
+        appContext?.let {
+            PredictionHistory.fill(it, request.locale, request.prefix, request.previousWord, history)
+        }
+        appendAllowed(request.locale, request.prefix, history, out)
     }
 
     private fun isCurrent(generation: Long, sourceName: String?): Boolean =
@@ -501,17 +531,9 @@ object SuggestionEngine {
         activeLegacyDictionary = null
     }
 
-    private fun removeBlocked(context: Context?, locale: String, prefix: CharSequence,
-            out: MutableList<String>) {
+    private fun removeBlocked(context: Context?, locale: String, out: MutableList<String>) {
         if (context == null) return
-        for (index in out.lastIndex downTo 0) {
-            val candidate = out[index]
-            // Only the first slot may hold a typo correction that does not extend the prefix.
-            val allowedCorrection = index == 0 && prefix.isNotEmpty()
-            if ((!allowedCorrection && !candidate.startsWith(prefix.toString(), ignoreCase = true)) ||
-                SuggestionBlacklist.contains(context, locale, candidate)
-            ) out.removeAt(index)
-        }
+        out.removeAll { SuggestionBlacklist.contains(context, locale, it) }
     }
 
     private fun appendAllowed(locale: String, prefix: CharSequence, candidates: List<String>,

@@ -4,8 +4,12 @@ The derived files are materially modified for Karuikey and retain Apache License
 2.0 notices. The imported foundation covers keyboard geometry, resource parsing,
 hit detection, keyboard selection, shift state, gesture path sampling, the
 alphabetic/numeric/phone layouts, and the AOSP binary-dictionary query core.
-Karuikey loads only one active-language dictionary at a time. Autocorrect,
-telemetry, and remote services are not included.
+Karuikey loads only one active-language dictionary at a time. Telemetry and
+remote services are not included.
+
+Suggestion ranking and auto-correction rules in SuggestionRanker.kt are adapted
+from HeliBoard (https://github.com/Helium314/HeliBoard, GPL-3.0-only), which is
+itself derived from AOSP LatinIME.
 
 The Java/native dictionary bridge is derived from AOSP LatinIME at commit
 127336e9f29d69607eab55982324b210279ae8c5:

@@ -187,6 +187,7 @@ class KaruikeyService : InputMethodService() {
                     finishEditorComposition(connection)
                     sendEnter(connection)
                     clearComposingWord()
+                    suggestionSession.markSentenceEnd()
                 }
                 Constants.CODE_SHIFT,
                 Constants.CODE_CAPSLOCK -> Unit
@@ -198,7 +199,7 @@ class KaruikeyService : InputMethodService() {
                 else -> if (primaryCode > 0) {
                     val text = StringUtils.newSingleCodePointString(primaryCode)
                     if (Character.isLetter(primaryCode) && suggestionsAllowed) {
-                        appendToComposition(connection, text)
+                        appendToComposition(connection, text, x, y)
                     } else if (suggestionSession.hasAutomaticSpace &&
                         isAutoSpacePunctuation(primaryCode)
                     ) {
@@ -215,6 +216,10 @@ class KaruikeyService : InputMethodService() {
                             clearCurrentWord()
                         } else {
                             completeCurrentWord()
+                            if (isSentenceEnd(primaryCode)) {
+                                suggestionSession.markSentenceEnd()
+                                clearSuggestions()
+                            }
                         }
                     }
                 }
@@ -341,6 +346,7 @@ class KaruikeyService : InputMethodService() {
         expectedSelectionEnd = attribute.initialSelEnd
         confirmedCursorPosition = attribute.initialSelStart
         clearComposingWord()
+        if (attribute.initialSelStart <= 0) suggestionSession.markSentenceEnd()
         composingStart = -1
         emojiBottomRow = false
         keyboardSwitcher?.resetForNewInput()
@@ -762,7 +768,8 @@ class KaruikeyService : InputMethodService() {
         val previousWord = suggestionSession.previousWord
         suggestionSession.completeCurrentWord()
         recordCompletedWord(word, previousWord)
-        clearSuggestions()
+        // Offer next-word predictions right away; the editor's selection echo is ignored.
+        refreshSuggestions()
     }
 
     private fun completeWord(word: String) {
@@ -796,7 +803,10 @@ class KaruikeyService : InputMethodService() {
             suggestionSession.recentWord(1),
             suggestionSession.recentWord(2),
             suggestionSession.prefix,
-            keyboardSwitcher?.getKeyboard()
+            keyboardSwitcher?.getKeyboard(),
+            suggestionSession.xCoordinates(),
+            suggestionSession.yCoordinates(),
+            suggestionSession.atSentenceStart
         ) { results ->
             inputView?.post {
                 if (requestId != suggestionRequestId || editorInfo == null ||
@@ -839,11 +849,16 @@ class KaruikeyService : InputMethodService() {
         refreshSuggestions()
     }
 
-    private fun appendToComposition(connection: InputConnection?, text: String) {
+    private fun appendToComposition(
+        connection: InputConnection?,
+        text: String,
+        x: Int = SuggestionSession.NOT_A_COORDINATE,
+        y: Int = SuggestionSession.NOT_A_COORDINATE
+    ) {
         if (connection == null) return
         suggestionSession.clearAutomaticSpace()
         if (composingStart < 0) composingStart = expectedCursorPosition.coerceAtLeast(0)
-        suggestionSession.append(text)
+        suggestionSession.append(text, x, y)
         expectedCursorPosition = composingStart + suggestionSession.prefix.length
         expectedSelectionEnd = expectedCursorPosition
         duringEditorUpdate { connection.setComposingText(suggestionSession.prefix, 1) }
@@ -900,7 +915,7 @@ class KaruikeyService : InputMethodService() {
             return
         }
         val context = SuggestionSession.parseBeforeCursor(before)
-        suggestionSession.restore(context.word, context.previousWords)
+        suggestionSession.restore(context.word, context.previousWords, context.sentenceStart)
         if (context.word.isNotEmpty() && cursor >= context.word.length) {
             val start = cursor - context.word.length
             duringEditorUpdate { connection?.setComposingRegion(start, cursor) }
@@ -950,7 +965,11 @@ class KaruikeyService : InputMethodService() {
         expectedCursorPosition = expectedSelectionEnd
         suggestionSession.clearAutomaticSpace()
         suggestionSession.completeCurrentWord()
+        if (isSentenceEnd(punctuation.codePointAt(0))) suggestionSession.markSentenceEnd()
     }
+
+    private fun isSentenceEnd(code: Int): Boolean =
+        code == '.'.code || code == '!'.code || code == '?'.code
 
     private fun isAutoSpacePunctuation(code: Int): Boolean = when (code) {
         '.'.code, ','.code, '?'.code, '!'.code, ':'.code, ';'.code -> true

@@ -65,6 +65,32 @@ public final class BinaryDictionary {
     private final String[] mPreviousWords = new String[3];
     private String[] mTopWords;
 
+    /** Kind flags reported by the native decoder alongside each candidate. */
+    public static final int KIND_MASK_KIND = 0xFF;
+    public static final int KIND_WHITELIST = 3;
+    public static final int KIND_FLAG_APPROPRIATE_FOR_AUTOCORRECTION = 0x10000000;
+
+    /** One scored decoder result; higher scores are better. */
+    public static final class Candidate {
+        public final String word;
+        public final int score;
+        public final int kindAndFlags;
+
+        public Candidate(final String word, final int score, final int kindAndFlags) {
+            this.word = word;
+            this.score = score;
+            this.kindAndFlags = kindAndFlags;
+        }
+
+        public boolean isWhitelisted() {
+            return (kindAndFlags & KIND_MASK_KIND) == KIND_WHITELIST;
+        }
+
+        public boolean isAppropriateForAutoCorrection() {
+            return (kindAndFlags & KIND_FLAG_APPROPRIATE_FOR_AUTOCORRECTION) != 0;
+        }
+    }
+
     public BinaryDictionary(final File file, final Locale locale) {
         final long nativeDict = openNative(file.getAbsolutePath(), 0, file.length(), false);
         if (nativeDict == 0) {
@@ -111,33 +137,8 @@ public final class BinaryDictionary {
                     previousWords[i]);
             mTraverseSession.mIsBeginningOfSentenceArray[i] = false;
         }
-        mTraverseSession.mNativeSuggestOptions.setIsGesture(false);
-        mTraverseSession.mNativeSuggestOptions.setUseFullEditDistance(false);
-        mTraverseSession.mNativeSuggestOptions.setBlockOffensiveWords(true);
-        mTraverseSession.mNativeSuggestOptions.setWeightForLocale(1.0f);
-        Arrays.fill(mOutputCodePoints, 0);
-        mOutputCount[0] = 0;
-        getSuggestionsNative(mNativeDict, keyboard == null ? 0 :
-                        keyboard.getProximityInfo().getNativeProximityInfo(),
-                mTraverseSession.getSession(), mXCoordinates, mYCoordinates, mTimes, mPointerIds,
-                mInputCodePoints, inputSize, mTraverseSession.mNativeSuggestOptions.getOptions(),
-                mTraverseSession.mPrevWordCodePointArrays,
-                mTraverseSession.mIsBeginningOfSentenceArray, contextCount, mOutputCount,
-                mOutputCodePoints, mOutputScores, mOutputIndices, mOutputTypes,
-                mOutputConfidence, mWeight);
+        final int count = runNative(inputSize, keyboard, contextCount);
         final String lowerPrefix = prefix.toString().toLowerCase(Locale.ROOT);
-        // The native queue pops its lowest score first; AOSP re-sorted results on the Java side.
-        final int count = Math.min(mOutputCount[0], MAX_RESULTS);
-        for (int i = 0; i < count; i++) mOrder[i] = i;
-        for (int i = 1; i < count; i++) {
-            final int index = mOrder[i];
-            int j = i - 1;
-            while (j >= 0 && mOutputScores[mOrder[j]] < mOutputScores[index]) {
-                mOrder[j + 1] = mOrder[j];
-                j--;
-            }
-            mOrder[j + 1] = index;
-        }
         String correction = null;
         for (int rank = 0; rank < count; rank++) {
             final int start = mOrder[rank] * MAX_WORD_LENGTH;
@@ -162,6 +163,100 @@ public final class BinaryDictionary {
                 out.add(word);
             }
         }
+    }
+
+    /**
+     * Scored corrections and completions for typed code points. Coordinates are keyboard-relative
+     * touch points; a negative coordinate falls back to the center of the code point's key.
+     */
+    public synchronized void getCandidates(final int[] codePoints, final int[] xCoordinates,
+            final int[] yCoordinates, final int inputSize, final Keyboard keyboard,
+            final String[] previousWords, final int previousWordCount,
+            final boolean beginningOfSentence, final java.util.List<Candidate> out) {
+        out.clear();
+        if (mNativeDict == 0 || mTraverseSession.getSession() == 0 ||
+                inputSize > MAX_WORD_LENGTH || (inputSize > 0 && keyboard == null)) {
+            return;
+        }
+        System.arraycopy(codePoints, 0, mInputCodePoints, 0, inputSize);
+        Arrays.fill(mInputCodePoints, inputSize, mInputCodePoints.length, NOT_A_CODE);
+        for (int i = 0; i < inputSize; i++) {
+            int x = xCoordinates[i];
+            int y = yCoordinates[i];
+            if (x < 0 || y < 0) {
+                Key key = keyboard.getKey(codePoints[i]);
+                if (key == null) key = keyboard.getKey(Character.toLowerCase(codePoints[i]));
+                x = key == null ? 0 : key.getX() + key.getWidth() / 2;
+                y = key == null ? 0 : key.getY() + key.getHeight() / 2;
+            }
+            mXCoordinates[i] = x;
+            mYCoordinates[i] = y;
+            mTimes[i] = i;
+            mPointerIds[i] = 0;
+        }
+        int contextCount = Math.min(previousWordCount, previousWords == null ? 0 :
+                previousWords.length);
+        for (int i = 0; i < contextCount; i++) {
+            mTraverseSession.mPrevWordCodePointArrays[i] = StringUtils.toCodePointArray(
+                    previousWords[i]);
+            mTraverseSession.mIsBeginningOfSentenceArray[i] = false;
+        }
+        if (contextCount == 0 && beginningOfSentence) {
+            // AOSP NgramContext encodes a sentence start as an empty word flagged as such.
+            mTraverseSession.mPrevWordCodePointArrays[0] = new int[0];
+            mTraverseSession.mIsBeginningOfSentenceArray[0] = true;
+            contextCount = 1;
+        }
+        final int count = runNative(inputSize, keyboard, contextCount);
+        for (int rank = 0; rank < count; rank++) {
+            final int index = mOrder[rank];
+            final int start = index * MAX_WORD_LENGTH;
+            int length = 0;
+            while (length < MAX_WORD_LENGTH && mOutputCodePoints[start + length] != 0) length++;
+            if (length == 0) continue;
+            out.add(new Candidate(new String(mOutputCodePoints, start, length),
+                    mOutputScores[index], mOutputTypes[index]));
+        }
+    }
+
+    /** Whether the dictionary knows the word itself, not only as a correction target. */
+    public synchronized boolean isValidWord(final String word) {
+        if (mNativeDict == 0 || word.isEmpty()) return false;
+        return getProbabilityNative(mNativeDict, StringUtils.toCodePointArray(word)) >= 0 ||
+                getProbabilityNative(mNativeDict, StringUtils.toCodePointArray(
+                        word.toLowerCase(Locale.ROOT))) >= 0;
+    }
+
+    /** Runs the decoder over the prepared input and returns results ordered best first. */
+    private int runNative(final int inputSize, final Keyboard keyboard, final int contextCount) {
+        mTraverseSession.mNativeSuggestOptions.setIsGesture(false);
+        mTraverseSession.mNativeSuggestOptions.setUseFullEditDistance(false);
+        mTraverseSession.mNativeSuggestOptions.setBlockOffensiveWords(true);
+        mTraverseSession.mNativeSuggestOptions.setWeightForLocale(1.0f);
+        Arrays.fill(mOutputCodePoints, 0);
+        mOutputCount[0] = 0;
+        mWeight[0] = -1.0f;
+        getSuggestionsNative(mNativeDict, keyboard == null ? 0 :
+                        keyboard.getProximityInfo().getNativeProximityInfo(),
+                mTraverseSession.getSession(), mXCoordinates, mYCoordinates, mTimes, mPointerIds,
+                mInputCodePoints, inputSize, mTraverseSession.mNativeSuggestOptions.getOptions(),
+                mTraverseSession.mPrevWordCodePointArrays,
+                mTraverseSession.mIsBeginningOfSentenceArray, contextCount, mOutputCount,
+                mOutputCodePoints, mOutputScores, mOutputIndices, mOutputTypes,
+                mOutputConfidence, mWeight);
+        // The native queue pops its lowest score first; AOSP re-sorted results on the Java side.
+        final int count = Math.min(mOutputCount[0], MAX_RESULTS);
+        for (int i = 0; i < count; i++) mOrder[i] = i;
+        for (int i = 1; i < count; i++) {
+            final int index = mOrder[i];
+            int j = i - 1;
+            while (j >= 0 && mOutputScores[mOrder[j]] < mOutputScores[index]) {
+                mOrder[j + 1] = mOrder[j];
+                j--;
+            }
+            mOrder[j + 1] = index;
+        }
+        return count;
     }
 
     private String[] topWords() {

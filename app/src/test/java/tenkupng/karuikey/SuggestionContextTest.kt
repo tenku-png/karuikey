@@ -19,20 +19,20 @@ class SuggestionContextTest {
 
     @Test
     fun punctuationBreaksContext() {
-        assertEquals(SuggestionSession.TextContext("wor", emptyList()), parse("Hi. wor"))
-        assertEquals(SuggestionSession.TextContext("", emptyList()), parse("end."))
+        assertEquals(SuggestionSession.TextContext("wor", emptyList(), true), parse("Hi. wor"))
+        assertEquals(SuggestionSession.TextContext("", emptyList(), true), parse("end."))
     }
 
     @Test
     fun cyrillicApostropheAndDigitsStayInsideWords() {
         assertEquals(SuggestionSession.TextContext("при", listOf("всем")), parse("всем при"))
-        assertEquals(SuggestionSession.TextContext("don't", emptyList()), parse("don't"))
-        assertEquals(SuggestionSession.TextContext("mp3", emptyList()), parse("mp3"))
+        assertEquals(SuggestionSession.TextContext("don't", emptyList(), true), parse("don't"))
+        assertEquals(SuggestionSession.TextContext("mp3", emptyList(), true), parse("mp3"))
     }
 
     @Test
     fun emptyAndLineBreakInputs() {
-        assertEquals(SuggestionSession.TextContext("", emptyList()), parse(""))
-        assertEquals(SuggestionSession.TextContext("b", emptyList()), parse("a\nb"))
+        assertEquals(SuggestionSession.TextContext("", emptyList(), true), parse(""))
+        assertEquals(SuggestionSession.TextContext("b", emptyList(), true), parse("a\nb"))
     }
 }
