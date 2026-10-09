@@ -1296,7 +1296,7 @@ class KaruikeyService : InputMethodService() {
                 if (field == value) return
                 field = value
                 dragHandle.visibility = if (value) View.VISIBLE else View.GONE
-                clipToOutline = value
+                invalidateOutline()
                 requestLayout()
             }
         private val dragHandle = object : View(keyboardContext) {
@@ -1450,9 +1450,13 @@ class KaruikeyService : InputMethodService() {
             addView(dragHandle, LayoutParams.MATCH_PARENT, dragHandleHeight)
             outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
-                    outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
+                    // Docked, only the top corners round: the outline runs past the bottom edge.
+                    val radius = if (floating) dp(16) else dp(12)
+                    val bottom = if (floating) view.height else view.height + radius
+                    outline.setRoundRect(0, 0, view.width, bottom, radius.toFloat())
                 }
             }
+            clipToOutline = true
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
                     .takeIf { it > 0 } ?: imeNavigationBarHeight()
@@ -2040,7 +2044,13 @@ class KaruikeyService : InputMethodService() {
             val searchStrip = if (emojiShown && emojiPanel.isSearchActive()) {
                 emojiPanel.searchStripHeight
             } else 0
-            val emojiExtra = if (searchStrip > 0) searchStrip else if (emojiShown) toolbarHeight else 0
+            // On tablets the emoji browser grows above the keyboard like Gboard's, so several
+            // rows of emoji fit instead of one and a half.
+            val emojiTall = if (resources.configuration.smallestScreenWidthDp >= 600) {
+                defaultKeyboardHeight * 3 / 5
+            } else 0
+            val emojiExtra = if (searchStrip > 0) searchStrip
+                else if (emojiShown) toolbarHeight + emojiTall else 0
             val desiredHeight = defaultKeyboardHeight + visibleToolbarHeight + emojiExtra +
                 bottomInset
             val height = when (MeasureSpec.getMode(heightMeasureSpec)) {

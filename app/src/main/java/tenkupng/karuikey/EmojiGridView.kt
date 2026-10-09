@@ -39,7 +39,7 @@ internal class EmojiGridView(
 
     private val density = resources.displayMetrics.density
     private val headerHeight = (26 * density).toInt()
-    private val minCellWidth = 44 * density
+    private val minCellWidth = 52 * density
     private var cellSize = 48 * density
     private val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     // labelMedium: 12sp, medium weight, onSurfaceVariant.
@@ -154,7 +154,7 @@ internal class EmojiGridView(
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
         columns = if (fixedColumns > 0) fixedColumns
-            else (width / minCellWidth).toInt().coerceIn(8, 12)
+            else (width / minCellWidth).toInt().coerceAtLeast(8)
         cellSize = width.toFloat() / columns
         emojiPaint.textSize = cellSize * 0.56f
         relayoutSections()
