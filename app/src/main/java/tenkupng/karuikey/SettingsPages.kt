@@ -17,6 +17,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,17 +96,14 @@ fun AppearancePage(
     var keyPreview by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.keyPreviewEnabled(context))
     }
-    var keyboardStyle by remember(refreshVersion) {
-        mutableStateOf(KaruikeyPreferences.keyboardStyle(context))
-    }
     var suggestionPosition by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.suggestionPosition(context))
     }
     var emojiPlacement by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.emojiKeyPlacement(context))
     }
-    var spacebarLanguageSwipe by remember(refreshVersion) {
-        mutableStateOf(KaruikeyPreferences.spacebarLanguageSwipe(context))
+    val multipleLanguages = remember(refreshVersion) {
+        KaruikeyPreferences.enabledLanguages(context).size > 1
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Theme")
@@ -113,14 +113,15 @@ fun AppearancePage(
                 "Light" to KaruikeyPreferences.THEME_LIGHT,
                 "Dark" to KaruikeyPreferences.THEME_DARK
             ),
-            theme
+            theme,
+            icons = listOf(KaruikeySymbol.BRIGHTNESS_AUTO, KaruikeySymbol.LIGHT_MODE, KaruikeySymbol.DARK_MODE)
         ) { value ->
             theme = value
             KaruikeyPreferences.setTheme(context, value)
             onThemeChanged(value)
         }
         SettingsGroup {
-            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Dynamic colors",
+            SettingsSwitchRow(KaruikeySymbol.AUTO_AWESOME, "Dynamic colors",
                 if (Build.VERSION.SDK_INT >= 31) "Use the Android Material You palette" else "Requires Android 12 or newer",
                 dynamic, Build.VERSION.SDK_INT >= 31) {
                 dynamic = it
@@ -128,139 +129,34 @@ fun AppearancePage(
                 onDynamicColorsChanged(it)
             }
         }
-        SectionLabel("Keyboard surface")
+        SectionLabel("Layout")
         SettingsGroup {
-            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Transparency",
-                "Let the app behind show through the keyboard", transparency) {
-                transparency = it
-                KaruikeyPreferences.setTransparencyEnabled(context, it)
+            SettingsSliderRow(KaruikeySymbol.HEIGHT, "Keyboard height", "${height.toInt()}%", height,
+                KaruikeyPreferences.MIN_HEIGHT_PERCENT.toFloat()..KaruikeyPreferences.MAX_HEIGHT_PERCENT.toFloat()
+            ) {
+                height = it
+                KaruikeyPreferences.setHeightPercent(context, it.toInt())
             }
             GroupDivider()
-            Text("Transparency ${transparencyAmount.toInt()}%",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-            Slider(
-                value = transparencyAmount,
-                onValueChange = {
-                    transparencyAmount = it
-                    KaruikeyPreferences.setTransparencyAmount(context, it.toInt())
-                },
-                valueRange = 0f..(if (blur) KaruikeyPreferences.MAX_BLUR_TRANSPARENCY else 35).toFloat(),
-                enabled = transparency,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            AnimatedVisibility(
-                visible = transparency,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column {
-                    GroupDivider()
-                    Text("Key transparency ${keyTransparency.toInt()}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-                    Slider(
-                        value = keyTransparency,
-                        onValueChange = {
-                            keyTransparency = it
-                            KaruikeyPreferences.setKeyTransparency(context, it.toInt())
-                        },
-                        valueRange = 0f..KaruikeyPreferences.MAX_KEY_TRANSPARENCY.toFloat(),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
+            SettingsSwitchRow(KaruikeySymbol.SETTINGS, "Toolbar", "Show clipboard and settings actions",
+                toolbar) {
+                toolbar = it
+                KaruikeyPreferences.setToolbarEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Blur",
-                when {
-                    Build.VERSION.SDK_INT < 31 -> "Requires Android 12 or newer"
-                    !blurSupported -> "Turned off by the system or not supported"
-                    else -> "Blur the app behind the keyboard"
-                },
-                blur, blurSupported) {
-                blur = it
-                KaruikeyPreferences.setBlurEnabled(context, it)
-                if (!it) {
-                    // Without blur the surface returns to the tighter transparency limit.
-                    transparencyAmount = transparencyAmount.coerceAtMost(35f)
-                }
+            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Key preview", "Show the pressed key preview",
+                keyPreview) {
+                keyPreview = it
+                KaruikeyPreferences.setKeyPreviewEnabled(context, it)
             }
-            AnimatedVisibility(
-                visible = blur,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column {
-                    GroupDivider()
-                    SettingsRow(KaruikeySymbol.PALETTE, "Frosted preset",
-                        "Heavy matte blur with translucent keys, like iOS") {
-                        KaruikeyPreferences.applyFrostedPreset(context)
-                        transparency = true
-                        transparencyAmount = KaruikeyPreferences.transparencyAmount(context).toFloat()
-                        keyTransparency = KaruikeyPreferences.keyTransparency(context).toFloat()
-                        blurRadius = KaruikeyPreferences.blurRadius(context).toFloat()
-                        blurGrain = KaruikeyPreferences.blurGrain(context).toFloat()
-                        blurContrast = KaruikeyPreferences.blurContrast(context).toFloat()
-                    }
-                    GroupDivider()
-                    Text("Blur strength ${blurRadius.toInt()} dp",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-                    Slider(
-                        value = blurRadius,
-                        onValueChange = { blurRadius = it },
-                        onValueChangeFinished = {
-                            KaruikeyPreferences.setBlurRadius(context, blurRadius.toInt())
-                        },
-                        valueRange = KaruikeyPreferences.MIN_BLUR_RADIUS.toFloat()..
-                            KaruikeyPreferences.MAX_BLUR_RADIUS.toFloat(),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    GroupDivider()
-                    Text("Grain ${blurGrain.toInt()}%",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-                    Slider(
-                        value = blurGrain,
-                        onValueChange = { blurGrain = it },
-                        onValueChangeFinished = {
-                            KaruikeyPreferences.setBlurGrain(context, blurGrain.toInt())
-                        },
-                        valueRange = 0f..100f,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                    GroupDivider()
-                    Text("Contrast ${if (blurContrast > 0) "+" else ""}${blurContrast.toInt()}",
-                        style = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-                    Text("Darken or lighten what shows through the blur",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(horizontal = 20.dp))
-                    Slider(
-                        value = blurContrast,
-                        onValueChange = { blurContrast = it },
-                        onValueChangeFinished = {
-                            KaruikeyPreferences.setBlurContrast(context, blurContrast.toInt())
-                        },
-                        valueRange = -KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat()..
-                            KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat(),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Highlight function keys",
+                "Tint shift, backspace and punctuation keys", accentFunctionKeys) {
+                accentFunctionKeys = it
+                KaruikeyPreferences.setAccentFunctionKeys(context, it)
             }
         }
-        SectionLabel("Keyboard style")
-        ChoiceButtonGroup(
-            listOf(
-                "Material" to KaruikeyPreferences.KEYBOARD_STYLE_MATERIAL,
-                "Glass" to KaruikeyPreferences.KEYBOARD_STYLE_GLASS
-            ),
-            keyboardStyle
-        ) { value ->
-            keyboardStyle = value
-            KaruikeyPreferences.setKeyboardStyle(context, value)
-        }
-        SectionLabel("Suggestions")
+        SectionLabel("Suggestion strip")
         ChoiceButtonGroup(
             listOf(
                 "Full bar" to KaruikeyPreferences.SUGGESTION_POSITION_FULL,
@@ -284,61 +180,100 @@ fun AppearancePage(
             emojiPlacement = value
             KaruikeyPreferences.setEmojiKeyPlacement(context, value)
         }
-        if (KaruikeyPreferences.enabledLanguages(context).size > 1 &&
-            emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM
+        AnimatedVisibility(
+            visible = multipleLanguages &&
+                emojiPlacement == KaruikeyPreferences.EMOJI_PLACEMENT_BOTTOM,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
         ) {
             Text(
                 "Language switching stays available in the toolbar; Spacebar swipe can also switch languages.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
         }
-        SectionLabel("Spacebar swipe")
+        SectionLabel("Keyboard surface")
         SettingsGroup {
-            SettingsSwitchRow(
-                KaruikeySymbol.LANGUAGE,
-                "Switch language by swipe",
-                if (spacebarLanguageSwipe) "Quick flick switches language, hold and slide moves the cursor"
-                else "Sliding on the spacebar moves the cursor",
-                spacebarLanguageSwipe
-            ) { enabled ->
-                spacebarLanguageSwipe = enabled
-                KaruikeyPreferences.setSpacebarLanguageSwipe(context, enabled)
+            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Transparency",
+                "Let the app behind show through the keyboard", transparency) {
+                transparency = it
+                KaruikeyPreferences.setTransparencyEnabled(context, it)
             }
-        }
-        SettingsGroup {
-            Text("Keyboard height ${height.toInt()}%",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
-            Slider(
-                value = height,
-                onValueChange = {
-                    height = it
-                    KaruikeyPreferences.setHeightPercent(context, it.toInt())
+            AnimatedVisibility(
+                visible = transparency,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    GroupDivider()
+                    SettingsSliderRow(KaruikeySymbol.TUNE, "Transparency",
+                        "${transparencyAmount.toInt()}%", transparencyAmount,
+                        0f..(if (blur) KaruikeyPreferences.MAX_BLUR_TRANSPARENCY else 35).toFloat()
+                    ) {
+                        transparencyAmount = it
+                        KaruikeyPreferences.setTransparencyAmount(context, it.toInt())
+                    }
+                    GroupDivider()
+                    SettingsSliderRow(KaruikeySymbol.KEYBOARD, "Key transparency",
+                        "${keyTransparency.toInt()}%", keyTransparency,
+                        0f..KaruikeyPreferences.MAX_KEY_TRANSPARENCY.toFloat()
+                    ) {
+                        keyTransparency = it
+                        KaruikeyPreferences.setKeyTransparency(context, it.toInt())
+                    }
+                }
+            }
+            GroupDivider()
+            SettingsSwitchRow(KaruikeySymbol.BLUR_ON, "Blur",
+                when {
+                    Build.VERSION.SDK_INT < 31 -> "Requires Android 12 or newer"
+                    !blurSupported -> "Turned off by the system or not supported"
+                    else -> "Blur the app behind the keyboard"
                 },
-                valueRange = KaruikeyPreferences.MIN_HEIGHT_PERCENT.toFloat()..
-                    KaruikeyPreferences.MAX_HEIGHT_PERCENT.toFloat(),
-                steps = KaruikeyPreferences.MAX_HEIGHT_PERCENT - KaruikeyPreferences.MIN_HEIGHT_PERCENT - 1,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-            GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.PALETTE, "Highlight function keys",
-                "Tint shift, backspace and punctuation keys", accentFunctionKeys) {
-                accentFunctionKeys = it
-                KaruikeyPreferences.setAccentFunctionKeys(context, it)
+                blur, blurSupported) {
+                blur = it
+                KaruikeyPreferences.setBlurEnabled(context, it)
+                if (!it) {
+                    // Without blur the surface returns to the tighter transparency limit.
+                    transparencyAmount = transparencyAmount.coerceAtMost(35f)
+                }
             }
-            GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.SETTINGS, "Toolbar", "Show clipboard and settings actions",
-                toolbar) {
-                toolbar = it
-                KaruikeyPreferences.setToolbarEnabled(context, it)
-            }
-            GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Key preview", "Show the pressed key preview",
-                keyPreview) {
-                keyPreview = it
-                KaruikeyPreferences.setKeyPreviewEnabled(context, it)
+            AnimatedVisibility(
+                visible = blur,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column {
+                    GroupDivider()
+                    SettingsRow(KaruikeySymbol.AUTO_AWESOME, "Frosted preset",
+                        "Heavy matte blur with translucent keys") {
+                        KaruikeyPreferences.applyFrostedPreset(context)
+                        transparency = true
+                        transparencyAmount = KaruikeyPreferences.transparencyAmount(context).toFloat()
+                        keyTransparency = KaruikeyPreferences.keyTransparency(context).toFloat()
+                        blurRadius = KaruikeyPreferences.blurRadius(context).toFloat()
+                        blurGrain = KaruikeyPreferences.blurGrain(context).toFloat()
+                        blurContrast = KaruikeyPreferences.blurContrast(context).toFloat()
+                    }
+                    GroupDivider()
+                    SettingsSliderRow(KaruikeySymbol.BLUR_ON, "Blur strength", "${blurRadius.toInt()} dp",
+                        blurRadius,
+                        KaruikeyPreferences.MIN_BLUR_RADIUS.toFloat()..KaruikeyPreferences.MAX_BLUR_RADIUS.toFloat(),
+                        onValueChangeFinished = { KaruikeyPreferences.setBlurRadius(context, blurRadius.toInt()) }
+                    ) { blurRadius = it }
+                    GroupDivider()
+                    SettingsSliderRow(KaruikeySymbol.TUNE, "Grain", "${blurGrain.toInt()}%", blurGrain,
+                        0f..100f,
+                        onValueChangeFinished = { KaruikeyPreferences.setBlurGrain(context, blurGrain.toInt()) }
+                    ) { blurGrain = it }
+                    GroupDivider()
+                    SettingsSliderRow(KaruikeySymbol.BRIGHTNESS_AUTO, "Contrast",
+                        "${if (blurContrast > 0) "+" else ""}${blurContrast.toInt()}", blurContrast,
+                        -KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat()..KaruikeyPreferences.MAX_BLUR_CONTRAST.toFloat(),
+                        onValueChangeFinished = { KaruikeyPreferences.setBlurContrast(context, blurContrast.toInt()) }
+                    ) { blurContrast = it }
+                }
             }
         }
     }
@@ -372,7 +307,9 @@ fun LanguagesPage(
         SettingsGroup {
             val visibleLanguages = catalog.filter { visibleIds.contains(it.id) }
             visibleLanguages.forEachIndexed { index, language ->
-                val source = SuggestionEngine.dictionarySource(language.locale)
+                val source = remember(refreshVersion, language.locale) {
+                    SuggestionEngine.dictionarySource(language.locale)
+                }
                 AnimatedLanguageRow(
                     language = language,
                     summary = "${language.nativeName} · ${language.layoutName} · " +
@@ -406,8 +343,11 @@ fun LanguagesPage(
                 if (index < visibleLanguages.lastIndex) GroupDivider()
             }
         }
-        Button(onClick = { onNavigate(SettingsPage.ADD_LANGUAGE) }, modifier = Modifier.fillMaxWidth()) {
-            Text("Add language")
+        Button(
+            onClick = { onNavigate(SettingsPage.ADD_LANGUAGE) },
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("Add language", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -518,38 +458,36 @@ fun TypingPage(refreshVersion: Int, contentPadding: Modifier) {
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         SectionLabel("Typing assistance")
         SettingsGroup {
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Suggestions",
+            SettingsSwitchRow(KaruikeySymbol.SPELLCHECK, "Suggestions",
                 "Show locally available word suggestions", suggestions) {
                 suggestions = it
                 KaruikeyPreferences.setSuggestionsEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Next-word suggestions",
+            SettingsSwitchRow(KaruikeySymbol.ARROW_FORWARD, "Next-word suggestions",
                 "Suggest words after a completed word", nextWordSuggestions, suggestions) {
                 nextWordSuggestions = it
                 KaruikeyPreferences.setNextWordSuggestionsEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Auto-correction",
+            SettingsSwitchRow(KaruikeySymbol.EDIT, "Auto-correction",
                 "Fix a mistyped word on space; Backspace undoes it", autoCorrection, suggestions) {
                 autoCorrection = it
                 KaruikeyPreferences.setAutoCorrectionEnabled(context, it)
             }
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Personalized suggestions",
+            SettingsSwitchRow(KaruikeySymbol.AUTO_AWESOME, "Personalized suggestions",
                 "Learn from typing on this device", personalizedSuggestions, suggestions) {
                 personalizedSuggestions = it
                 KaruikeyPreferences.setPersonalizedSuggestionsEnabled(context, it)
             }
             if (personalizedSuggestions) {
                 GroupDivider()
-                Button(onClick = { PredictionHistory.clear(context) },
-                    modifier = Modifier.fillMaxWidth()) {
-                    Text("Clear learned suggestions")
-                }
+                SettingsRow(KaruikeySymbol.DELETE_SWEEP, "Clear learned suggestions",
+                    "Forget words learned on this device") { PredictionHistory.clear(context) }
             }
             GroupDivider()
-            SettingsSwitchRow(KaruikeySymbol.KEYBOARD, "Auto-capitalization",
+            SettingsSwitchRow(KaruikeySymbol.TEXT_FIELDS, "Auto-capitalization",
                 "Use normal sentence and word capitalization flags", autoCapitalization) {
                 autoCapitalization = it
                 KaruikeyPreferences.setAutoCapitalizationEnabled(context, it)
@@ -566,6 +504,7 @@ fun ClipboardPage(refreshVersion: Int, contentPadding: Modifier) {
     var retention by remember(refreshVersion) { mutableStateOf(ClipboardHistory.retentionHours(context)) }
     var maxItems by remember(refreshVersion) { mutableStateOf(ClipboardHistory.maxItems(context)) }
     var retentionMenu by remember { mutableStateOf(false) }
+    val savedCount = remember(refreshVersion) { ClipboardHistory.items(context).size }
     var clearConfirmation by remember { mutableStateOf(false) }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
         Text("Clipboard history is stored only on this device and automatically deleted after the selected period.",
@@ -617,11 +556,19 @@ fun ClipboardPage(refreshVersion: Int, contentPadding: Modifier) {
                     )
                 }
             }
-            Text("${ClipboardHistory.items(context).size} saved", style = MaterialTheme.typography.bodySmall,
+            Text("$savedCount saved", style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(20.dp))
         }
-        Button(onClick = { clearConfirmation = true }, modifier = Modifier.fillMaxWidth()) {
-            MaterialSymbolIcon(KaruikeySymbol.DELETE_SWEEP, contentDescription = null)
+        Button(
+            onClick = { clearConfirmation = true },
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            )
+        ) {
+            MaterialSymbolIcon(KaruikeySymbol.DELETE_SWEEP, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer)
             Text("Clear clipboard history", modifier = Modifier.padding(start = 8.dp))
         }
     }
@@ -716,7 +663,7 @@ fun AboutPage(contentPadding: Modifier, onLicenses: () -> Unit) {
         context.packageManager.getPackageInfo(context.packageName, 0)
     }
     PageColumn(modifier = contentPadding.verticalScroll(rememberScrollState())) {
-    Text("Karuikey", style = MaterialTheme.typography.displaySmall)
+    Text("Karuikey", style = MaterialTheme.typography.displayMediumEmphasized)
     Text("Version ${packageInfo.versionName ?: ""}", style = MaterialTheme.typography.bodyLarge)
     SettingsGroup {
         SettingsRow(
@@ -737,6 +684,7 @@ fun LicensePage(contentPadding: Modifier) {
     Column(
         modifier = contentPadding
             .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
             .padding(
                 horizontal = KaruikeySettingsTokens.pageHorizontal,
                 vertical = KaruikeySettingsTokens.pageVertical

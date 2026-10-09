@@ -7,6 +7,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
@@ -78,10 +79,9 @@ class SettingsComponentsTest {
 
     @Test
     fun rootAndAboutNavigationUseTheIntendedDestinations() {
-        composeRule.onNodeWithText("Karuikey Keyboard").assertExists()
-        composeRule.onAllNodesWithText("Keyboard").assertCountEquals(0)
-
-        composeRule.onNodeWithText("About").performClick()
+        composeRule.onNodeWithText("Karuikey").assertExists()
+        composeRule.onNodeWithContentDescription("Settings").performClick()
+        composeRule.onNodeWithText("About").performScrollTo().performClick()
         composeRule.onAllNodesWithText("Privacy").assertCountEquals(0)
         composeRule.onNodeWithText("Open source").performClick()
         composeRule.onNodeWithText("Licenses").assertExists()

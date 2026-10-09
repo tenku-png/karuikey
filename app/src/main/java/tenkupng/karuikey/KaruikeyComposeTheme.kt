@@ -14,7 +14,11 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalFontFamilyResolver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -26,18 +30,20 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Settings text is longer than key labels, so it gets a narrower width and taller lowercase.
-private const val SETTINGS_WIDTH = 85f
-private const val SETTINGS_YTLC = 540f
+// Body copy keeps a near-normal width so long summaries stay readable.
+private const val BODY_WIDTH = 100f
+private const val BODY_YTLC = 520f
 
-// Display and headline text uses a condensed, heavier cut for the Expressive look.
-private const val DISPLAY_WIDTH = 78f
+// Display, headline and title text use Roboto Flex's wide, heavy masters for the
+// bold Expressive look; the font already ships with Cyrillic, unlike Google Sans Flex.
+private const val DISPLAY_WIDTH = 140f
+private const val TITLE_WIDTH = 115f
 
 private fun robotoFlex(
     context: Context,
     opticalSize: TextUnit,
-    width: Float = SETTINGS_WIDTH,
-    weights: List<Int> = listOf(400, 500, 600)
+    width: Float,
+    weights: List<Int>
 ) = FontFamily(
     weights.map { weight ->
         Font(
@@ -46,42 +52,68 @@ private fun robotoFlex(
             weight = FontWeight(weight),
             variationSettings = FontVariation.Settings(
                 FontVariation.weight(weight), FontVariation.width(width),
-                FontVariation.Setting("YTLC", SETTINGS_YTLC),
+                FontVariation.Setting("YTLC", BODY_YTLC),
                 FontVariation.opticalSizing(opticalSize)
             )
         )
     }
 )
 
-private fun TextStyle.withRobotoFlex(fontFamily: FontFamily, weight: FontWeight? = null) = copy(
+private fun TextStyle.flex(fontFamily: FontFamily, weight: Int, tracking: TextUnit? = null) = copy(
     fontFamily = fontFamily,
-    fontWeight = weight ?: fontWeight
+    fontWeight = FontWeight(weight),
+    letterSpacing = tracking ?: letterSpacing
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 private fun karuikeyTypography(context: Context) = Typography().let { base ->
     // Optical size per Material 3 role group so large and small text use the matching Flex master.
-    val display = robotoFlex(context, 36.sp, DISPLAY_WIDTH, listOf(600, 700))
-    val title = robotoFlex(context, 20.sp)
-    val body = robotoFlex(context, 16.sp)
-    val label = robotoFlex(context, 12.sp)
+    val display = robotoFlex(context, 48.sp, DISPLAY_WIDTH, listOf(800, 900))
+    val headline = robotoFlex(context, 28.sp, DISPLAY_WIDTH, listOf(700, 800))
+    val title = robotoFlex(context, 20.sp, TITLE_WIDTH, listOf(600, 700, 800))
+    val body = robotoFlex(context, 16.sp, BODY_WIDTH, listOf(400, 500, 600))
+    val label = robotoFlex(context, 12.sp, TITLE_WIDTH, listOf(600, 700, 800))
+    val tight = (-0.5).sp
     base.copy(
-        displayLarge = base.displayLarge.withRobotoFlex(display, FontWeight(700)),
-        displayMedium = base.displayMedium.withRobotoFlex(display, FontWeight(700)),
-        displaySmall = base.displaySmall.withRobotoFlex(display, FontWeight(700)),
-        headlineLarge = base.headlineLarge.withRobotoFlex(display, FontWeight(700)),
-        headlineMedium = base.headlineMedium.withRobotoFlex(display, FontWeight(700)),
-        headlineSmall = base.headlineSmall.withRobotoFlex(display, FontWeight(700)),
-        titleLarge = base.titleLarge.withRobotoFlex(title, FontWeight(600)),
-        titleMedium = base.titleMedium.withRobotoFlex(title, FontWeight(500)),
-        titleSmall = base.titleSmall.withRobotoFlex(title, FontWeight(500)),
-        bodyLarge = base.bodyLarge.withRobotoFlex(body, FontWeight.Normal),
-        bodyMedium = base.bodyMedium.withRobotoFlex(body, FontWeight.Normal),
-        bodySmall = base.bodySmall.withRobotoFlex(body, FontWeight.Normal),
-        labelLarge = base.labelLarge.withRobotoFlex(label, FontWeight(500)),
-        labelMedium = base.labelMedium.withRobotoFlex(label, FontWeight(500)),
-        labelSmall = base.labelSmall.withRobotoFlex(label, FontWeight(500))
+        displayLarge = base.displayLarge.flex(display, 800, tight),
+        displayMedium = base.displayMedium.flex(display, 800, tight),
+        displaySmall = base.displaySmall.flex(display, 800, tight),
+        headlineLarge = base.headlineLarge.flex(headline, 700, tight),
+        headlineMedium = base.headlineMedium.flex(headline, 700, tight),
+        headlineSmall = base.headlineSmall.flex(headline, 700),
+        titleLarge = base.titleLarge.flex(title, 700),
+        titleMedium = base.titleMedium.flex(title, 600),
+        titleSmall = base.titleSmall.flex(title, 600),
+        bodyLarge = base.bodyLarge.flex(body, 400),
+        bodyMedium = base.bodyMedium.flex(body, 400),
+        bodySmall = base.bodySmall.flex(body, 400),
+        labelLarge = base.labelLarge.flex(label, 700),
+        labelMedium = base.labelMedium.flex(label, 600),
+        labelSmall = base.labelSmall.flex(label, 600),
+        displayLargeEmphasized = base.displayLargeEmphasized.flex(display, 900, tight),
+        displayMediumEmphasized = base.displayMediumEmphasized.flex(display, 900, tight),
+        displaySmallEmphasized = base.displaySmallEmphasized.flex(display, 900, tight),
+        headlineLargeEmphasized = base.headlineLargeEmphasized.flex(headline, 800, tight),
+        headlineMediumEmphasized = base.headlineMediumEmphasized.flex(headline, 800, tight),
+        headlineSmallEmphasized = base.headlineSmallEmphasized.flex(headline, 800),
+        titleLargeEmphasized = base.titleLargeEmphasized.flex(title, 800),
+        titleMediumEmphasized = base.titleMediumEmphasized.flex(title, 700),
+        titleSmallEmphasized = base.titleSmallEmphasized.flex(title, 700),
+        bodyLargeEmphasized = base.bodyLargeEmphasized.flex(body, 600),
+        bodyMediumEmphasized = base.bodyMediumEmphasized.flex(body, 600),
+        bodySmallEmphasized = base.bodySmallEmphasized.flex(body, 600),
+        labelLargeEmphasized = base.labelLargeEmphasized.flex(label, 800),
+        labelMediumEmphasized = base.labelMediumEmphasized.flex(label, 700),
+        labelSmallEmphasized = base.labelSmallEmphasized.flex(label, 700)
     )
 }
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun Typography.allFamilies() = listOfNotNull(
+    displayLargeEmphasized.fontFamily, headlineLargeEmphasized.fontFamily,
+    titleLargeEmphasized.fontFamily, bodyLargeEmphasized.fontFamily,
+    labelLargeEmphasized.fontFamily
+).distinct()
 
 // Full Material 3 schemes generated from seed #465D91 (TonalSpot, standard contrast).
 private val karuikeyLightColors = lightColorScheme(
@@ -171,6 +203,14 @@ fun KaruikeyComposeTheme(
 ) {
     val context = LocalContext.current
     val typography = remember(context) { karuikeyTypography(context) }
+    val fontResolver = LocalFontFamilyResolver.current
+    LaunchedEffect(typography) {
+        // Each wdth/wght instance is built from the 1.6 MB variable font on first use; warm
+        // them off the main thread so the first visit to a tab doesn't stall on font loading.
+        withContext(Dispatchers.Default) {
+            typography.allFamilies().forEach { fontResolver.preload(it) }
+        }
+    }
     val dark = when (themeMode) {
         KaruikeyPreferences.THEME_LIGHT -> false
         KaruikeyPreferences.THEME_DARK -> true

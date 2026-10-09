@@ -236,9 +236,9 @@ object KaruikeyPreferences {
         prefs(context).edit().putBoolean(DYNAMIC_COLORS, enabled).apply()
     }
 
-    fun keyboardStyle(context: Context) =
-        prefs(context).getString(KEYBOARD_STYLE, KEYBOARD_STYLE_MATERIAL)
-            ?.takeIf { it == KEYBOARD_STYLE_GLASS } ?: KEYBOARD_STYLE_MATERIAL
+    // Glass is parked until it is reworked; a stored glass choice falls back to Material.
+    @Suppress("UNUSED_PARAMETER")
+    fun keyboardStyle(context: Context) = KEYBOARD_STYLE_MATERIAL
 
     fun setKeyboardStyle(context: Context, value: String) {
         prefs(context).edit().putString(
