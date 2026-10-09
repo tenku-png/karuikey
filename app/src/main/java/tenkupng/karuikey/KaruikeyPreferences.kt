@@ -383,6 +383,22 @@ object KaruikeyPreferences {
         }
     }
 
+    // Floating position as fractions (0..1) of the free space, so it survives size changes.
+    private fun floatingKey(context: Context, axis: String): String = "floating_$axis" + if (
+        context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    ) "_landscape" else "_portrait"
+
+    fun floatingPosition(context: Context): Pair<Float, Float> = prefs(context).let {
+        it.getFloat(floatingKey(context, "x"), 0.5f) to it.getFloat(floatingKey(context, "y"), 1f)
+    }
+
+    fun setFloatingPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit()
+            .putFloat(floatingKey(context, "x"), x.coerceIn(0f, 1f))
+            .putFloat(floatingKey(context, "y"), y.coerceIn(0f, 1f))
+            .apply()
+    }
+
     fun setKeyboardMode(context: Context, mode: String) {
         prefs(context).edit().putString(
             keyboardModeKey(context),

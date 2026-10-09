@@ -9,7 +9,14 @@ import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.Typeface
+import android.graphics.Canvas
+import android.graphics.Outline
+import android.graphics.Paint
+import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
+import android.inputmethodservice.InputMethodService.Insets
+import android.view.MotionEvent
+import android.view.ViewOutlineProvider
 import android.text.InputType
 import android.text.TextUtils
 import android.view.Gravity
@@ -62,6 +69,8 @@ class KaruikeyService : InputMethodService() {
     private var blurListener: java.util.function.Consumer<Boolean>? = null
     // The IME window height chosen by the system, restored when blur is turned off.
     private var savedWindowHeight: Int? = null
+    private var dockedWindowHeight: Int? = null
+    private var keyboardHost: KeyboardHost? = null
     private var keyboardSwitcher: KeyboardSwitcher? = null
     private var editorInfo: EditorInfo? = null
     private var currentSubtype: InputMethodSubtype? = null
@@ -94,7 +103,9 @@ class KaruikeyService : InputMethodService() {
         // Warm the emoji catalog off the main thread so the first panel open is instant.
         Thread({ EmojiCatalog.load(this) }, "emoji-catalog").start()
         val preferences = getSharedPreferences("karuikey_settings", MODE_PRIVATE)
-        preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            // Dragging the floating keyboard saves its position; that needs no reload.
+            if (key?.startsWith("floating_") == true) return@OnSharedPreferenceChangeListener
             inputView?.post { refreshInputViewForPreferences() }
         }
         preferences.registerOnSharedPreferenceChangeListener(preferencesListener)
@@ -265,14 +276,40 @@ class KaruikeyService : InputMethodService() {
         return createInputView()
     }
 
-    private fun createInputView(): KaruikeyInputView {
+    private fun createInputView(): View {
         // KeyboardLayoutSet caches icon-bearing Keyboard instances statically; a new themed
         // context must not reuse drawables created for the previous keyboard appearance.
         KeyboardLayoutSet.onKeyboardThemeChanged()
         val view = KaruikeyInputView()
         inputView = view
         keyboardSwitcher = view.keyboardSwitcher
-        return view
+        return KeyboardHost(view).also { keyboardHost = it }
+    }
+
+    private fun floatingModeActive() =
+        KaruikeyPreferences.keyboardMode(this) == KaruikeyPreferences.KEYBOARD_MODE_FLOATING
+
+    override fun onEvaluateFullscreenMode(): Boolean =
+        !floatingModeActive() && super.onEvaluateFullscreenMode()
+
+    override fun onConfigureWindow(win: android.view.Window, isFullscreen: Boolean, isCandidatesOnly: Boolean) {
+        super.onConfigureWindow(win, isFullscreen, isCandidatesOnly)
+        if (keyboardHost?.floating == true) {
+            win.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+        }
+    }
+
+    // A floating keyboard spans the whole window but only claims its own card: the app keeps
+    // its full size and receives every touch outside the keyboard.
+    override fun onComputeInsets(outInsets: Insets) {
+        super.onComputeInsets(outInsets)
+        val host = keyboardHost ?: return
+        if (!host.floating || !isInputViewShown) return
+        val windowHeight = window?.window?.decorView?.height ?: return
+        outInsets.contentTopInsets = windowHeight
+        outInsets.visibleTopInsets = windowHeight
+        outInsets.touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+        outInsets.touchableRegion.set(host.keyboardBoundsInWindow())
     }
 
     override fun onStartInput(attribute: EditorInfo, restarting: Boolean) {
@@ -437,6 +474,8 @@ class KaruikeyService : InputMethodService() {
         loadedWidth = 0
         loadedHeight = 0
         super.onConfigurationChanged(newConfig)
+        keyboardHost?.loadFloatingPosition()
+        configureImeWindow()
         loadKeyboardIfMeasured()
     }
 
@@ -988,7 +1027,19 @@ class KaruikeyService : InputMethodService() {
         val surfaceColor = view.surfaceBackgroundColor()
         imeWindow.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         view.applySurfaceBackground(surfaceColor)
-        applyWindowBlur(imeWindow)
+        val floating = floatingModeActive()
+        keyboardHost?.floating = floating
+        if (floating) {
+            if (dockedWindowHeight == null) dockedWindowHeight = imeWindow.attributes.height
+            imeWindow.setLayout(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT
+            )
+            if (android.os.Build.VERSION.SDK_INT >= 31) imeWindow.setBackgroundBlurRadius(0)
+        } else {
+            dockedWindowHeight?.let { imeWindow.setLayout(WindowManager.LayoutParams.MATCH_PARENT, it) }
+            dockedWindowHeight = null
+            applyWindowBlur(imeWindow)
+        }
         val insetsController = androidx.core.view.WindowCompat.getInsetsController(
             imeWindow,
             view
@@ -997,7 +1048,7 @@ class KaruikeyService : InputMethodService() {
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             imeWindow.isNavigationBarContrastEnforced = false
         }
-        imeWindow.navigationBarColor = surfaceColor
+        imeWindow.navigationBarColor = if (floating) Color.TRANSPARENT else surfaceColor
         imeWindow.navigationBarDividerColor = Color.TRANSPARENT
         if (android.os.Build.VERSION.SDK_INT >= 35) {
             androidx.core.view.WindowCompat.setDecorFitsSystemWindows(imeWindow, false)
@@ -1232,6 +1283,47 @@ class KaruikeyService : InputMethodService() {
             R.string.toolbar_keyboard_mode
         ) { showKeyboardModeMenu() }
         private var navigationBottomInset = 0
+        private val dragHandleHeight = dp(24)
+        var floating = false
+            set(value) {
+                if (field == value) return
+                field = value
+                dragHandle.visibility = if (value) View.VISIBLE else View.GONE
+                clipToOutline = value
+                requestLayout()
+            }
+        private val dragHandle = object : View(keyboardContext) {
+            private val pill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = appearance.secondaryText }
+            private var lastX = 0f
+            private var lastY = 0f
+
+            override fun onDraw(canvas: Canvas) {
+                val pillWidth = dp(32).toFloat()
+                val pillHeight = dp(4).toFloat()
+                val left = (width - pillWidth) / 2
+                val top = (height - pillHeight) / 2
+                canvas.drawRoundRect(left, top, left + pillWidth, top + pillHeight,
+                    pillHeight / 2, pillHeight / 2, pill)
+            }
+
+            override fun onTouchEvent(event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        lastX = event.rawX
+                        lastY = event.rawY
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        keyboardHost?.moveFloatingBy(event.rawX - lastX, event.rawY - lastY)
+                        lastX = event.rawX
+                        lastY = event.rawY
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL ->
+                        keyboardHost?.saveFloatingPosition()
+                }
+                return true
+            }
+        }
+        private val bottomInset get() = if (floating) dragHandleHeight else navigationBottomInset
 
         init {
             setBackgroundColor(appearance.keyboardBackground)
@@ -1312,6 +1404,14 @@ class KaruikeyService : InputMethodService() {
             keyboardContent.addView(clipboardPanel, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             emojiPanel.visibility = View.GONE
             addView(keyboardContent, LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            dragHandle.contentDescription = getString(R.string.keyboard_mode_floating)
+            dragHandle.visibility = View.GONE
+            addView(dragHandle, LayoutParams.MATCH_PARENT, dragHandleHeight)
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
+                }
+            }
             ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
                 val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
                 if (navigationBottomInset != bottom) {
@@ -1836,7 +1936,8 @@ class KaruikeyService : InputMethodService() {
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val defaultKeyboardHeight = resources.getDimensionPixelSize(
                 R.dimen.config_default_keyboard_height
-            ) * KaruikeyPreferences.heightPercent(this@KaruikeyService) / 100
+            ) * KaruikeyPreferences.heightPercent(this@KaruikeyService) / 100 *
+                (if (floating) 85 else 100) / 100
             val visibleToolbarHeight = if (toolbar.visibility == View.VISIBLE) toolbarHeight else 0
             // Emoji browsing takes the toolbar's place as well; search adds its strip above the
             // full-size keyboard instead of squeezing the keys.
@@ -1846,13 +1947,13 @@ class KaruikeyService : InputMethodService() {
             } else 0
             val emojiExtra = if (searchStrip > 0) searchStrip else if (emojiShown) toolbarHeight else 0
             val desiredHeight = defaultKeyboardHeight + visibleToolbarHeight + emojiExtra +
-                navigationBottomInset
+                bottomInset
             val height = when (MeasureSpec.getMode(heightMeasureSpec)) {
                 MeasureSpec.EXACTLY -> MeasureSpec.getSize(heightMeasureSpec)
                 MeasureSpec.AT_MOST -> desiredHeight.coerceAtMost(MeasureSpec.getSize(heightMeasureSpec))
                 else -> desiredHeight
             }
-            val keyboardHeight = (height - visibleToolbarHeight - navigationBottomInset).coerceAtLeast(1)
+            val keyboardHeight = (height - visibleToolbarHeight - bottomInset).coerceAtLeast(1)
             setMeasuredDimension(width, height)
             candidateRegion.setWidthIfChanged(width)
             utilityToolbar.setWidthIfChanged(width)
@@ -1885,12 +1986,17 @@ class KaruikeyService : InputMethodService() {
                 MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(keyboardHeight, MeasureSpec.EXACTLY)
             )
+            dragHandle.measure(
+                MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(dragHandleHeight, MeasureSpec.EXACTLY)
+            )
         }
 
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
             val visibleToolbarHeight = if (toolbar.visibility == View.VISIBLE) toolbarHeight else 0
             toolbar.layout(0, 0, width, visibleToolbarHeight)
-            keyboardContent.layout(0, visibleToolbarHeight, width, height - navigationBottomInset)
+            keyboardContent.layout(0, visibleToolbarHeight, width, height - bottomInset)
+            dragHandle.layout(0, height - dragHandleHeight, width, height)
         }
 
         override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
@@ -1898,6 +2004,108 @@ class KaruikeyService : InputMethodService() {
             loadKeyboardIfMeasured()
             if (clipboardPanel.visibility == View.VISIBLE) {
                 post { renderClipboardHistory() }
+            }
+        }
+    }
+
+    // Hosts the keyboard: wraps it while docked, and spans the window in floating mode so the
+    // compact keyboard can be dragged anywhere inside the system-bar-safe area.
+    private inner class KeyboardHost(
+        private val keyboard: KaruikeyInputView
+    ) : FrameLayout(this@KaruikeyService) {
+        private var positionX = 0.5f
+        private var positionY = 1f
+        private val location = IntArray(2)
+        var floating = false
+            set(value) {
+                if (field == value) return
+                field = value
+                keyboard.floating = value
+                if (value) loadFloatingPosition()
+                requestLayout()
+            }
+
+        init {
+            addView(keyboard)
+        }
+
+        fun loadFloatingPosition() {
+            val (x, y) = KaruikeyPreferences.floatingPosition(this@KaruikeyService)
+            positionX = x
+            positionY = y
+            requestLayout()
+        }
+
+        fun saveFloatingPosition() {
+            KaruikeyPreferences.setFloatingPosition(this@KaruikeyService, positionX, positionY)
+        }
+
+        fun keyboardBoundsInWindow(): Rect {
+            keyboard.getLocationInWindow(location)
+            return Rect(location[0], location[1],
+                location[0] + keyboard.width, location[1] + keyboard.height)
+        }
+
+        fun moveFloatingBy(dx: Float, dy: Float) {
+            val safe = safeArea()
+            positionX = fraction(keyboard.translationX + dx, safe.left, safe.right)
+            positionY = fraction(keyboard.translationY + dy, safe.top, safe.bottom)
+            applyFloatingPosition()
+            // Relayout re-runs onComputeInsets so the touchable region follows the keyboard.
+            requestLayout()
+        }
+
+        private fun fraction(value: Float, min: Int, max: Int): Float =
+            if (max <= min) 0.5f else ((value - min) / (max - min)).coerceIn(0f, 1f)
+
+        // Translation range keeping the keyboard clear of status bar, cutout and navigation bar.
+        private fun safeArea(): Rect {
+            val root = rootView
+            val insets = ViewCompat.getRootWindowInsets(this)?.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+            )
+            getLocationInWindow(location)
+            val margin = dp(8)
+            val left = maxOf(0, (insets?.left ?: 0) - location[0]) + margin
+            val top = maxOf(0, (insets?.top ?: 0) - location[1]) + margin
+            val right = width - maxOf(0, (insets?.right ?: 0) -
+                (root.width - location[0] - width)) - margin - keyboard.width
+            val bottom = height - maxOf(0, (insets?.bottom ?: 0) -
+                (root.height - location[1] - height)) - margin - keyboard.height
+            return Rect(left, top, maxOf(left, right), maxOf(top, bottom))
+        }
+
+        private fun applyFloatingPosition() {
+            val safe = safeArea()
+            keyboard.translationX = safe.left + positionX * (safe.right - safe.left)
+            keyboard.translationY = safe.top + positionY * (safe.bottom - safe.top)
+        }
+
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (!floating) {
+                keyboard.measure(widthMeasureSpec, heightMeasureSpec)
+                setMeasuredDimension(keyboard.measuredWidth, keyboard.measuredHeight)
+                return
+            }
+            val width = MeasureSpec.getSize(widthMeasureSpec)
+            val height = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.UNSPECIFIED) {
+                resources.displayMetrics.heightPixels
+            } else MeasureSpec.getSize(heightMeasureSpec)
+            val keyboardWidth = (width * 0.6f).toInt().coerceAtLeast(dp(320)).coerceAtMost(width)
+            keyboard.measure(
+                MeasureSpec.makeMeasureSpec(keyboardWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(height, MeasureSpec.AT_MOST)
+            )
+            setMeasuredDimension(width, height)
+        }
+
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            keyboard.layout(0, 0, keyboard.measuredWidth, keyboard.measuredHeight)
+            if (floating) {
+                applyFloatingPosition()
+            } else {
+                keyboard.translationX = 0f
+                keyboard.translationY = 0f
             }
         }
     }
