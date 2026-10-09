@@ -67,6 +67,9 @@ object KaruikeyPreferences {
     const val KEYBOARD_MODE_SPLIT = "split"
     const val KEYBOARD_MODE_FLOATING = "floating"
     const val SPACEBAR_SWIPE_CURSOR = "cursor"
+    const val SUGGESTION_POSITION_FULL = "full"
+    const val SUGGESTION_POSITION_LEFT = "left"
+    const val SUGGESTION_POSITION_RIGHT = "right"
     const val SPACEBAR_SWIPE_LANGUAGE = "language"
 
     private const val PREFS = "karuikey_settings"
@@ -103,6 +106,7 @@ object KaruikeyPreferences {
     private const val PERSONALIZED_SUGGESTIONS = "personalized_suggestions"
     private const val AUTO_CAPITALIZATION = "auto_capitalization"
     private const val EMOJI_PLACEMENT = "emoji_placement"
+    private const val SUGGESTION_POSITION = "suggestion_position"
     private const val SPACEBAR_SWIPE = "spacebar_swipe"
     private const val KEYBOARD_MODE = "keyboard_mode"
     private const val DICTIONARY_URI_PREFIX = "dictionary_uri_"
@@ -469,6 +473,18 @@ object KaruikeyPreferences {
                 else -> KEYBOARD_MODE_STANDARD
             }
         ).apply()
+    }
+
+    /** Where candidates go while typing: the whole toolbar, or one side next to the icons. */
+    fun suggestionPosition(context: Context) = prefs(context)
+        .getString(SUGGESTION_POSITION, SUGGESTION_POSITION_FULL)
+        ?.takeIf {
+            it == SUGGESTION_POSITION_FULL || it == SUGGESTION_POSITION_LEFT ||
+                it == SUGGESTION_POSITION_RIGHT
+        } ?: SUGGESTION_POSITION_FULL
+
+    fun setSuggestionPosition(context: Context, position: String) {
+        prefs(context).edit().putString(SUGGESTION_POSITION, position).apply()
     }
 
     fun emojiKeyPlacement(context: Context) = prefs(context)

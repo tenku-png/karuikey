@@ -96,6 +96,9 @@ fun AppearancePage(
     var keyboardStyle by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.keyboardStyle(context))
     }
+    var suggestionPosition by remember(refreshVersion) {
+        mutableStateOf(KaruikeyPreferences.suggestionPosition(context))
+    }
     var emojiPlacement by remember(refreshVersion) {
         mutableStateOf(KaruikeyPreferences.emojiKeyPlacement(context))
     }
@@ -256,6 +259,18 @@ fun AppearancePage(
         ) { value ->
             keyboardStyle = value
             KaruikeyPreferences.setKeyboardStyle(context, value)
+        }
+        SectionLabel("Suggestions")
+        ChoiceButtonGroup(
+            listOf(
+                "Full bar" to KaruikeyPreferences.SUGGESTION_POSITION_FULL,
+                "Left" to KaruikeyPreferences.SUGGESTION_POSITION_LEFT,
+                "Right" to KaruikeyPreferences.SUGGESTION_POSITION_RIGHT
+            ),
+            suggestionPosition
+        ) { value ->
+            suggestionPosition = value
+            KaruikeyPreferences.setSuggestionPosition(context, value)
         }
         SectionLabel("Emoji key")
         ChoiceButtonGroup(

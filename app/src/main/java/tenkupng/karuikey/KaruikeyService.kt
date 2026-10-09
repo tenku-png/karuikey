@@ -64,6 +64,7 @@ private const val RESUME_CONTEXT_LENGTH = 64
 private const val STRIP_FADE_MS = 120L
 private const val SPACE_LANGUAGE_FLICK_MS = 250L
 private const val EMOJI_SEARCH_ENTER_MS = 260L
+private const val SIDE_CANDIDATE_MIN_DP = 96
 
 // Display order of candidate slots: the best suggestion (index 0) goes in the middle.
 private val CANDIDATE_DISPLAY_ORDER = intArrayOf(1, 0, 2)
@@ -1788,6 +1789,7 @@ class KaruikeyService : InputMethodService() {
         }
 
         fun applyPreferences() {
+            applySuggestionPosition()
             keyboardView.setFunctionalKeyTint(
                 if (KaruikeyPreferences.accentFunctionKeys(this@KaruikeyService)) {
                     ColorStateList(
@@ -1944,6 +1946,8 @@ class KaruikeyService : InputMethodService() {
                     setTextColor(appearance.primaryText)
                     setPadding(dp(12), dp(12), dp(12), dp(12))
                     setBackgroundResource(R.drawable.keyboard_clipboard_item_background)
+                    background.mutate().alpha =
+                        KaruikeyPreferences.keyBackgroundAlpha(this@KaruikeyService)
                     contentDescription = if (clipboardEditMode) {
                         getString(R.string.clipboard_select_item)
                     } else {
@@ -2019,9 +2023,43 @@ class KaruikeyService : InputMethodService() {
             return true
         }
 
+        private var suggestionPosition = KaruikeyPreferences.SUGGESTION_POSITION_FULL
+
+        private fun applySuggestionPosition() {
+            val position = KaruikeyPreferences.suggestionPosition(this@KaruikeyService)
+            suggestionPosition = position
+            // Candidates on the right means the icons come first.
+            val first = if (position == KaruikeyPreferences.SUGGESTION_POSITION_RIGHT) utilityToolbar
+                else candidateRegion
+            if (suggestionToolbar.getChildAt(0) !== first) {
+                val second = suggestionToolbar.getChildAt(0)
+                suggestionToolbar.removeView(second)
+                suggestionToolbar.addView(second)
+            }
+            val typing = candidateRegion.visibility == View.VISIBLE
+            if (position == KaruikeyPreferences.SUGGESTION_POSITION_FULL) {
+                if (candidateRegion.visibility == View.INVISIBLE) candidateRegion.visibility = View.GONE
+                utilityToolbar.visibility = if (typing) View.GONE else View.VISIBLE
+            } else {
+                // The candidate side keeps its space even before typing.
+                if (!typing) candidateRegion.visibility = View.INVISIBLE
+                utilityToolbar.visibility = View.VISIBLE
+            }
+            requestLayout()
+        }
+
         private fun showCandidates(show: Boolean) {
             val shown = candidateRegion.visibility == View.VISIBLE
             if (show == shown) return
+            if (suggestionPosition != KaruikeyPreferences.SUGGESTION_POSITION_FULL) {
+                // Side mode: the icons stay packed on their side; only the candidates fade.
+                candidateRegion.visibility = if (show) View.VISIBLE else View.INVISIBLE
+                if (show) {
+                    candidateRegion.alpha = 0f
+                    candidateRegion.animate().alpha(1f).setDuration(STRIP_FADE_MS).start()
+                }
+                return
+            }
             val incoming = if (show) candidateRegion else utilityToolbar
             (if (show) utilityToolbar else candidateRegion).visibility = View.GONE
             incoming.visibility = View.VISIBLE
@@ -2088,26 +2126,76 @@ class KaruikeyService : InputMethodService() {
                 }
                 add(KaruikeyPreferences.KEYBOARD_MODE_FLOATING to R.string.keyboard_mode_floating)
             }
-            PopupMenu(keyboardContext, modeToolbarButton).apply {
-                modes.forEachIndexed { index, (mode, title) ->
-                    menu.add(0, index, index, title).apply {
-                        setIcon(modeIcon(mode))
-                        isCheckable = true
-                        isChecked = mode == current
+            // M3 Expressive menu: rounded surfaceContainer card, 48dp rows with a leading icon,
+            // the current mode filled with secondaryContainer and a trailing check.
+            val popup = android.widget.PopupWindow(keyboardContext)
+            val list = LinearLayout(keyboardContext).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(16).toFloat()
+                    setColor(appearance.popupSurface)
+                }
+                clipToOutline = true
+            }
+            modes.forEach { (mode, title) ->
+                val selected = mode == current
+                val color = if (selected) appearance.onSecondaryContainer else appearance.popupText
+                val row = LinearLayout(keyboardContext).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), 0, dp(12), 0)
+                    val shape = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(if (selected) appearance.secondaryContainer else Color.TRANSPARENT)
+                    }
+                    val mask = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(Color.WHITE)
+                    }
+                    background = android.graphics.drawable.RippleDrawable(
+                        ColorStateList.valueOf(appearance.pressedSurface), shape, mask
+                    )
+                    isSelected = selected
+                    setOnClickListener {
+                        popup.dismiss()
+                        if (mode != current) {
+                            KaruikeyPreferences.setKeyboardMode(this@KaruikeyService, mode)
+                            modeToolbarButton.setImageResource(modeIcon(mode))
+                            reloadKeyboardAfterLayout()
+                        }
                     }
                 }
-                menu.setGroupCheckable(0, true, true)
-                setForceShowIcon(true)
-                setOnMenuItemClickListener { item ->
-                    val mode = modes[item.itemId].first
-                    if (mode != current) {
-                        KaruikeyPreferences.setKeyboardMode(this@KaruikeyService, mode)
-                        modeToolbarButton.setImageResource(modeIcon(mode))
-                        reloadKeyboardAfterLayout()
-                    }
-                    true
-                }
-                show()
+                row.addView(android.widget.ImageView(keyboardContext).apply {
+                    setImageResource(modeIcon(mode))
+                    imageTintList = ColorStateList.valueOf(color)
+                }, LinearLayout.LayoutParams(dp(24), dp(24)))
+                row.addView(TextView(keyboardContext).apply {
+                    text = getString(title)
+                    textSize = 15f
+                    typeface = if (selected) primarySuggestionTypeface else keyboardTypeface
+                    setTextColor(color)
+                    setPadding(dp(12), 0, dp(16), 0)
+                }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                row.addView(android.widget.ImageView(keyboardContext).apply {
+                    setImageResource(R.drawable.ic_settings_check)
+                    imageTintList = ColorStateList.valueOf(color)
+                    visibility = if (selected) View.VISIBLE else View.INVISIBLE
+                }, LinearLayout.LayoutParams(dp(20), dp(20)))
+                list.addView(row, LinearLayout.LayoutParams(dp(208), dp(48)).apply {
+                    setMargins(0, dp(1), 0, dp(1))
+                })
+            }
+            popup.apply {
+                contentView = list
+                width = LinearLayout.LayoutParams.WRAP_CONTENT
+                height = LinearLayout.LayoutParams.WRAP_CONTENT
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                isOutsideTouchable = true
+                isFocusable = false
+                elevation = dp(3).toFloat()
+                animationStyle = android.R.style.Animation_Dialog
+                showAsDropDown(modeToolbarButton, 0, dp(4))
             }
         }
 
@@ -2175,19 +2263,42 @@ class KaruikeyService : InputMethodService() {
             }
             val keyboardHeight = (height - visibleToolbarHeight - bottomInset).coerceAtLeast(1)
             setMeasuredDimension(width, height)
-            candidateRegion.setWidthIfChanged(width)
-            utilityToolbar.setWidthIfChanged(width)
-            CANDIDATE_DISPLAY_ORDER.forEachIndexed { slot, index ->
-                candidateViews[index].setWidthIfChanged(
-                    SuggestionStripGeometry.candidateSlotWidth(width, slot)
-                )
-            }
-            // Square icon buttons spread edge to edge, like Gboard: hidden buttons leave no gap and
-            // the pressed ripple stays a circle instead of a stretched pill.
             val utilityButtons = (0 until utilityToolbar.childCount).map(utilityToolbar::getChildAt)
                 .filter { it.visibility != View.GONE }
             val utilityEdge = dp(8)
-            val utilityGap = if (utilityButtons.size > 1) {
+            // Side mode: icons always pack tightly on one side, candidates take the rest.
+            val sideCandidates = suggestionPosition != KaruikeyPreferences.SUGGESTION_POSITION_FULL
+            val packedGap = dp(2)
+            val utilityWidth = if (sideCandidates) {
+                2 * utilityEdge + utilityButtons.size * toolbarHeight +
+                    (utilityButtons.size - 1).coerceAtLeast(0) * packedGap
+            } else width
+            val candidateWidth = if (sideCandidates) (width - utilityWidth).coerceAtLeast(0) else width
+            candidateRegion.setWidthIfChanged(candidateWidth)
+            utilityToolbar.setWidthIfChanged(utilityWidth)
+            // Two candidates on a side; a third only when each still gets a comfortable width.
+            val slots = if (sideCandidates && candidateWidth < 3 * dp(SIDE_CANDIDATE_MIN_DP)) 2 else 3
+            val order = if (slots == 2) intArrayOf(0, 1) else CANDIDATE_DISPLAY_ORDER
+            candidateViews.forEachIndexed { index, candidate ->
+                val slot = order.indexOf(index)
+                if (slot < 0) {
+                    if (candidate.visibility != View.GONE) candidate.visibility = View.GONE
+                } else {
+                    if (candidate.visibility != View.VISIBLE) candidate.visibility = View.VISIBLE
+                    val base = candidateWidth / slots
+                    candidate.setWidthIfChanged(
+                        if (slot == slots - 1) candidateWidth - base * (slots - 1) else base
+                    )
+                }
+            }
+            if (order.indices.any { candidateRegion.getChildAt(it) !== candidateViews[order[it]] }) {
+                candidateRegion.removeAllViews()
+                order.forEach { candidateRegion.addView(candidateViews[it]) }
+                candidateViews.filterIndexed { i, _ -> i !in order }.forEach(candidateRegion::addView)
+            }
+            // Square icon buttons spread edge to edge, like Gboard: hidden buttons leave no gap and
+            // the pressed ripple stays a circle instead of a stretched pill.
+            val utilityGap = if (sideCandidates) packedGap else if (utilityButtons.size > 1) {
                 (width - 2 * utilityEdge - utilityButtons.size * toolbarHeight) / (utilityButtons.size - 1)
             } else 0
             utilityButtons.forEachIndexed { index, button ->

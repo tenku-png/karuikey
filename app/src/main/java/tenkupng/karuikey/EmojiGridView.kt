@@ -18,15 +18,14 @@ import kotlin.math.min
 
 /**
  * Canvas emoji grid: one view draws only the visible rows of every section, so thousands of
- * emoji cost no child views. Sections scroll as one list with titled headers; long-press shows
+ * emoji cost no child views. Sections sit side by side and scroll horizontally as one strip,
+ * filled column by column under a title; long-press shows
  * a variant bubble above the cell that can be picked by tapping or by sliding the same finger.
  */
 internal class EmojiGridView(
     context: Context,
     private val appearance: KeyboardAppearance,
     headerTypeface: Typeface,
-    /** Fixed column count, e.g. one row of search results; 0 fits columns to the width. */
-    private val fixedColumns: Int = 0
 ) : View(context) {
     class Section(val category: EmojiCategory?, val title: String, val entries: List<EmojiEntry>)
 
@@ -39,7 +38,7 @@ internal class EmojiGridView(
 
     private val density = resources.displayMetrics.density
     private val headerHeight = (26 * density).toInt()
-    private val minCellWidth = 52 * density
+    private val minCellSize = 52 * density
     private var cellSize = 48 * density
     private val emojiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     // labelMedium: 12sp, medium weight, onSurfaceVariant.
@@ -56,10 +55,10 @@ internal class EmojiGridView(
     private val bubbleRect = RectF()
 
     private var sections: List<Section> = emptyList()
-    /** Top offset of each section header; the section's cells follow it. */
-    private var sectionTops = IntArray(0)
-    private var contentHeight = 0
-    private var columns = 8
+    /** Left offset of each section; its title sits on top and its columns follow. */
+    private var sectionLefts = IntArray(0)
+    private var contentWidth = 0
+    private var rows = 4
     private var scrollOffset = 0f
     private var visibleSection = -1
 
@@ -87,12 +86,12 @@ internal class EmojiGridView(
 
         override fun onScroll(first: MotionEvent?, event: MotionEvent, dx: Float, dy: Float): Boolean {
             release()
-            scrollTo(scrollOffset + dy)
+            scrollTo(scrollOffset + dx)
             return true
         }
 
         override fun onFling(first: MotionEvent?, event: MotionEvent, vx: Float, vy: Float): Boolean {
-            scroller.fling(0, scrollOffset.toInt(), 0, -vy.toInt(), 0, 0, 0, maxScroll())
+            scroller.fling(scrollOffset.toInt(), 0, -vx.toInt(), 0, 0, maxScroll(), 0, 0)
             postInvalidateOnAnimation()
             return true
         }
@@ -115,7 +114,7 @@ internal class EmojiGridView(
     fun setSections(newSections: List<Section>, resetScroll: Boolean) {
         // Keep the visible section anchored when sections above it grow, e.g. Recent.
         val anchor = sections.getOrNull(visibleSection)?.category
-        val anchorOffset = if (anchor != null) scrollOffset - sectionTops[visibleSection] else 0f
+        val anchorOffset = if (anchor != null) scrollOffset - sectionLefts[visibleSection] else 0f
         sections = newSections.filter { it.entries.isNotEmpty() }
         dismissBubble()
         release(animate = false)
@@ -126,20 +125,20 @@ internal class EmojiGridView(
             scrollOffset = 0f
         } else {
             val index = sections.indexOfFirst { it.category == anchor }
-            if (index >= 0) scrollOffset = sectionTops[index] + anchorOffset
+            if (index >= 0) scrollOffset = sectionLefts[index] + anchorOffset
         }
         scrollTo(scrollOffset)
         invalidate()
     }
 
-    /** Smoothly scrolls so the section of [category] starts at the top. */
+    /** Smoothly scrolls so the section of [category] starts at the left edge. */
     fun scrollToCategory(category: EmojiCategory) {
         val index = sections.indexOfFirst { it.category == category }
         if (index < 0) return
         dismissBubble()
-        val target = min(sectionTops[index], maxScroll())
+        val target = min(sectionLefts[index], maxScroll())
         scroller.forceFinished(true)
-        scroller.startScroll(0, scrollOffset.toInt(), 0, target - scrollOffset.toInt(), 350)
+        scroller.startScroll(scrollOffset.toInt(), 0, target - scrollOffset.toInt(), 0, 350)
         postInvalidateOnAnimation()
     }
 
@@ -153,29 +152,32 @@ internal class EmojiGridView(
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
-        columns = if (fixedColumns > 0) fixedColumns
-            else (width / minCellWidth).toInt().coerceAtLeast(8)
-        cellSize = width.toFloat() / columns
+        val gridHeight = (height - headerHeight).coerceAtLeast(1)
+        rows = (gridHeight / minCellSize).toInt().coerceAtLeast(1)
+        cellSize = gridHeight.toFloat() / rows
         emojiPaint.textSize = cellSize * 0.56f
         relayoutSections()
         scrollTo(scrollOffset)
     }
 
     private fun relayoutSections() {
-        sectionTops = IntArray(sections.size)
-        var top = 0
+        sectionLefts = IntArray(sections.size)
+        var left = 0
         sections.forEachIndexed { index, section ->
-            sectionTops[index] = top
-            top += headerFor(section) + (rowsFor(section) * cellSize).toInt()
+            sectionLefts[index] = left
+            left += (columnsFor(section) * cellSize).toInt()
         }
-        contentHeight = top
+        contentWidth = left
     }
 
-    private fun headerFor(section: Section) = if (section.title.isEmpty()) 0 else headerHeight
+    private fun columnsFor(section: Section) = (section.entries.size + rows - 1) / rows
 
-    private fun rowsFor(section: Section) = (section.entries.size + columns - 1) / columns
+    private fun cellLeft(section: Int, index: Int) =
+        sectionLefts[section] + (index / rows) * cellSize - scrollOffset
 
-    private fun maxScroll() = max(0, contentHeight - height)
+    private fun cellTop(index: Int) = headerHeight + (index % rows) * cellSize
+
+    private fun maxScroll() = max(0, contentWidth - width)
 
     private fun scrollTo(offset: Float) {
         scrollOffset = offset.coerceIn(0f, maxScroll().toFloat())
@@ -184,7 +186,9 @@ internal class EmojiGridView(
     }
 
     private fun updateVisibleSection() {
-        var index = sectionTops.indexOfLast { it <= scrollOffset + 1 }
+        // Short trailing sections never reach the left edge; the end of the strip selects the last.
+        var index = if (scrollOffset >= maxScroll() - 1) sections.size - 1
+            else sectionLefts.indexOfLast { it <= scrollOffset + 1 }
         if (index < 0) index = 0
         if (index != visibleSection && sections.isNotEmpty()) {
             visibleSection = index
@@ -194,7 +198,7 @@ internal class EmojiGridView(
 
     override fun computeScroll() {
         if (scroller.computeScrollOffset()) {
-            scrollTo(scroller.currY.toFloat())
+            scrollTo(scroller.currX.toFloat())
             postInvalidateOnAnimation()
         }
     }
@@ -252,9 +256,8 @@ internal class EmojiGridView(
         val padding = 6 * density
         val bubbleWidth = bubbleColumns * cellSize + 2 * padding
         val bubbleHeight = rows * cellSize + 2 * padding
-        val cellLeft = (index % columns) * cellSize
-        val cellTop = sectionTops[section] + headerFor(sections[section]) +
-            (index / columns) * cellSize - scrollOffset
+        val cellLeft = cellLeft(section, index)
+        val cellTop = cellTop(index)
         val left = (cellLeft + cellSize / 2 - bubbleWidth / 2).coerceIn(0f, max(0f, width - bubbleWidth))
         // Above the cell when it fits, otherwise below it.
         val top = if (cellTop - bubbleHeight >= 0) cellTop - bubbleHeight
@@ -273,14 +276,13 @@ internal class EmojiGridView(
     }
 
     private fun hitTest(x: Float, y: Float): Pair<Int, Int>? {
-        val contentY = y + scrollOffset
-        val section = sectionTops.indexOfLast { it <= contentY }
+        if (y < headerHeight) return null
+        val contentX = x + scrollOffset
+        val section = sectionLefts.indexOfLast { it <= contentX }
         if (section < 0) return null
-        val cellsTop = sectionTops[section] + headerFor(sections[section])
-        if (contentY < cellsTop) return null
-        val row = ((contentY - cellsTop) / cellSize).toInt()
-        val column = (x / cellSize).toInt().coerceIn(0, columns - 1)
-        val index = row * columns + column
+        val column = ((contentX - sectionLefts[section]) / cellSize).toInt()
+        val row = ((y - headerHeight) / cellSize).toInt().coerceIn(0, rows - 1)
+        val index = column * rows + row
         return if (index < sections[section].entries.size) section to index else null
     }
 
@@ -334,23 +336,25 @@ internal class EmojiGridView(
         }
         val emojiOffset = (emojiPaint.descent() + emojiPaint.ascent()) / 2
         sections.forEachIndexed { sectionIndex, section ->
-            val sectionTop = sectionTops[sectionIndex] - scrollOffset
-            val header = headerFor(section)
-            val sectionBottom = sectionTop + header + rowsFor(section) * cellSize
-            if (sectionBottom < 0 || sectionTop > height) return@forEachIndexed
-            if (header > 0 && sectionTop + header > 0) {
-                canvas.drawText(section.title, 12 * density, sectionTop + header - 9 * density,
-                    headerPaint)
+            val sectionLeft = sectionLefts[sectionIndex] - scrollOffset
+            val sectionRight = sectionLeft + columnsFor(section) * cellSize
+            if (sectionRight < 0 || sectionLeft > width) return@forEachIndexed
+            if (section.title.isNotEmpty()) {
+                // The title sticks to the left edge until its section scrolls away.
+                val inset = 12 * density
+                val titleX = max(sectionLeft + inset, inset)
+                    .coerceAtMost(sectionRight - headerPaint.measureText(section.title) - inset)
+                canvas.drawText(section.title, max(sectionLeft + inset, titleX),
+                    headerHeight - 9 * density, headerPaint)
             }
-            val cellsTop = sectionTop + header
-            val firstRow = max(0, ((-cellsTop) / cellSize).toInt())
-            val lastRow = min(rowsFor(section) - 1, ((height - cellsTop) / cellSize).toInt())
-            for (row in firstRow..lastRow) {
-                for (column in 0 until columns) {
-                    val index = row * columns + column
+            val firstColumn = max(0, ((-sectionLeft) / cellSize).toInt())
+            val lastColumn = min(columnsFor(section) - 1, ((width - sectionLeft) / cellSize).toInt())
+            for (column in firstColumn..lastColumn) {
+                for (row in 0 until rows) {
+                    val index = column * rows + row
                     val entry = section.entries.getOrNull(index) ?: break
-                    val centerX = column * cellSize + cellSize / 2
-                    val centerY = cellsTop + row * cellSize + cellSize / 2
+                    val centerX = sectionLeft + column * cellSize + cellSize / 2
+                    val centerY = headerHeight + row * cellSize + cellSize / 2
                     if (sectionIndex == highlightSection && index == highlightIndex && highlight > 0f) {
                         highlightPaint.color = appearance.secondaryContainer
                         highlightPaint.alpha = (255 * highlight.coerceAtMost(1f)).toInt()

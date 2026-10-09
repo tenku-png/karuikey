@@ -24,7 +24,7 @@ import com.android.inputmethod.latin.common.Constants
 import com.android.inputmethod.latin.common.StringUtils
 
 /**
- * Gboard-style emoji browser: a search pill on top, one scrolling grid of every category, the
+ * Gboard-style emoji browser: a search pill on top, one horizontally scrolling grid of every category, the
  * category tabs and an ABC / space / Backspace row at the bottom. Searching shrinks the panel to
  * the pill and a results strip above the full-size keyboard.
  */
@@ -43,6 +43,8 @@ internal class EmojiPanel(
     // Only text labels use Roboto Flex; emoji glyphs stay on the system emoji font.
     private val labelTypeface = KaruikeyTypeface.create(serviceContext, 400)
     private val mediumTypeface = KaruikeyTypeface.create(serviceContext, 500)
+    // Key surfaces follow the key transparency setting, like the letter keys.
+    private val keyAlpha = KaruikeyPreferences.keyBackgroundAlpha(serviceContext)
 
     private val searchBar = LinearLayout(serviceContext)
     private val searchLeading = ImageButton(serviceContext)
@@ -210,6 +212,7 @@ internal class EmojiPanel(
             background = ripple(GradientDrawable().apply {
                 cornerRadius = dp(18).toFloat()
                 setColor(appearance.surfaceContainerHigh)
+                alpha = keyAlpha
             })
             setOnClickListener { startSearch() }
         }
@@ -258,6 +261,7 @@ internal class EmojiPanel(
         tabIndicator.background = GradientDrawable().apply {
             cornerRadius = dp(16).toFloat()
             setColor(appearance.secondaryContainer)
+            alpha = keyAlpha
         }
         tabsBar.addView(tabIndicator, FrameLayout.LayoutParams(0, dp(32), Gravity.CENTER_VERTICAL))
         tabsRow.orientation = HORIZONTAL
@@ -305,7 +309,7 @@ internal class EmojiPanel(
         if (tabIndicator.layoutParams.width != indicatorWidth) {
             tabIndicator.layoutParams = tabIndicator.layoutParams.apply { width = indicatorWidth }
         }
-        val target = (tabsRow.paddingLeft + tab.left + (tab.width - indicatorWidth) / 2).toFloat()
+        val target = (tab.left + (tab.width - indicatorWidth) / 2).toFloat()
         tabIndicator.animate().cancel()
         if (animate) {
             tabIndicator.animate().translationX(target).setDuration(260)
@@ -373,6 +377,7 @@ internal class EmojiPanel(
     private fun keyBackground(color: Int) = ripple(GradientDrawable().apply {
         cornerRadius = dp(10).toFloat()
         setColor(color)
+        alpha = keyAlpha
     })
 
     private fun ripple(content: GradientDrawable) =
